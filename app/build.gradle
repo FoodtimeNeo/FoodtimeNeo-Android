@@ -1,0 +1,17 @@
+plugins { id 'com.android.application' }
+android {
+    namespace 'cn.edu.bjtu.foodtime'
+    compileSdk 36
+    defaultConfig {
+        applicationId 'cn.edu.bjtu.foodtime'
+        minSdk 26
+        targetSdk 36
+        versionCode 1
+        versionName '0.1.0'
+        testInstrumentationRunner 'cn.edu.bjtu.foodtime.AcceptanceRunner'
+    }
+    buildTypes { release { minifyEnabled false } }
+    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+    testOptions { unitTests.returnDefaultValues = true }
+}
+dependencies { testImplementation 'junit:junit:4.13.2' }
