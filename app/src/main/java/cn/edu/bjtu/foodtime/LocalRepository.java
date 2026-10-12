@@ -8,7 +8,7 @@ import java.math.BigDecimal;
 import cn.edu.bjtu.foodtime.Models.*;
 
 /** Offline simulator. Only approved content reaches public catalog reads. */
-public class LocalRepository implements CatalogRepository {
+public class LocalRepository implements CatalogRepository, AuthRepository {
     protected final SharedPreferences prefs;
     protected JSONObject db;
     public LocalRepository(Context context) {
@@ -16,6 +16,11 @@ public class LocalRepository implements CatalogRepository {
         try { db=new JSONObject(prefs.getString("data", "{}")); }
         catch(JSONException e) { throw new IllegalStateException("本地数据无法读取",e); }
         if(!db.has("halls")) seed();
+        if(rows("users").length()==0) {
+            seedUser("20260001@bjtu.edu.cn","干饭同学","user");
+            seedUser("20260002@bjtu.edu.cn","食堂管理员","admin");
+            seedUser("20260003@bjtu.edu.cn","平台管理员","superadmin"); save();
+        }
     }
     protected JSONArray rows(String key) { return db.optJSONArray(key); }
     protected static JSONObject obj(Object... pairs) {
@@ -77,4 +82,46 @@ public class LocalRepository implements CatalogRepository {
         List<Photo> list=new ArrayList<>(); JSONArray a=rows("photos");
         for(int i=0;i<a.length();i++) { JSONObject o=a.optJSONObject(i); if(o.optString("dishId").equals(dishId)) list.add(new Photo(o.optString("id"),dishId,o.optString("imageUrl"),o.optString("userId"))); } return list;
     }
+    private void seedUser(String email,String name,String role) { rows("users").put(obj("id",id(),"email",email,"displayName",name,"role",role,"active",true,"passwordHash",Passwords.hash("Foodtime2026!"))); }
+    public User user(String id) { JSONObject o=find("users",id); return o==null?null:new User(id,o.optString("email"),o.optString("displayName"),o.optString("role"),active(o)); }
+    public User currentUser() { User u=user(db.optString("sessionUser")); return u!=null&&u.active()&&db.optLong("sessionExpires")>System.currentTimeMillis()?u:null; }
+    protected User requireUser() { User u=currentUser(); if(u==null) throw new IllegalStateException("登录已失效，请重新登录"); return u; }
+    public User login(String account,String password) {
+        String email=Validation.email(account); Validation.password(password,false);
+        JSONObject match=null; JSONArray users=rows("users");
+        for(int i=0;i<users.length();i++) if(users.optJSONObject(i).optString("email").equals(email)) match=users.optJSONObject(i);
+        if(match==null||!active(match)||!Passwords.matches(password,match.optString("passwordHash"))) throw new IllegalArgumentException("邮箱或密码错误");
+        put("sessionUser",match.optString("id")); put("sessionExpires",System.currentTimeMillis()+7L*86400000);save();return currentUser();
+    }
+    public void logout() { put("sessionUser","");put("sessionExpires",0);save(); }
+    public String sendVerificationCode(String raw) {
+        String email=Validation.email(raw); long now=System.currentTimeMillis();
+        if(now-db.optLong("codeSent")<60000) throw new IllegalArgumentException("请等待60秒后再获取验证码");
+        String code=String.format(Locale.ROOT,"%06d",new java.security.SecureRandom().nextInt(1000000));
+        put("codeEmail",email);put("codeValue",code);put("codeExpires",now+900000);put("codeSent",now);put("codeAttempts",0);save();return code;
+    }
+    public void register(String raw,String password,String code) {
+        String email=Validation.email(raw);Validation.password(password,true);
+        JSONArray users=rows("users");for(int i=0;i<users.length();i++) if(users.optJSONObject(i).optString("email").equals(email)) throw new IllegalArgumentException("该邮箱已注册");
+        if(!email.equals(db.optString("codeEmail"))||db.optLong("codeExpires")<System.currentTimeMillis()||db.optInt("codeAttempts")>=5) throw new IllegalArgumentException("验证码失效，请重新获取");
+        if(!code.matches("[0-9]{6}")||!code.equals(db.optString("codeValue"))) {put("codeAttempts",db.optInt("codeAttempts")+1);save();throw new IllegalArgumentException("验证码错误");}
+        rows("users").put(obj("id",id(),"email",email,"displayName","干饭人"+code,"role","user","active",true,"passwordHash",Passwords.hash(password)));
+        put("codeValue","");put("codeExpires",0);save();
+    }
+    public void changePassword(String oldPassword,String newPassword) {
+        User u=requireUser(); Validation.password(oldPassword,false);Validation.password(newPassword,true); if(oldPassword.equals(newPassword)) throw new IllegalArgumentException("新密码不能与旧密码相同");
+        JSONObject o=find("users",u.id()); if(!Passwords.matches(oldPassword,o.optString("passwordHash"))) throw new IllegalArgumentException("旧密码错误");
+        try{o.put("passwordHash",Passwords.hash(newPassword));}catch(JSONException e){throw new IllegalStateException(e);} logout();save();
+    }
+    public Review submitReview(String dishId,int rating,String content) {
+        User u=requireUser(); if(rating<1||rating>5)throw new IllegalArgumentException("请选择1–5星评分");String body=Validation.text(content,500,"评价");
+        JSONArray a=rows("submissions");for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o.optString("type").equals("review")&&o.optString("targetId").equals(dishId)&&o.optString("userId").equals(u.id())&&o.optString("status").equals("pending"))throw new IllegalArgumentException("已有一条待审核评价");}
+        String id=id();a.put(obj("id",id,"type","review","targetId",dishId,"userId",u.id(),"name",dish(dishId).name(),"content",body,"rating",rating,"status","pending","createdAt",System.currentTimeMillis()));save();return new Review(id,dishId,u.id(),rating,body,System.currentTimeMillis());
+    }
+    public void deleteReview(String id) { User u=requireUser();JSONArray a=rows("reviews");for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o.optString("id").equals(id)&&o.optString("userId").equals(u.id())){a.remove(i);save();return;}}throw new IllegalArgumentException("只能删除自己的评价"); }
+    public List<Submission> submissions(String userId) { List<Submission> list=new ArrayList<>();JSONArray a=rows("submissions");for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(userId==null||o.optString("userId").equals(userId)) list.add(submission(o));}list.sort(Comparator.comparingLong(Submission::createdAt).reversed());return list; }
+    private Submission submission(JSONObject o){return new Submission(o.optString("id"),o.optString("type"),o.optString("targetId"),o.optString("userId"),o.optString("name"),o.optString("content"),new BigDecimal(o.optString("price","0")),o.optString("imageUrl"),o.optInt("rating"),o.optString("status"),o.optString("reason"),o.optLong("createdAt"));}
+    public void submitDish(String stallId,String name,String description,BigDecimal price,String imageUrl) {User u=requireUser();Validation.text(name,120,"菜品名称");if(price==null)throw new IllegalArgumentException("请填写价格");if(imageUrl==null||imageUrl.isBlank())throw new IllegalArgumentException("请添加菜品图片");rows("submissions").put(obj("id",id(),"type","dish","targetId",stallId,"userId",u.id(),"name",name.trim(),"content",description==null?"":description.trim(),"price",price,"imageUrl",imageUrl,"status","pending","createdAt",System.currentTimeMillis()));save();}
+    public List<Review> allReviews(){return reviews(null);}
+    public void moderate(String submissionId,String action,String reason){User u=requireUser();if(!u.isAdmin())throw new IllegalStateException("需要管理员权限");JSONArray a=rows("submissions");for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o.optString("id").equals(submissionId)){try{o.put("status",action.equals("approve")?"approved":"rejected");o.put("reason",reason==null?"":reason);}catch(JSONException e){throw new IllegalStateException(e);}rows("audits").put(obj("id",id(),"submissionId",submissionId,"moderatorId",u.id(),"action",action,"reason",reason==null?"":reason,"createdAt",System.currentTimeMillis()));save();return;}}throw new IllegalArgumentException("审核记录不存在");}
 }
