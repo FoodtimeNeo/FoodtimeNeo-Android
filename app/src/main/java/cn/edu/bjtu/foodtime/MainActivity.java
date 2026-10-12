@@ -15,14 +15,17 @@ public class MainActivity extends Activity {
     String tab="dining";
     LinearLayout root,content,header;
     ScrollView scroll;
+    final Bundle drafts=new Bundle();
+    String pickingKey;
     @Override public void onCreate(Bundle state) {
         super.onCreate(state);Design.init(this);repo=new LocalRepository(this);registerScreens();
         for(String key:List.of("dining","profile","admin"))stacks.put(key,new ArrayList<>(List.of(new Route(key,""))));
         if(state!=null){tab=state.getString("tab","dining");for(String key:stacks.keySet()){ArrayList<String> saved=state.getStringArrayList(key);if(saved!=null&&!saved.isEmpty()){ArrayList<Route> routes=new ArrayList<>();for(String value:saved){String[] p=value.split("\\|",2);routes.add(new Route(p[0],p.length>1?p[1]:""));}stacks.put(key,routes);}}}
         if(android.os.Build.VERSION.SDK_INT>=33)getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0,this::back);
+        if(state!=null){Bundle saved=state.getBundle("drafts");if(saved!=null)drafts.putAll(saved);pickingKey=state.getString("pickingKey");}
         if(repo.currentUser()==null)showAuth(false);else openApp();
     }
-    void registerScreens() {screens.put("dining",DiningScreen::halls);screens.put("stalls",DiningScreen::stalls);screens.put("dishes",DishScreen::dishes);screens.put("detail",DishScreen::detail);}
+    void registerScreens() {screens.put("dining",DiningScreen::halls);screens.put("stalls",DiningScreen::stalls);screens.put("dishes",DishScreen::dishes);screens.put("gallery",DishScreen::gallery);screens.put("upload-photo",UploadScreen::photo);screens.put("detail",DishScreen::detail);}
     public void showAuth(boolean register) {shell(false);header.addView(Ui.stamp(this,"FOODTIME / 校园食堂手账",Design.RED));AuthScreen.show(this,content,register);}
     public void openApp() {if(repo.currentUser()==null){showAuth(false);return;}if(tab.equals("admin")&&!repo.currentUser().isAdmin())tab="dining";render();}
     public void go(String kind,String id){stacks.get(tab).add(new Route(kind,id));render();}
@@ -31,7 +34,7 @@ public class MainActivity extends Activity {
     public void selectTab(String next){if(tab.equals(next))return;tab=next;render();}
     public void back(){if(repo.currentUser()==null){finish();return;}ArrayList<Route> s=stacks.get(tab);if(s.size()>1){s.remove(s.size()-1);render();}else if(!tab.equals("dining")){tab="dining";render();}else finish();}
     @Override public void onBackPressed(){back();}
-    @Override protected void onSaveInstanceState(Bundle state){super.onSaveInstanceState(state);state.putString("tab",tab);for(String key:stacks.keySet()){ArrayList<String> saved=new ArrayList<>();for(Route route:stacks.get(key))saved.add(route.kind()+"|"+route.id());state.putStringArrayList(key,saved);}}
+    @Override protected void onSaveInstanceState(Bundle state){super.onSaveInstanceState(state);state.putBundle("drafts",drafts);state.putString("pickingKey",pickingKey);state.putString("tab",tab);for(String key:stacks.keySet()){ArrayList<String> saved=new ArrayList<>();for(Route route:stacks.get(key))saved.add(route.kind()+"|"+route.id());state.putStringArrayList(key,saved);}}
     public void render(){
         if(repo.currentUser()==null){showAuth(false);return;}shell(true);
         LinearLayout bar=Ui.row(this);header.addView(bar,new LinearLayout.LayoutParams(-1,-2));
@@ -54,6 +57,9 @@ public class MainActivity extends Activity {
     private void addTab(LinearLayout nav,String index,String label,String key){TextView b=Ui.button(this,index+"\n"+label,false,()->selectTab(key));b.setTextColor(tab.equals(key)?Design.RED:Design.MUTED);b.setBackground(Ui.ripple(this,tab.equals(key)?Design.ALT:Design.PAPER,0,0));b.setContentDescription(label+(tab.equals(key)?"，已选中":""));nav.addView(b,new LinearLayout.LayoutParams(0,Ui.dp(this,72),1));}
     public void heading(LinearLayout page,String index,String title,String note){page.addView(Ui.stamp(this,index+" / FOODTIME",Design.RED));Ui.gap(page,16);page.addView(Ui.title(this,title,36));Ui.gap(page,8);if(!note.isBlank())page.addView(Ui.note(this,note));Ui.gap(page,24);}
     public void message(String text){Toast.makeText(this,text,Toast.LENGTH_LONG).show();}
+    public String draftKey(String label){return route().kind()+":"+route().id()+":"+label;}
+    public void pickImage(String key){pickingKey=key;android.content.Intent intent=new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);intent.setType("image/*");intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);startActivityForResult(intent,101);}
+    @Override protected void onActivityResult(int request,int result,android.content.Intent data){super.onActivityResult(request,result,data);if(request==101&&result==RESULT_OK&&data!=null&&data.getData()!=null&&pickingKey!=null){safely(()->{try(java.io.InputStream input=getContentResolver().openInputStream(data.getData())){java.io.File file=new java.io.File(getFilesDir(),"photo-"+java.util.UUID.randomUUID()+".jpg");try(java.io.FileOutputStream output=new java.io.FileOutputStream(file)){byte[] buffer=new byte[8192];int count;long total=0;while((count=input.read(buffer))!=-1){total+=count;if(total>20*1024*1024){output.close();file.delete();throw new IllegalArgumentException("图片不能超过20MB");}output.write(buffer,0,count);}}android.graphics.BitmapFactory.Options options=new android.graphics.BitmapFactory.Options();options.inJustDecodeBounds=true;android.graphics.BitmapFactory.decodeFile(file.getAbsolutePath(),options);if(options.outWidth<=0){file.delete();throw new IllegalArgumentException("请选择可读取的图片");}drafts.putString(pickingKey,android.net.Uri.fromFile(file).toString());render();}catch(java.io.IOException e){throw new IllegalStateException("图片读取失败，请重新选择",e);}});}}
     public void safely(Runnable action){try{action.run();}catch(RuntimeException e){message(e.getMessage()==null?"操作失败，请重试":e.getMessage());}}
     public void logout(){repo.logout();for(String key:stacks.keySet()){stacks.get(key).clear();stacks.get(key).add(new Route(key,""));}tab="dining";showAuth(false);}
 }

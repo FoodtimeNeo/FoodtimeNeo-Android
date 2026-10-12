@@ -108,4 +108,5 @@ public class LocalRepository implements CatalogRepository, AuthRepository {
         rows("users").put(obj("id",id(),"email",email,"displayName","干饭人"+code,"role","user","active",true,"passwordHash",Passwords.hash(password)));
         put("codeValue","");put("codeExpires",0);save();
     }
+    public void submitPhoto(String dishId,String imageUrl){User u=requireUser();Dish d=dish(dishId);if(d==null||!d.active())throw new IllegalArgumentException("菜品不存在或已下架");if(imageUrl==null||imageUrl.isBlank())throw new IllegalArgumentException("请先选择菜品图片");rows("submissions").put(obj("id",id(),"type","photo","targetId",dishId,"userId",u.id(),"name",d.name(),"content","","imageUrl",imageUrl,"status","pending","createdAt",System.currentTimeMillis()));save();}
 }
