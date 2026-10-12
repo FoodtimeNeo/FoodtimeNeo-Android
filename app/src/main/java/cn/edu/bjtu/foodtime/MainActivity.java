@@ -22,7 +22,7 @@ public class MainActivity extends Activity {
         if(android.os.Build.VERSION.SDK_INT>=33)getOnBackInvokedDispatcher().registerOnBackInvokedCallback(0,this::back);
         if(repo.currentUser()==null)showAuth(false);else openApp();
     }
-    void registerScreens() {screens.put("dining",DiningScreen::halls);screens.put("stalls",DiningScreen::stalls);screens.put("dishes",DishScreen::dishes);}
+    void registerScreens() {screens.put("dining",DiningScreen::halls);screens.put("stalls",DiningScreen::stalls);screens.put("dishes",DishScreen::dishes);screens.put("detail",DishScreen::detail);}
     public void showAuth(boolean register) {shell(false);header.addView(Ui.stamp(this,"FOODTIME / 校园食堂手账",Design.RED));AuthScreen.show(this,content,register);}
     public void openApp() {if(repo.currentUser()==null){showAuth(false);return;}if(tab.equals("admin")&&!repo.currentUser().isAdmin())tab="dining";render();}
     public void go(String kind,String id){stacks.get(tab).add(new Route(kind,id));render();}
