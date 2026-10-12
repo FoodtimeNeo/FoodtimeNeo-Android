@@ -109,4 +109,10 @@ public class LocalRepository implements CatalogRepository, AuthRepository {
         put("codeValue","");put("codeExpires",0);save();
     }
     public void submitPhoto(String dishId,String imageUrl){User u=requireUser();Dish d=dish(dishId);if(d==null||!d.active())throw new IllegalArgumentException("菜品不存在或已下架");if(imageUrl==null||imageUrl.isBlank())throw new IllegalArgumentException("请先选择菜品图片");rows("submissions").put(obj("id",id(),"type","photo","targetId",dishId,"userId",u.id(),"name",d.name(),"content","","imageUrl",imageUrl,"status","pending","createdAt",System.currentTimeMillis()));save();}
+    public void submitReview(String dishId,int rating,String content) {
+        User u=requireUser(); Dish d=dish(dishId);if(d==null||!d.active())throw new IllegalArgumentException("菜品不存在或已下架");
+        if(rating<1||rating>5)throw new IllegalArgumentException("请选择1–5星评分");String body=Validation.text(content,500,"评价");
+        for(int i=0;i<rows("submissions").length();i++){JSONObject o=rows("submissions").optJSONObject(i);if(o.optString("type").equals("review")&&o.optString("targetId").equals(dishId)&&o.optString("userId").equals(u.id())&&o.optString("status").equals("pending"))throw new IllegalArgumentException("这道菜已有一条待审核评价，请等待审核后再提交");}
+        rows("submissions").put(obj("id",id(),"type","review","targetId",dishId,"userId",u.id(),"name",d.name(),"content",body,"rating",rating,"status","pending","createdAt",System.currentTimeMillis()));save();
+    }
 }
