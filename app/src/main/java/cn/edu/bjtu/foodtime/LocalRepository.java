@@ -108,20 +108,4 @@ public class LocalRepository implements CatalogRepository, AuthRepository {
         rows("users").put(obj("id",id(),"email",email,"displayName","干饭人"+code,"role","user","active",true,"passwordHash",Passwords.hash(password)));
         put("codeValue","");put("codeExpires",0);save();
     }
-    public void changePassword(String oldPassword,String newPassword) {
-        User u=requireUser(); Validation.password(oldPassword,false);Validation.password(newPassword,true); if(oldPassword.equals(newPassword)) throw new IllegalArgumentException("新密码不能与旧密码相同");
-        JSONObject o=find("users",u.id()); if(!Passwords.matches(oldPassword,o.optString("passwordHash"))) throw new IllegalArgumentException("旧密码错误");
-        try{o.put("passwordHash",Passwords.hash(newPassword));}catch(JSONException e){throw new IllegalStateException(e);} logout();save();
-    }
-    public Review submitReview(String dishId,int rating,String content) {
-        User u=requireUser(); if(rating<1||rating>5)throw new IllegalArgumentException("请选择1–5星评分");String body=Validation.text(content,500,"评价");
-        JSONArray a=rows("submissions");for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o.optString("type").equals("review")&&o.optString("targetId").equals(dishId)&&o.optString("userId").equals(u.id())&&o.optString("status").equals("pending"))throw new IllegalArgumentException("已有一条待审核评价");}
-        String id=id();a.put(obj("id",id,"type","review","targetId",dishId,"userId",u.id(),"name",dish(dishId).name(),"content",body,"rating",rating,"status","pending","createdAt",System.currentTimeMillis()));save();return new Review(id,dishId,u.id(),rating,body,System.currentTimeMillis());
-    }
-    public void deleteReview(String id) { User u=requireUser();JSONArray a=rows("reviews");for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o.optString("id").equals(id)&&o.optString("userId").equals(u.id())){a.remove(i);save();return;}}throw new IllegalArgumentException("只能删除自己的评价"); }
-    public List<Submission> submissions(String userId) { List<Submission> list=new ArrayList<>();JSONArray a=rows("submissions");for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(userId==null||o.optString("userId").equals(userId)) list.add(submission(o));}list.sort(Comparator.comparingLong(Submission::createdAt).reversed());return list; }
-    private Submission submission(JSONObject o){return new Submission(o.optString("id"),o.optString("type"),o.optString("targetId"),o.optString("userId"),o.optString("name"),o.optString("content"),new BigDecimal(o.optString("price","0")),o.optString("imageUrl"),o.optInt("rating"),o.optString("status"),o.optString("reason"),o.optLong("createdAt"));}
-    public void submitDish(String stallId,String name,String description,BigDecimal price,String imageUrl) {User u=requireUser();Validation.text(name,120,"菜品名称");if(price==null)throw new IllegalArgumentException("请填写价格");if(imageUrl==null||imageUrl.isBlank())throw new IllegalArgumentException("请添加菜品图片");rows("submissions").put(obj("id",id(),"type","dish","targetId",stallId,"userId",u.id(),"name",name.trim(),"content",description==null?"":description.trim(),"price",price,"imageUrl",imageUrl,"status","pending","createdAt",System.currentTimeMillis()));save();}
-    public List<Review> allReviews(){return reviews(null);}
-    public void moderate(String submissionId,String action,String reason){User u=requireUser();if(!u.isAdmin())throw new IllegalStateException("需要管理员权限");JSONArray a=rows("submissions");for(int i=0;i<a.length();i++){JSONObject o=a.optJSONObject(i);if(o.optString("id").equals(submissionId)){try{o.put("status",action.equals("approve")?"approved":"rejected");o.put("reason",reason==null?"":reason);}catch(JSONException e){throw new IllegalStateException(e);}rows("audits").put(obj("id",id(),"submissionId",submissionId,"moderatorId",u.id(),"action",action,"reason",reason==null?"":reason,"createdAt",System.currentTimeMillis()));save();return;}}throw new IllegalArgumentException("审核记录不存在");}
 }
