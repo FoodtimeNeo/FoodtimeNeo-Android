@@ -41,7 +41,9 @@ public final class Ui {
         EditText input=new EditText(c); input.setTextSize(16); input.setTextColor(Design.INK); input.setHintTextColor(Design.MUTED); input.setTypeface(Design.body());
         input.setPadding(dp(c,12),dp(c,12),dp(c,12),dp(c,12)); input.setBackground(shape(c,Design.PAPER,Design.INK,0)); input.setMinHeight(dp(c,48));
         input.setInputType(password?129:multiline?131073:1); input.setSingleLine(!multiline); if(multiline){input.setMinLines(3);input.setGravity(Gravity.TOP);}
-        input.setContentDescription(label); caption.setLabelFor(View.generateViewId()); input.setId(caption.getLabelFor()); l.addView(input,new LinearLayout.LayoutParams(-1,-2)); gap(l,16); return input;
+        input.setContentDescription(label); caption.setLabelFor(View.generateViewId()); input.setId(caption.getLabelFor()); l.addView(input,new LinearLayout.LayoutParams(-1,-2)); gap(l,16);
+        if(!password&&c instanceof MainActivity a&&a.repo.currentUser()!=null){String key=a.draftKey(label);input.setText(a.drafts.getString(key,""));observe(input,()->a.drafts.putString(key,input.getText().toString()));}
+        return input;
     }
     public static void observe(EditText field,Runnable action) { field.addTextChangedListener(new TextWatcher() { public void beforeTextChanged(CharSequence s,int st,int count,int after){} public void onTextChanged(CharSequence s,int st,int before,int count){action.run();} public void afterTextChanged(Editable e){} }); }
     public static void empty(LinearLayout l,String title,String message) { LinearLayout c=card(l); c.addView(stamp(l.getContext(),"暂时空白",Design.BLUE)); gap(c,16); c.addView(title(l.getContext(),title,24)); gap(c,8); c.addView(text(l.getContext(),message,14,Design.MUTED)); }
