@@ -1,21 +1,41 @@
 package cn.edu.bjtu.foodtime;
+
 import java.security.*;
 import java.util.*;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
-/** Salted password storage for the local simulator only; production hashing belongs to the backend. */
+
+/**
+ * Salted password storage for the local simulator only; production hashing belongs to the backend.
+ */
 final class Passwords {
-    static String hash(String password) {
-        byte[] salt=new byte[16];new SecureRandom().nextBytes(salt);
-        return Base64.getEncoder().encodeToString(salt)+":"+Base64.getEncoder().encodeToString(derive(password,salt));
+  static String hash(String password) {
+    byte[] salt = new byte[16];
+    new SecureRandom().nextBytes(salt);
+    return Base64.getEncoder().encodeToString(salt)
+        + ":"
+        + Base64.getEncoder().encodeToString(derive(password, salt));
+  }
+
+  static boolean matches(String password, String hash) {
+    try {
+      String[] parts = hash.split(":");
+      return MessageDigest.isEqual(
+          Base64.getDecoder().decode(parts[1]),
+          derive(password, Base64.getDecoder().decode(parts[0])));
+    } catch (RuntimeException e) {
+      return false;
     }
-    static boolean matches(String password,String hash) {
-        try { String[] parts=hash.split(":"); return MessageDigest.isEqual(Base64.getDecoder().decode(parts[1]),derive(password,Base64.getDecoder().decode(parts[0]))); }
-        catch(RuntimeException e) { return false; }
+  }
+
+  private static byte[] derive(String password, byte[] salt) {
+    PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 120000, 256);
+    try {
+      return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded();
+    } catch (Exception e) {
+      throw new IllegalStateException(e);
+    } finally {
+      spec.clearPassword();
     }
-    private static byte[] derive(String password,byte[] salt) {
-        PBEKeySpec spec=new PBEKeySpec(password.toCharArray(),salt,120000,256);
-        try { return SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256").generateSecret(spec).getEncoded(); }
-        catch(Exception e) { throw new IllegalStateException(e); } finally {spec.clearPassword();}
-    }
+  }
 }
