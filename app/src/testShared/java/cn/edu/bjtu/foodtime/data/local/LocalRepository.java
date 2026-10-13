@@ -9,7 +9,7 @@ import java.math.BigDecimal;
 import java.util.*;
 import org.json.*;
 
-/** Offline simulator. Only approved content reaches public catalog reads. */
+/** Historical offline simulator for tests only. Not packaged in the application. */
 public class LocalRepository implements FoodtimeRepository {
   protected final SharedPreferences prefs;
   protected JSONObject db;

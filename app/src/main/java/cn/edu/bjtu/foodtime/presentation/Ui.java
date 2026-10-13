@@ -9,9 +9,17 @@ import android.text.*;
 import android.view.*;
 import android.widget.*;
 import java.io.*;
+import java.util.concurrent.*;
+import java.util.function.Supplier;
 
 /** Small native View toolkit; no WebView, no blurred elevation or default Material colours. */
 public final class Ui {
+  private static final ExecutorService IMAGES=Executors.newFixedThreadPool(2);
+  private static final android.util.LruCache<String,Bitmap> IMAGE_CACHE=new android.util.LruCache<>(12*1024*1024) {
+    @Override protected int sizeOf(String key,Bitmap value) {return value.getByteCount();}
+  };
+  private static int imageGeneration;
+  public static void clearImages() {imageGeneration++;IMAGE_CACHE.evictAll();}
   public static int dp(Context c, float n) {
     return Math.round(n * c.getResources().getDisplayMetrics().density);
   }
@@ -99,6 +107,15 @@ public final class Ui {
     l.addView(button(l.getContext(), text, primary, run), new LinearLayout.LayoutParams(-1, -2));
   }
 
+  public static void submit(LinearLayout parent,String label,TextView error,Supplier<Runnable> prepare,Runnable success) {
+    MainActivity a=(MainActivity)parent.getContext();TextView button=button(a,label,true,() -> {});
+    button.setOnClickListener(v -> {
+      try {a.request(v,error,prepare.get(),success);}
+      catch(RuntimeException e) {error.setText(e.getMessage());}
+    });
+    parent.addView(button,new LinearLayout.LayoutParams(-1,-2));
+  }
+
   public static void link(LinearLayout l, String text, Runnable run) {
     TextView t = button(l.getContext(), text, false, run);
     t.setTextColor(Design.RED);
@@ -163,13 +180,11 @@ public final class Ui {
 
   public static void empty(LinearLayout l, String title, String message) {
     LinearLayout c = card(l);
-    c.addView(stamp(l.getContext(), "暂时空白", Design.BLUE));
-    gap(c, 16);
     c.addView(title(l.getContext(), title, 24));
-    gap(c, 8);
-    c.addView(text(l.getContext(), message, 14, Design.MUTED));
+    if(!message.isBlank()) {gap(c,8);c.addView(text(l.getContext(),message,14,Design.MUTED));}
   }
 
+  @android.annotation.SuppressLint("DrawAllocation") // Bitmap decoding below runs in IMAGES, never in onMeasure/draw.
   public static View image(Context c, String path, String label, boolean wide) {
     FrameLayout frame =
         new FrameLayout(c) {
@@ -179,36 +194,43 @@ public final class Ui {
             super.onMeasure(
                 w,
                 MeasureSpec.makeMeasureSpec(
-                    wide ? width * 9 / 16 : dp(c, 180), MeasureSpec.EXACTLY));
+                    wide ? width * 9 / 16 : width, MeasureSpec.EXACTLY));
           }
         };
     frame.setBackgroundColor(Design.ALT);
     ImageView image = new ImageView(c);
     image.setScaleType(ImageView.ScaleType.CENTER_CROP);
     image.setContentDescription(label);
-    boolean ok = false;
-    try {
-      if (path != null && !path.isEmpty()) {
-        InputStream in =
-            path.startsWith("asset:")
-                ? c.getAssets().open("images/" + path.substring(6))
-                : c.getContentResolver().openInputStream(Uri.parse(path));
-        try (in) {
-          Bitmap bitmap = BitmapFactory.decodeStream(in);
-          if (bitmap != null) {
-            image.setImageBitmap(bitmap);
-            ok = true;
+    TextView placeholder=text(c,label,14,Design.MUTED);placeholder.setGravity(Gravity.CENTER);
+    placeholder.setPadding(dp(c,16),0,dp(c,16),0);
+    frame.addView(image,new FrameLayout.LayoutParams(-1,-1));frame.addView(placeholder,new FrameLayout.LayoutParams(-1,-1));
+    if(path!=null&&!path.isBlank() && c instanceof MainActivity a) {
+      var user=a.repo.currentUser();String identity=user==null?"anonymous":user.id()+":"+user.role();
+      String key=identity+":"+path;int ticket=imageGeneration;
+      Bitmap cached=IMAGE_CACHE.get(key);
+      if(cached!=null) {image.setImageBitmap(cached);placeholder.setVisibility(View.GONE);}
+      else IMAGES.execute(() -> {
+        Bitmap bitmap=null;
+        try {
+          byte[] bytes;
+          if(path.startsWith("/api/")||path.startsWith("http:" )||path.startsWith("https:")) bytes=a.repo.loadImage(path);
+          else try(InputStream in=path.startsWith("asset:")?c.getAssets().open("images/"+path.substring(6)):c.getContentResolver().openInputStream(Uri.parse(path));var out=new ByteArrayOutputStream()) {
+            byte[] buffer=new byte[8192];int count;
+            while(in!=null&&(count=in.read(buffer))!=-1) {if(out.size()+count>20*1024*1024) throw new IOException();out.write(buffer,0,count);}
+            bytes=out.toByteArray();
           }
-        }
-      }
-    } catch (Exception ignored) {
-    }
-    if (ok) frame.addView(image, new FrameLayout.LayoutParams(-1, -1));
-    else {
-      TextView t = text(c, label, 14, Design.MUTED);
-      t.setGravity(Gravity.CENTER);
-      t.setPadding(dp(c, 16), 0, dp(c, 16), 0);
-      frame.addView(t, new FrameLayout.LayoutParams(-1, -1));
+          BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;
+          BitmapFactory.decodeByteArray(bytes,0,bytes.length,options);options.inSampleSize=1;
+          while(Math.max(options.outWidth,options.outHeight)/options.inSampleSize>1600) options.inSampleSize*=2;
+          options.inJustDecodeBounds=false;bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.length,options);
+        } catch(Exception ignored) { }
+        Bitmap loaded=bitmap;
+        a.runOnUiThread(() -> {
+          if(a.isDestroyed()||ticket!=imageGeneration||loaded==null) return;
+          IMAGE_CACHE.put(key,loaded);if(!frame.isAttachedToWindow()) return;
+          image.setImageBitmap(loaded);placeholder.setVisibility(View.GONE);
+        });
+      });
     }
     return frame;
   }

@@ -175,7 +175,8 @@ public final class RemoteRepository implements FoodtimeRepository {
     catalog.put(type+":"+parent,page("admin/catalog/"+table(type)+suffix,j -> cacheEntity(type,j)));
   }
   private AdminEntity cacheEntity(String type,JSONObject j) {
-    AdminEntity e=new AdminEntity(text(j,"id"),text(j,"name"),text(j,"description"),text(j,"price"),text(j,"coverImageUrl"),text(j,"status").equals("active"));
+    BigDecimal amount=decimal(j,"price");String price=amount==null?"":amount.setScale(2).toPlainString();
+    AdminEntity e=new AdminEntity(text(j,"id"),text(j,"name"),text(j,"description"),price,text(j,"coverImageUrl"),text(j,"status").equals("active"));
     String key=type+":"+e.id(); entities.put(key,e); parents.put(key,text(j,"parentId")); return e;
   }
 
@@ -248,10 +249,13 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   @Override public byte[] loadImage(String reference) {
     URI uri=origin.resolve(reference);
-    if(!origin.getScheme().equals(uri.getScheme())||!origin.getAuthority().equals(uri.getAuthority()))
-      throw new IllegalArgumentException("图片地址不属于当前服务");
+    boolean sameOrigin=origin.getScheme().equals(uri.getScheme())&&origin.getAuthority().equals(uri.getAuthority());
+    if(!sameOrigin&&!"https".equals(uri.getScheme())) throw new IllegalArgumentException("图片地址不合法");
     try {
-      var response=http.bytes(uri.toString());
+      // Legacy external HTTPS images receive no application cookies or authentication headers.
+      HttpTransport loader=sameOrigin?http:new HttpTransport(uri.getScheme()+"://"+uri.getAuthority()+"/",
+          new java.net.CookieManager(null,java.net.CookiePolicy.ACCEPT_NONE));
+      var response=loader.bytes(uri.toString());
       if(response.status()!=200) throw new RepositoryException(response.status(),"IMAGE_UNAVAILABLE","图片暂不可用",0);
       return response.body();
     } catch(IOException e) { throw unavailable(); }

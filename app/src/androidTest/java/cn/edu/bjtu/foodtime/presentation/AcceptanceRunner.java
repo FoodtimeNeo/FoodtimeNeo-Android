@@ -12,7 +12,8 @@ import cn.edu.bjtu.foodtime.domain.validation.Validation;
 import java.io.*;
 import java.util.*;
 
-/** On-device acceptance: real Android JSON, preferences, activity, navigation and rendering. */
+/** Historical offline acceptance harness; current integration uses RemoteUiRunner and real Backend. */
+@Deprecated
 public class AcceptanceRunner extends Instrumentation {
   int checks;
 

@@ -6,7 +6,7 @@ import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
 
 /**
- * Salted password storage for the local simulator only; production hashing belongs to the backend.
+ * Test simulator utility only; application authentication and password hashing belong to Backend.
  */
 final class Passwords {
   static String hash(String password) {

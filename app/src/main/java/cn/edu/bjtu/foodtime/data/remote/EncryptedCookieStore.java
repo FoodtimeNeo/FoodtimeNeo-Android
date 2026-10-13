@@ -13,6 +13,7 @@ import javax.crypto.*;
 import javax.crypto.spec.GCMParameterSpec;
 
 /** Persist opaque cookies with an Android Keystore key. No passwords, roles or user profiles. */
+@android.annotation.SuppressLint("ApplySharedPref") // Worker requests check durable writes before reporting login/logout success.
 public final class EncryptedCookieStore implements CookieStore {
   private final CookieStore memory=new CookieManager().getCookieStore();
   private final SharedPreferences preferences;
