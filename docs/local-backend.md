@@ -11,4 +11,4 @@ Backend 在电脑上监听8080；设备请求仍使用127.0.0.1，不改用模�
 
 `data/remote/HttpTransport` 负责实际HTTP、Cookie及CSRF请求头，限制请求在同一个配置来源，不自动跟随重定向，不自动重试写操作。业务JSON和安全错误由远程仓库解释。所有网络请求必须在后台线程运行；domain不依赖Android，presentation不直接引用data。
 
-当前此功能分支提供传输基础。后续功能分支会接入真实认证、浏览、投稿、个人记录和管理流程；本地模拟不能作为已联通的证据。
+默认应用已装配RemoteRepository，认证、浏览、投稿、个人记录与管理页面均走真实接口。Backend样例仅在其local-integration配置显式启用时生成；设备验收记录见verification.md，本地模拟结果不作为已联通的证据。

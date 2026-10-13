@@ -30,7 +30,7 @@ final class SubmissionScreen {
   }
 
   static void mine(MainActivity a, LinearLayout page, MainActivity.Route route) {
-    a.heading(page, "03", "我的提交", "每一次分享，都有回音");
+    a.heading(page, "03", "我的提交", "");
     List<Submission> all = a.repo.submissions(a.repo.currentUser().id());
     Spinner filter = new Spinner(a);
     String[] options = {"全部提交", "待审核", "已通过", "已驳回"};
@@ -56,7 +56,7 @@ final class SubmissionScreen {
                 count++;
                 card(a, list, s);
               }
-            if (count == 0) Ui.empty(list, "还没有这类提交", "分享一道好菜或一张实拍图片，记录会出现在这里。");
+            if (count == 0) Ui.empty(list, "暂无提交", "");
           }
         });
   }
@@ -79,23 +79,9 @@ final class SubmissionScreen {
     Ui.gap(card, 8);
     card.addView(Ui.text(a, "提交ID：" + s.id(), 12, Design.MUTED));
     card.addView(Ui.text(a, date(s.createdAt()), 12, Design.MUTED));
-    if (s.type().equals("review") || s.type().equals("photo"))
-      card.addView(Ui.text(a, a.repo.context(s.targetId()), 14, Design.MUTED));
-    if (s.type().equals("dish")) {
-      Stall st = a.repo.stall(s.targetId());
-      card.addView(
-          Ui.text(
-              a,
-              (st == null ? "档口已删除" : a.repo.hall(st.diningHallId()).name() + " — " + st.name())
-                  + " · ¥"
-                  + s.price().setScale(2),
-              14,
-              Design.MUTED));
-    }
-    if (s.type().equals("stall")) {
-      Hall h = a.repo.hall(s.targetId());
-      card.addView(Ui.text(a, h == null ? "食堂已删除" : h.name(), 14, Design.MUTED));
-    }
+    if(!s.context().isBlank()) card.addView(Ui.text(a,s.context(),14,Design.MUTED));
+    else if(s.type().equals("review")||s.type().equals("photo")) card.addView(Ui.text(a,a.repo.context(s.targetId()),14,Design.MUTED));
+    if(s.type().equals("dish")) card.addView(Ui.text(a,s.price()==null?"价格未填写":"¥"+s.price().setScale(2),14,Design.MUTED));
     if (s.rating() > 0)
       card.addView(Ui.text(a, "★".repeat(s.rating()) + " / " + s.rating() + "分", 16, Design.RED));
     if (!s.content().isBlank()) {

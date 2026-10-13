@@ -6,7 +6,10 @@ import android.view.*;
 import android.widget.*;
 import cn.edu.bjtu.foodtime.domain.repository.FoodtimeRepository;
 import cn.edu.bjtu.foodtime.domain.repository.RepositoryProvider;
+import cn.edu.bjtu.foodtime.domain.repository.ContentRequest;
+import cn.edu.bjtu.foodtime.domain.repository.RepositoryException;
 import java.util.*;
+import java.util.concurrent.Executor;
 
 public class MainActivity extends Activity {
   public FoodtimeRepository repo;
@@ -25,12 +28,18 @@ public class MainActivity extends Activity {
   final Bundle drafts = new Bundle();
   final Bundle scrollPositions = new Bundle();
   String pickingKey;
+  private Executor worker;
+  private int generation;
+  private boolean writeInFlight;
+  private String displayedLocation="";
+  private Toast currentToast;
 
   @Override
   public void onCreate(Bundle state) {
     super.onCreate(state);
     Design.init(this);
     repo = ((RepositoryProvider) getApplication()).repository();
+    worker = ((RepositoryProvider) getApplication()).workExecutor();
     registerScreens();
     for (String key : List.of("dining", "profile", "admin"))
       stacks.put(key, new ArrayList<>(List.of(new Route(key, ""))));
@@ -57,8 +66,21 @@ public class MainActivity extends Activity {
       Bundle positions = state.getBundle("scrollPositions");
       if (positions != null) scrollPositions.putAll(positions);
     }
-    if (repo.currentUser() == null) showAuth(false);
-    else openApp();
+    restore();
+  }
+
+  public void restore() {
+    int ticket=++generation;
+    shell(false);content.addView(Ui.text(this,"正在连接…",16,Design.MUTED));
+    worker.execute(() -> {
+      RuntimeException error=null;try {repo.restoreSession();}catch(RuntimeException e){error=e;}
+      RuntimeException failure=error;
+      runOnUiThread(() -> {
+        if(isDestroyed()||ticket!=generation) return;
+        if(failure!=null) {content.removeAllViews();Ui.empty(content,"连接失败",safeMessage(failure));Ui.action(content,"重试",true,this::restore);}
+        else if(repo.currentUser()==null) showAuth(false);else openApp();
+      });
+    });
   }
 
   void registerScreens() {
@@ -86,8 +108,8 @@ public class MainActivity extends Activity {
   }
 
   public void showAuth(boolean register) {
+    ++generation;
     shell(false);
-    header.addView(Ui.stamp(this, "FOODTIME / 校园食堂手账", Design.RED));
     AuthScreen.show(this, content, register);
   }
 
@@ -101,6 +123,7 @@ public class MainActivity extends Activity {
   }
 
   public void go(String kind, String id) {
+    if(writeInFlight) {message("正在提交，请稍候");return;}
     rememberScroll();
     stacks.get(tab).add(new Route(kind, id));
     render();
@@ -112,6 +135,7 @@ public class MainActivity extends Activity {
   }
 
   public void home() {
+    if(writeInFlight) {message("正在提交，请稍候");return;}
     rememberScroll();
     tab = "dining";
     scrollPositions.remove("dining:dining:");
@@ -121,6 +145,7 @@ public class MainActivity extends Activity {
   }
 
   public void selectTab(String next) {
+    if(writeInFlight) {message("正在提交，请稍候");return;}
     if (tab.equals(next)) return;
     rememberScroll();
     tab = next;
@@ -128,6 +153,7 @@ public class MainActivity extends Activity {
   }
 
   public void back() {
+    if(writeInFlight) {message("正在提交，请稍候");return;}
     if (repo.currentUser() == null) {
       finish();
       return;
@@ -171,7 +197,45 @@ public class MainActivity extends Activity {
       showAuth(false);
       return;
     }
+    if(displayedLocation.equals(location())) rememberScroll();
+    int ticket=++generation;
+    ContentRequest query=query(route());
+    shell(true);content.addView(Ui.text(this,"加载中…",16,Design.MUTED));
+    worker.execute(() -> {
+      RuntimeException error=null;try {repo.refresh(query);}catch(RuntimeException e){error=e;}
+      RuntimeException failure=error;
+      runOnUiThread(() -> {
+        if(isDestroyed()||ticket!=generation) return;
+        if(repo.currentUser()==null) {clearNavigation();showAuth(false);message("请重新登录");return;}
+        if(tab.equals("admin")&&!repo.currentUser().isAdmin()) {tab="dining";render();return;}
+        if(failure!=null) {content.removeAllViews();Ui.empty(content,"加载失败",safeMessage(failure));Ui.action(content,"重试",true,this::render);return;}
+        renderContent();
+      });
+    });
+  }
+
+  private ContentRequest query(Route route) {
+    ContentRequest.Query q=switch(route.kind()) {
+      case "dining" -> ContentRequest.Query.HALLS;
+      case "stalls","submit-stall" -> ContentRequest.Query.STALLS;
+      case "dishes","submit-dish" -> ContentRequest.Query.DISHES;
+      case "detail","gallery","upload-photo","review" -> ContentRequest.Query.DISH_DETAIL;
+      case "mine-reviews" -> ContentRequest.Query.MY_REVIEWS;
+      case "mine-submissions" -> ContentRequest.Query.MY_SUBMISSIONS;
+      case "admin","admin-audit" -> ContentRequest.Query.MODERATION;
+      case "admin-data","admin-new" -> ContentRequest.Query.CATALOG;
+      case "admin-edit" -> ContentRequest.Query.CATALOG_ITEM;
+      case "admin-reviews" -> ContentRequest.Query.ADMIN_REVIEWS;
+      case "admin-users" -> ContentRequest.Query.ADMIN_USERS;
+      case "admin-logs" -> ContentRequest.Query.AUDITS;
+      default -> ContentRequest.Query.PROFILE;
+    };
+    return new ContentRequest(q,route.id());
+  }
+
+  private void renderContent() {
     shell(true);
+    displayedLocation=location();
     LinearLayout bar = Ui.row(this);
     header.addView(bar, new LinearLayout.LayoutParams(-1, -2));
     TextView back = Ui.button(this, "←", false, this::back);
@@ -189,10 +253,10 @@ public class MainActivity extends Activity {
       if (s == null) {
         content.addView(
             Ui.title(
-                this, tab.equals("profile") ? "干饭档案" : tab.equals("admin") ? "管理手账" : "食堂手账", 36));
+                this, tab.equals("profile") ? "我的" : tab.equals("admin") ? "管理" : "食堂", 30));
       } else s.show(this, content, route());
     } catch (RuntimeException e) {
-      Ui.empty(content, "这一页暂时没打开", e.getMessage() == null ? "请稍后重试" : e.getMessage());
+      Ui.empty(content, "页面加载失败", e.getMessage() == null ? "请重试" : e.getMessage());
       Ui.action(content, "重新加载", true, this::render);
     }
     int offset = scrollPositions.getInt(location(), 0);
@@ -246,28 +310,26 @@ public class MainActivity extends Activity {
     if (navigation) {
       LinearLayout nav = Ui.row(this);
       nav.setBackground(Ui.shape(this, Design.PAPER, Design.BORDER, 0));
-      addTab(nav, "01", "食堂", "dining");
-      if (repo.currentUser().isAdmin()) addTab(nav, "02", "管理", "admin");
-      addTab(nav, repo.currentUser().isAdmin() ? "03" : "02", "我的", "profile");
+      addTab(nav, "食堂", "dining");
+      if (repo.currentUser().isAdmin()) addTab(nav, "管理", "admin");
+      addTab(nav, "我的", "profile");
       root.addView(nav, new LinearLayout.LayoutParams(-1, -2));
     }
     setContentView(root);
     root.requestApplyInsets();
   }
 
-  private void addTab(LinearLayout nav, String index, String label, String key) {
-    TextView b = Ui.button(this, index + "\n" + label, false, () -> selectTab(key));
+  private void addTab(LinearLayout nav, String label, String key) {
+    TextView b = Ui.button(this, label, false, () -> selectTab(key));
     b.setTextColor(tab.equals(key) ? Design.RED : Design.MUTED);
     b.setBackground(Ui.ripple(this, tab.equals(key) ? Design.ALT : Design.PAPER, 0, 0));
     b.setContentDescription(label + (tab.equals(key) ? "，已选中" : ""));
-    b.setMinHeight(Ui.dp(this, 72));
+    b.setMinHeight(Ui.dp(this, 56));
     nav.addView(b, new LinearLayout.LayoutParams(0, -2, 1));
   }
 
   public void heading(LinearLayout page, String index, String title, String note) {
-    page.addView(Ui.stamp(this, index + " / FOODTIME", Design.RED));
-    Ui.gap(page, 16);
-    page.addView(Ui.title(this, title, 36));
+    page.addView(Ui.title(this, title, 30));
     Ui.gap(page, 8);
     if (!note.isBlank()) page.addView(Ui.note(this, note));
     Ui.gap(page, 24);
@@ -278,12 +340,13 @@ public class MainActivity extends Activity {
   }
 
   private void rememberScroll() {
-    if (scroll != null && repo.currentUser() != null)
+    if (scroll != null && repo.currentUser() != null && displayedLocation.equals(location()))
       scrollPositions.putInt(location(), scroll.getScrollY());
   }
 
   public void message(String text) {
-    Toast.makeText(this, text, Toast.LENGTH_LONG).show();
+    if(currentToast!=null) currentToast.cancel();
+    currentToast=Toast.makeText(this,text,Toast.LENGTH_SHORT);currentToast.show();
   }
 
   public String draftKey(String label) {
@@ -311,56 +374,12 @@ public class MainActivity extends Activity {
         && data != null
         && data.getData() != null
         && pickingKey != null) {
-      safely(
-          () -> {
-            try (java.io.InputStream input = getContentResolver().openInputStream(data.getData())) {
-              java.io.File file =
-                  new java.io.File(getFilesDir(), "photo-" + java.util.UUID.randomUUID() + ".jpg");
-              try (java.io.FileOutputStream output = new java.io.FileOutputStream(file)) {
-                byte[] buffer = new byte[8192];
-                int count;
-                long total = 0;
-                while ((count = input.read(buffer)) != -1) {
-                  total += count;
-                  if (total > 20 * 1024 * 1024) {
-                    output.close();
-                    file.delete();
-                    throw new IllegalArgumentException("图片不能超过20MB");
-                  }
-                  output.write(buffer, 0, count);
-                }
-              }
-              android.graphics.BitmapFactory.Options options =
-                  new android.graphics.BitmapFactory.Options();
-              options.inJustDecodeBounds = true;
-              android.graphics.BitmapFactory.decodeFile(file.getAbsolutePath(), options);
-              if (options.outWidth <= 0) {
-                file.delete();
-                throw new IllegalArgumentException("请选择可读取的图片");
-              }
-              options.inJustDecodeBounds = false;
-              options.inSampleSize = 1;
-              while (Math.max(options.outWidth, options.outHeight) / options.inSampleSize > 1600)
-                options.inSampleSize *= 2;
-              android.graphics.Bitmap bitmap =
-                  android.graphics.BitmapFactory.decodeFile(file.getAbsolutePath(), options);
-              if (bitmap == null) {
-                file.delete();
-                throw new IllegalArgumentException("图片解码失败，请换一张图片");
-              }
-              try (java.io.FileOutputStream resized = new java.io.FileOutputStream(file)) {
-                if (!bitmap.compress(android.graphics.Bitmap.CompressFormat.JPEG, 90, resized))
-                  throw new java.io.IOException("图片保存失败");
-              } finally {
-                bitmap.recycle();
-              }
-              rememberScroll();
-              drafts.putString(pickingKey, android.net.Uri.fromFile(file).toString());
-              render();
-            } catch (java.io.IOException e) {
-              throw new IllegalStateException("图片读取失败，请重新选择", e);
-            }
-          });
+      String selectedKey=pickingKey;
+      android.net.Uri selected=data.getData();
+      java.util.concurrent.atomic.AtomicReference<String> resultPath=new java.util.concurrent.atomic.AtomicReference<>();
+      request(null,null,() -> resultPath.set(PhotoImport.prepare(this,selected)),() -> {
+        rememberScroll();drafts.putString(selectedKey,resultPath.get());renderContent();
+      });
     }
   }
 
@@ -372,8 +391,36 @@ public class MainActivity extends Activity {
     }
   }
 
+  /** Capture field values before calling. Work runs on the app's serial worker; callbacks on UI. */
+  public void request(View trigger,TextView error,Runnable work,Runnable success) {
+    if(writeInFlight) return;
+    writeInFlight=true;if(trigger!=null) trigger.setEnabled(false);if(error!=null) error.setText("");
+    int ticket=generation;boolean loggedIn=repo.currentUser()!=null;
+    worker.execute(() -> {
+      RuntimeException problem=null;try {work.run();}catch(RuntimeException e){problem=e;}
+      RuntimeException failure=problem;
+      runOnUiThread(() -> {
+        if(isDestroyed()) return;
+        writeInFlight=false;if(trigger!=null) trigger.setEnabled(true);
+        if(ticket!=generation) return;
+        if(failure==null) success.run();
+        else if(loggedIn&&repo.currentUser()==null) {
+          clearNavigation();showAuth(false);message("登录已失效，请重新登录");
+        } else if(error!=null) error.setText(safeMessage(failure));else message(safeMessage(failure));
+      });
+    });
+  }
+  private String safeMessage(RuntimeException e) {return e.getMessage()==null?"操作失败，请重试":e.getMessage();}
+  public void clearDraft(Route route) {
+    String prefix=route.kind()+":"+route.id()+":";
+    for(String key:new HashSet<>(drafts.keySet())) if(key.startsWith(prefix)) drafts.remove(key);
+  }
+
   public void logout() {
-    repo.logout();
+    request(null,null,repo::logout,() -> {clearNavigation();showAuth(false);});
+  }
+  public void signedOut() {clearNavigation();showAuth(false);}
+  private void clearNavigation() {
     drafts.clear();
     scrollPositions.clear();
     for (String key : stacks.keySet()) {
@@ -381,6 +428,8 @@ public class MainActivity extends Activity {
       stacks.get(key).add(new Route(key, ""));
     }
     tab = "dining";
-    showAuth(false);
+    displayedLocation="";
+    Ui.clearImages();
   }
+  @Override protected void onDestroy() {++generation;super.onDestroy();}
 }

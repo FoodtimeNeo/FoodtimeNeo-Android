@@ -3,14 +3,14 @@
 ## 分支流程
 
 ```text
-feature-<功能名>  →  dev  →  main
+dev → feature-<功能名> → dev；发布时 dev → main
 ```
 
-1. 从最新 dev 创建一个功能分支，例如 `feature-dish-search`。Git 分支不能以斜杠开头，因此不使用 `/feature-xxxxx`。
-2. 一个分支只完成一个可审查的功能或重构，提交信息使用 `feat(scope): 说明`、`fix(scope): 说明` 或 `refactor(scope): 说明`。
-3. 本地执行验证后，创建 Pull Request 合并到 dev。
+1. 从最新 dev 创建功能分支。复用旧分支时先确认其工作已合并，再将该分支指针同步到最新dev；不要将dev合并进旧feature形成交叉历史。
+2. 一个分支完成一个可审查的功能或重构，提交和合并说明使用中文。
+3. 验证后一次非快进合并回dev；团队使用Pull Request时采用相同的功能边界。本轮按用户要求本地合并后同步远端。
 4. dev 集成验证通过后，只通过 `dev → main` 的 Pull Request 发布。
-5. 禁止直接向 dev 或 main 提交；功能分支合并后及时删除。
+5. 实现提交放在feature，dev只接收合并；main按发布流程处理。分支清理与改写已有远端历史须遵从项目负责人的指令。
 
 推荐命令：
 

@@ -8,7 +8,7 @@ final class ReviewScreen {
   static void create(MainActivity a, LinearLayout page, MainActivity.Route route) {
     Dish dish = a.repo.dish(route.id());
     if (dish == null) throw new IllegalArgumentException("菜品不存在");
-    a.heading(page, "02", "记下这一餐", dish.name());
+    a.heading(page, "02", "评价", dish.name());
     LinearLayout card = Ui.card(page);
     card.addView(Ui.title(a, "给菜品打分", 24));
     Ui.gap(card, 16);
@@ -44,29 +44,17 @@ final class ReviewScreen {
     }
     paint.run();
     Ui.gap(card, 24);
-    EditText text = Ui.field(card, "写下真实的用餐感受（最多500字）", false, true);
-    text.setFilters(
-        new android.text.InputFilter[] {new android.text.InputFilter.LengthFilter(500)});
+    EditText text = Ui.field(card, "评价内容", false, true);
     TextView error = Ui.text(a, "", 14, Design.RED);
     error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
     card.addView(error);
     Ui.gap(card, 8);
-    card.addView(Ui.text(a, "评价会先进入待审核状态，通过后才会公开展示。", 14, Design.MUTED));
+    card.addView(Ui.text(a, "审核通过后公开", 14, Design.MUTED));
     Ui.gap(card, 16);
-    Ui.action(
-        card,
-        "提交评价",
-        true,
-        () -> {
-          try {
-            a.repo.submitReview(dish.id(), rating[0], text.getText().toString());
-            a.drafts.remove(key);
-            a.drafts.remove(a.draftKey("写下真实的用餐感受（最多500字）"));
-            a.message("评价已提交，等待审核");
-            a.back();
-          } catch (RuntimeException e) {
-            error.setText(e.getMessage());
-          }
-        });
+    Ui.submit(card,"提交评价",error,() -> {
+      int score=rating[0];String content=text.getText().toString();
+      if(score<1||content.isBlank()) throw new IllegalArgumentException("请选择评分并填写评价");
+      return () -> a.repo.submitReview(dish.id(),score,content);
+    },() -> {a.clearDraft(route);a.message("评价已提交");a.back();});
   }
 }

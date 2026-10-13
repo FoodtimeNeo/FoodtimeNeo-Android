@@ -6,9 +6,9 @@ import cn.edu.bjtu.foodtime.domain.model.Models.*;
 
 final class DiningScreen {
   static void halls(MainActivity a, LinearLayout page, MainActivity.Route route) {
-    a.heading(page, "01", "食堂手账", "今天食堂不开盲盒");
+    a.heading(page, "01", "食堂", "");
     if (a.repo.halls().isEmpty()) {
-      Ui.empty(page, "还没有收录食堂", "食堂信息上新后，会出现在这里。");
+      Ui.empty(page, "暂无食堂", "");
       return;
     }
     for (Hall hall : a.repo.halls())
@@ -18,9 +18,9 @@ final class DiningScreen {
   static void stalls(MainActivity a, LinearLayout page, MainActivity.Route route) {
     Hall hall = a.repo.hall(route.id());
     if (hall == null || !hall.active()) throw new IllegalArgumentException("食堂不存在或已停用");
-    a.heading(page, "01.1", hall.name(), "选个档口，看看今天的菜单");
+    a.heading(page, "01.1", hall.name(), "");
     if (a.repo.stalls(hall.id()).isEmpty()) {
-      Ui.empty(page, "档口还在整理中", "先看看其他食堂，稍后再来翻翻。");
+      Ui.empty(page, "暂无档口", "");
       Ui.action(page, "投稿一个新档口", true, () -> a.go("submit-stall", hall.id()));
       return;
     }

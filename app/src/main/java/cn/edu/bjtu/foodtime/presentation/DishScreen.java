@@ -8,7 +8,7 @@ final class DishScreen {
   static void dishes(MainActivity a, LinearLayout page, MainActivity.Route route) {
     Stall stall = a.repo.stall(route.id());
     if (stall == null || !stall.active()) throw new IllegalArgumentException("档口不存在或已停用");
-    a.heading(page, "01.2", stall.name(), "只看名称与价格，先把选择变简单");
+    a.heading(page, "01.2", stall.name(), "");
     EditText search = new EditText(a);
     search.setHint("搜索这家档口的菜品");
     search.setTextSize(16);
@@ -50,7 +50,7 @@ final class DishScreen {
             Ui.empty(
                 list,
                 all.isEmpty() ? "还没有菜品" : "没找到这道菜",
-                all.isEmpty() ? "档口菜单更新后，会出现在这里。" : "换个关键词，再翻翻这家档口的菜单。");
+                all.isEmpty() ? "" : "试试其他关键词");
         };
     Ui.observe(search, filter);
     filter.run();
@@ -64,7 +64,6 @@ final class DishScreen {
     Stall s = a.repo.stall(d.stallId());
     Hall h = a.repo.hall(s.diningHallId());
     a.heading(page, "01.3", d.name(), h.name() + " · " + s.name());
-    a.repo.dishes(s.id());
     LinearLayout hero = Ui.card(page);
     hero.setPadding(0, 0, 0, Ui.dp(a, 4));
     FrameLayout photo =
@@ -95,28 +94,30 @@ final class DishScreen {
     heroText.setPadding(Ui.dp(a, 16), Ui.dp(a, 12), Ui.dp(a, 16), Ui.dp(a, 8));
     heroText.addView(
         Ui.title(a, "¥" + d.price().setScale(2), 25), new LinearLayout.LayoutParams(0, -2, 1));
-    heroText.addView(Ui.stamp(a, a.repo.photos(d.id()).isEmpty() ? "暂无图片" : "图册", Design.BLUE));
     hero.setOnClickListener(v -> a.go("gallery", d.id()));
     hero.addView(heroText);
+    if(!d.description().isBlank()) {
+      TextView description=Ui.text(a,d.description(),16,Design.MUTED);
+      description.setPadding(Ui.dp(a,16),0,Ui.dp(a,16),Ui.dp(a,16));hero.addView(description);
+    }
     LinearLayout score = Ui.card(page);
     score.addView(Ui.title(a, "评分", 22));
     Ui.gap(score, 8);
     List<Review> reviews = a.repo.reviews(d.id());
-    int sum = 0;
-    for (Review r : reviews) sum += r.rating();
-    float avg = reviews.isEmpty() ? 0 : sum / (float) reviews.size();
+    RatingSummary summary=a.repo.rating(d.id());
+    float avg=summary.averageScore()==null?0:summary.averageScore().floatValue();
     score.addView(
         Ui.text(
             a,
-            reviews.isEmpty()
+            summary.averageScore()==null
                 ? "暂无评分"
                 : "★".repeat(Math.round(avg)) + "  " + String.format(Locale.ROOT, "%.1f / 5", avg),
             22,
-            reviews.isEmpty() ? Design.MUTED : Design.RED));
+            summary.averageScore()==null ? Design.MUTED : Design.RED));
     score.addView(
         Ui.text(
             a,
-            reviews.isEmpty() ? "等第一位同学来写评价" : "来自" + reviews.size() + "条已通过评价",
+            summary.reviewCount()+" 条评价 · 每日更新",
             14,
             Design.MUTED));
     LinearLayout action = Ui.row(a);
@@ -124,14 +125,11 @@ final class DishScreen {
     action.addView(
         Ui.button(a, "写点评", true, () -> a.go("review", d.id())),
         new LinearLayout.LayoutParams(0, Ui.dp(a, 48), 1));
-    action.addView(
-        Ui.button(a, "图册", false, () -> a.go("gallery", d.id())),
-        new LinearLayout.LayoutParams(0, Ui.dp(a, 48), 1));
     page.addView(action);
     Ui.gap(page, 20);
-    page.addView(Ui.title(a, "同学怎么说", 25));
+    page.addView(Ui.title(a, "评论", 25));
     Ui.gap(page, 12);
-    if (reviews.isEmpty()) Ui.empty(page, "评论区还很安静", "吃完饭回来写两句，给下一位同学一个参考。");
+    if (reviews.isEmpty()) Ui.empty(page, "暂无评论", "");
     for (Review r : reviews) {
       LinearLayout c = Ui.card(page);
       c.addView(Ui.text(a, r.userId(), 12, Design.BLUE));
@@ -143,9 +141,9 @@ final class DishScreen {
 
   static void gallery(MainActivity a, LinearLayout page, MainActivity.Route route) {
     Dish d = a.repo.dish(route.id());
-    a.heading(page, "01.4", d.name() + " · 图册", "已通过审核的图片");
+    a.heading(page, "01.4", d.name() + " · 图册", "");
     List<Photo> photos = a.repo.photos(d.id());
-    if (photos.isEmpty()) Ui.empty(page, "还没有图片", "可以上传第一张菜品照片。");
+    if (photos.isEmpty()) Ui.empty(page, "暂无图片", "");
     for (Photo p : photos) {
       LinearLayout c = Ui.card(page);
       c.setPadding(0, 0, 0, Ui.dp(a, 4));

@@ -1,45 +1,16 @@
 # Android 架构
 
-## 目标
+依赖方向：app装配data与domain；presentation依赖domain；data依赖domain。domain不依赖Android或其他层，data不依赖界面，界面不直接引用data。verifyArchitecture挂接preBuild/check，防止反向依赖。
 
-项目采用轻量分层架构，在保留 Java 17 与原生 Android View 的前提下隔离界面、业务契约和数据实现。当前规模不引入额外框架；后续接入网络、数据库或依赖注入框架时，可以逐层替换而不重写页面。
+FoodtimeApplication装配RemoteRepository、同源HttpTransport、Keystore加密CookieStore以及应用生命周期内的串行工作线程。LocalRepository和其密码工具位于testShared，只供历史测试使用，不进入APK。
 
-## 依赖方向
+- domain/model：UUID字符串、精确金额、可空投稿价格、服务端评分快照与真实关联上下文。
+- domain/repository：FoodtimeRepository、ContentRequest业务查询、RepositoryProvider装配端口、安全错误类型。
+- data/remote：请求/响应解释、认证、分页、上传及缓存。公开读取与管理读取使用对应接口；公开列表的active是服务端过滤的结果。
+- presentation：Activity管理栏目导航、草稿与滚动，Screen渲染缓存和表单。提交先在主线程捕获输入，再交给工作线程；成功/错误回到主线程更新View。页面加载用版本号丢弃过时回调。
 
-```mermaid
-flowchart LR
-    App[app 依赖装配] --> Data[data 数据实现]
-    App --> Domain[domain 业务核心]
-    Presentation[presentation 界面与导航] --> Domain
-    Data --> Domain
-```
+读取接口只返回内存快照，只有restoreSession、refresh及写操作执行网络。失败保留草稿，恢复提交按钮；写请求不自动重试。退出、401、改密成功清除Cookie、私有数据和图片缓存。角色在每次页面刷新重新向服务端读取，授权由Backend逐次检查。
 
-- domain：模型、校验规则和仓库接口。不得依赖 Android、app、data 或 presentation。
-- data：仓库的具体实现和本地安全工具。可以依赖 Android 与 domain，不得依赖界面。
-- presentation：Activity、页面、导航和 View 工具。只面向 domain 接口，不直接引用 data 实现。
-- app：唯一的依赖装配入口。FoodtimeApplication 创建 LocalRepository，并通过 RepositoryProvider 向界面暴露仓库接口。
+图片导入、采样解码和压缩在后台执行。图片视图预留16:9尺寸，后台取字节并解码，按账号与角色区分内存缓存。同源图片带Cookie，已有外部HTTPS图片使用匿名连接。未批准文件能否读取由服务端判断。
 
-Gradle 任务 `verifyArchitecture` 会检查以上边界；它已经挂接到 `preBuild` 和 `check`，CI 也会显式执行。
-
-## 目录
-
-```text
-cn.edu.bjtu.foodtime
-├── app/                    # 应用启动与依赖装配
-├── data/local/             # SharedPreferences/JSON 本地实现
-├── domain/model/           # 业务模型
-├── domain/repository/      # 数据访问契约与 Provider 端口
-├── domain/validation/      # 可独立测试的业务校验
-└── presentation/           # Activity、Screen、设计系统和 View 工具
-```
-
-## 扩展方式
-
-新增功能时优先按以下顺序：
-
-1. 在 domain 中补充模型、规则或仓库契约，并先写单元测试。
-2. 在 data 中实现接口；网络实现建议新增 data/remote，并由 data/repository 组合远端与缓存。
-3. 在 presentation 中新增或调整页面，只调用 domain 接口。
-4. 需要更换实现时，只修改 app/FoodtimeApplication 的装配代码。
-
-当某个功能明显膨胀时，可在 presentation 下再按 feature 分包，但不要把数据读取逻辑放回 Screen 或 Activity。
+新增功能先定义实际需要的业务契约和DTO映射，再实现数据和页面，按必要风险补充真实接口/设备验证；不为数据库没有的模型增加客户端假数据。
