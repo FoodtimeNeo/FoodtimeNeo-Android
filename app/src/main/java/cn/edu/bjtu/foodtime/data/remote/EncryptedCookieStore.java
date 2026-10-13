@@ -43,7 +43,9 @@ public final class EncryptedCookieStore implements CookieStore {
       JSONObject sealed=new JSONObject(value);
       Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");
       cipher.init(Cipher.DECRYPT_MODE,key(),new GCMParameterSpec(128,Base64.decode(sealed.getString("iv"),Base64.NO_WRAP)));
-      JSONArray cookies=new JSONArray(new String(cipher.doFinal(Base64.decode(sealed.getString("data"),Base64.NO_WRAP)),java.nio.charset.StandardCharsets.UTF_8));
+      JSONObject payload=new JSONObject(new String(cipher.doFinal(Base64.decode(sealed.getString("data"),Base64.NO_WRAP)),java.nio.charset.StandardCharsets.UTF_8));
+      if(!origin.toString().equals(payload.getString("origin"))) throw new IllegalArgumentException("Cookie origin changed");
+      JSONArray cookies=payload.getJSONArray("cookies");
       long now=System.currentTimeMillis();
       for(int i=0;i<cookies.length();i++) {
         JSONObject j=cookies.getJSONObject(i);long deadline=j.getLong("expires");if(deadline<=now) continue;
@@ -66,7 +68,8 @@ public final class EncryptedCookieStore implements CookieStore {
       }
       if(list.length()==0) { if(!preferences.edit().remove("cookies").commit()) throw new IllegalStateException();return; }
       Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.ENCRYPT_MODE,key());
-      byte[] sealed=cipher.doFinal(list.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
+      JSONObject payload=new JSONObject();payload.put("origin",origin.toString());payload.put("cookies",list);
+      byte[] sealed=cipher.doFinal(payload.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
       JSONObject envelope=new JSONObject();envelope.put("iv",Base64.encodeToString(cipher.getIV(),Base64.NO_WRAP));envelope.put("data",Base64.encodeToString(sealed,Base64.NO_WRAP));
       if(!preferences.edit().putString("cookies",envelope.toString()).commit()) throw new IllegalStateException();
     } catch(Exception failure) { throw new IllegalStateException("登录信息无法安全保存，请重试",failure); }

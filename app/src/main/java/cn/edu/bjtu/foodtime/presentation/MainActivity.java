@@ -10,6 +10,7 @@ import cn.edu.bjtu.foodtime.domain.repository.ContentRequest;
 import cn.edu.bjtu.foodtime.domain.repository.RepositoryException;
 import java.util.*;
 import java.util.concurrent.Executor;
+import java.util.function.*;
 
 public class MainActivity extends Activity {
   public FoodtimeRepository repo;
@@ -33,6 +34,11 @@ public class MainActivity extends Activity {
   private boolean writeInFlight;
   private String displayedLocation="";
   private Toast currentToast;
+  private static final OperationStore OPERATIONS=new OperationStore();
+  private long pendingOperation;
+  private boolean authRegistration;
+  private boolean stateSaved;
+  private Runnable deferredCompletion;
 
   @Override
   public void onCreate(Bundle state) {
@@ -44,6 +50,8 @@ public class MainActivity extends Activity {
     for (String key : List.of("dining", "profile", "admin"))
       stacks.put(key, new ArrayList<>(List.of(new Route(key, ""))));
     if (state != null) {
+      pendingOperation=state.getLong("pendingOperation",0);
+      authRegistration=state.getBoolean("authRegistration",false);
       tab = state.getString("tab", "dining");
       for (String key : stacks.keySet()) {
         ArrayList<String> saved = state.getStringArrayList(key);
@@ -78,7 +86,8 @@ public class MainActivity extends Activity {
       runOnUiThread(() -> {
         if(isDestroyed()||ticket!=generation) return;
         if(failure!=null) {content.removeAllViews();Ui.empty(content,"连接失败",safeMessage(failure));Ui.action(content,"重试",true,this::restore);}
-        else if(repo.currentUser()==null) showAuth(false);else openApp();
+        else if(pendingOperation!=0) recoverOperation();
+        else if(repo.currentUser()==null) showAuth(authRegistration);else openApp();
       });
     });
   }
@@ -108,6 +117,8 @@ public class MainActivity extends Activity {
   }
 
   public void showAuth(boolean register) {
+    if(writeInFlight) {message("正在提交，请稍候");return;}
+    authRegistration=register;
     ++generation;
     shell(false);
     AuthScreen.show(this, content, register);
@@ -180,10 +191,13 @@ public class MainActivity extends Activity {
   @Override
   protected void onSaveInstanceState(Bundle state) {
     super.onSaveInstanceState(state);
+    stateSaved=true;
     rememberScroll();
     state.putBundle("drafts", drafts);
     state.putBundle("scrollPositions", scrollPositions);
     state.putString("pickingKey", pickingKey);
+    state.putLong("pendingOperation",pendingOperation);
+    state.putBoolean("authRegistration",authRegistration);
     state.putString("tab", tab);
     for (String key : stacks.keySet()) {
       ArrayList<String> saved = new ArrayList<>();
@@ -376,9 +390,9 @@ public class MainActivity extends Activity {
         && pickingKey != null) {
       String selectedKey=pickingKey;
       android.net.Uri selected=data.getData();
-      java.util.concurrent.atomic.AtomicReference<String> resultPath=new java.util.concurrent.atomic.AtomicReference<>();
-      request(null,null,() -> resultPath.set(PhotoImport.prepare(this,selected)),() -> {
-        rememberScroll();drafts.putString(selectedKey,resultPath.get());renderContent();
+      startOperation(null,null,"导入图片",selectedKey,() -> PhotoImport.prepare(this,selected),path -> {
+        rememberScroll();String previous=drafts.getString(selectedKey,"");drafts.putString(selectedKey,path);
+        worker.execute(() -> PhotoImport.discard(this,previous));renderContent();
       });
     }
   }
@@ -393,27 +407,65 @@ public class MainActivity extends Activity {
 
   /** Capture field values before calling. Work runs on the app's serial worker; callbacks on UI. */
   public void request(View trigger,TextView error,Runnable work,Runnable success) {
+    String action=trigger instanceof TextView text?text.getText().toString():"";
+    startOperation(trigger,error,action,null,() -> {work.run();return null;},ignored -> success.run());
+  }
+  private void startOperation(View trigger,TextView error,String action,String imageDraft,Supplier<String> work,Consumer<String> success) {
     if(writeInFlight) return;
     writeInFlight=true;if(trigger!=null) trigger.setEnabled(false);if(error!=null) error.setText("");
     int ticket=generation;boolean loggedIn=repo.currentUser()!=null;
-    worker.execute(() -> {
-      RuntimeException problem=null;try {work.run();}catch(RuntimeException e){problem=e;}
-      RuntimeException failure=problem;
+    OperationStore.Task task=OPERATIONS.start(worker,route(),action,imageDraft,work);pendingOperation=task.id();
+    task.result().thenAccept(outcome -> {
+      RuntimeException failure=outcome.failure();
       runOnUiThread(() -> {
-        if(isDestroyed()) return;
-        writeInFlight=false;if(trigger!=null) trigger.setEnabled(true);
-        if(ticket!=generation) return;
-        if(failure==null) success.run();
-        else if(loggedIn&&repo.currentUser()==null) {
-          clearNavigation();showAuth(false);message("登录已失效，请重新登录");
-        } else if(error!=null) error.setText(safeMessage(failure));else message(safeMessage(failure));
+        if(isDestroyed()) {if(isFinishing()) OPERATIONS.forget(task.id());return;}
+        Runnable complete=() -> {
+          OPERATIONS.forget(task.id());pendingOperation=0;
+          writeInFlight=false;if(trigger!=null) trigger.setEnabled(true);
+          if(ticket!=generation) return;
+          if(failure==null) success.accept(outcome.value());
+          else if(loggedIn&&repo.currentUser()==null) {
+            clearNavigation();showAuth(false);message("登录已失效，请重新登录");
+          } else if(error!=null) error.setText(safeMessage(failure));else message(safeMessage(failure));
+        };
+        if(stateSaved) deferredCompletion=complete;else complete.run();
       });
     });
   }
-  private String safeMessage(RuntimeException e) {return e.getMessage()==null?"操作失败，请重试":e.getMessage();}
+  private void recoverOperation() {
+    long id=pendingOperation;pendingOperation=0;writeInFlight=false;
+    OperationStore.Task task=OPERATIONS.find(id);
+    if(task==null) {
+      if(repo.currentUser()==null) showAuth(authRegistration);else openApp();
+      message("上次操作结果待核对，请先检查记录");return;
+    }
+    // The shared serial worker runs session restoration after the original operation.
+    OperationStore.Outcome outcome=task.result().getNow(null);OPERATIONS.forget(id);
+    if(outcome==null) {if(repo.currentUser()==null) showAuth(authRegistration);else openApp();message("请检查上次操作记录");return;}
+    if(outcome.failure()!=null) {
+      if(repo.currentUser()==null) showAuth(authRegistration);else openApp();message(safeMessage(outcome.failure()));return;
+    }
+    if(task.action().equals("注册")) {showAuth(false);message("注册成功，请登录");return;}
+    if(repo.currentUser()==null) {signedOut();return;}
+    if(task.imageDraft()!=null) {
+      String previous=drafts.getString(task.imageDraft(),"");drafts.putString(task.imageDraft(),outcome.value());
+      worker.execute(() -> PhotoImport.discard(this,previous));
+    }
+    else if(Set.of("review","upload-photo","submit-dish","submit-stall","admin-new","admin-edit").contains(task.origin().kind())) {
+      clearDraft(task.origin());if(route().equals(task.origin())&&stacks.get(tab).size()>1) stacks.get(tab).remove(stacks.get(tab).size()-1);
+    }
+    openApp();
+  }
+  private String safeMessage(RuntimeException e) {
+    String message=e.getMessage()==null?"操作失败，请重试":e.getMessage();
+    return e instanceof RepositoryException failure&&failure.retryAfterSeconds()>0?message+"；"+failure.retryAfterSeconds()+"秒后重试":message;
+  }
   public void clearDraft(Route route) {
     String prefix=route.kind()+":"+route.id()+":";
-    for(String key:new HashSet<>(drafts.keySet())) if(key.startsWith(prefix)) drafts.remove(key);
+    for(String key:new HashSet<>(drafts.keySet())) if(key.startsWith(prefix)) {
+      if(key.endsWith(":image")) {String photo=drafts.getString(key,"");worker.execute(() -> PhotoImport.discard(this,photo));}
+      drafts.remove(key);
+    }
   }
 
   public void logout() {
@@ -421,6 +473,9 @@ public class MainActivity extends Activity {
   }
   public void signedOut() {clearNavigation();showAuth(false);}
   private void clearNavigation() {
+    for(String key:drafts.keySet()) if(key.endsWith(":image")) {
+      String photo=drafts.getString(key,"");worker.execute(() -> PhotoImport.discard(this,photo));
+    }
     drafts.clear();
     scrollPositions.clear();
     for (String key : stacks.keySet()) {
@@ -431,5 +486,9 @@ public class MainActivity extends Activity {
     displayedLocation="";
     Ui.clearImages();
   }
-  @Override protected void onDestroy() {++generation;super.onDestroy();}
+  @Override protected void onResume() {
+    super.onResume();stateSaved=false;
+    if(deferredCompletion!=null) {Runnable callback=deferredCompletion;deferredCompletion=null;callback.run();}
+  }
+  @Override protected void onDestroy() {++generation;deferredCompletion=null;super.onDestroy();}
 }

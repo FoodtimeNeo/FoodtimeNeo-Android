@@ -34,5 +34,12 @@ final class PhotoImport {
       throw new IllegalStateException("图片读取失败，请重新选择",failure);
     }
   }
+  static void discard(Context context,String reference) {
+    if(reference==null||!reference.startsWith("file:")) return;
+    try {
+      File file=new File(java.net.URI.create(reference));
+      if(file.getName().startsWith("photo-")&&file.getCanonicalFile().getParentFile().equals(context.getFilesDir().getCanonicalFile())) file.delete();
+    } catch(IOException|IllegalArgumentException ignored) { }
+  }
   private PhotoImport() {}
 }

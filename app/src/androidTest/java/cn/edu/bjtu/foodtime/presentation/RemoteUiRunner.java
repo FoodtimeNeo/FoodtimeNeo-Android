@@ -13,6 +13,8 @@ import cn.edu.bjtu.foodtime.data.remote.*;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.*;
+import cn.edu.bjtu.foodtime.domain.repository.RepositoryProvider;
 import java.util.function.BooleanSupplier;
 
 /** Real application composition and native screens; never injects a local/mock repository. */
@@ -116,9 +118,18 @@ public class RemoteUiRunner extends Instrumentation {
       profile();screenshot("profile");main(() -> activity.selectTab("dining"));loaded("detail");
       await(() -> activity.scroll.getScrollY()==position[0],"preserved scroll");check(true,"Tabs preserve detail route and scroll");
       int[] depth={0};main(() -> {depth[0]=activity.stacks.get("dining").size();activity.selectTab("dining");});check(depth[0]==activity.stacks.get("dining").size(),"Repeated tab does not reset stack");
-      click("写点评");loaded("review");main(() -> find(activity.root,"4星",true).performClick());field("评价内容",prefix+"评价");click("提交评价");loaded("detail");
+      click("写点评");loaded("review");main(() -> find(activity.root,"4星",true).performClick());field("评价内容",prefix+"评价");
+      CountDownLatch gate=new CountDownLatch(1);
+      ((RepositoryProvider)activity.getApplication()).workExecutor().execute(() -> {try {gate.await(10,TimeUnit.SECONDS);}catch(InterruptedException e){Thread.currentThread().interrupt();}});
+      ActivityMonitor monitor=addMonitor(MainActivity.class.getName(),null,false);
+      try {
+        main(() -> {clickButton(activity.root,"提交评价");activity.recreate();});
+        Activity next=monitor.waitForActivityWithTimeout(10000);check(next instanceof MainActivity,"Activity recreated during pending request");activity=(MainActivity)next;
+      } finally {gate.countDown();removeMonitor(monitor);}
+      loaded("detail");check(true,"Submission result recovered after Activity recreation without replay");
       check(activity.repo.reviews(activity.route().id()).stream().noneMatch(r -> r.content().equals(prefix+"评价")),"Pending UI comment is not public");
-      profile();click("我的提交");loaded("mine-submissions");await(() -> text(prefix+"评价")!=null,"own submitted content");check(true,"Personal record uses server data");screenshot("submissions");
+      profile();click("我的提交");loaded("mine-submissions");await(() -> text(prefix+"评价")!=null,"own submitted content");check(true,"Personal record uses server data");
+      check(activity.repo.submissions(activity.repo.currentUser().id()).stream().filter(s -> s.content().equals(prefix+"评价")).count()==1,"Recreated submission wrote exactly once");screenshot("submissions");
       logout();login("20260002@bjtu.edu.cn");main(() -> activity.selectTab("admin"));loaded("admin");click("审核投稿");loaded("admin-audit");
       await(() -> text(prefix+"评价")!=null,"review queue");main(() -> clickButton(activity.root,"通过"));dialogButton("确认");
       await(() -> text(prefix+"评价")==null&&text("加载中…")==null,"review approved");check(true,"Native moderation dialog calls Backend");screenshot("admin");
