@@ -16,7 +16,11 @@ public final class Models {
       String description,
       boolean active) {}
 
-  public record User(String id, String email, String displayName, String role, boolean active) {
+  public record User(String id, String email, String displayName, String role, boolean active,
+      String avatarUrl, long createdAt, long reviewCount) {
+    public User(String id, String email, String displayName, String role, boolean active) {
+      this(id,email,displayName,role,active,"",0,0);
+    }
     public boolean isAdmin() {
       return role.equals("admin") || role.equals("superadmin");
     }
@@ -37,9 +41,17 @@ public final class Models {
       int rating,
       String status,
       String reason,
-      long createdAt) {}
+      long createdAt, String context) {
+    public Submission(String id,String type,String targetId,String userId,String name,String content,
+        BigDecimal price,String imageUrl,int rating,String status,String reason,long createdAt) {
+      this(id,type,targetId,userId,name,content,price,imageUrl,rating,status,reason,createdAt,"");
+    }
+  }
 
   public record Photo(String id, String dishId, String imageUrl, String userId) {}
+
+  /** The server's materialized rating snapshot; average is null when no score is available. */
+  public record RatingSummary(BigDecimal averageScore,long reviewCount) {}
 
   /** Editable catalog item exposed to administration screens without leaking storage JSON. */
   public record AdminEntity(

@@ -14,7 +14,7 @@ android {
         targetSdk 36
         versionCode 1
         versionName '0.1.0'
-        testInstrumentationRunner 'cn.edu.bjtu.foodtime.presentation.AcceptanceRunner'
+        testInstrumentationRunner providers.gradleProperty('FOODTIME_TEST_RUNNER').getOrElse('cn.edu.bjtu.foodtime.presentation.AcceptanceRunner')
     }
 
     signingConfigs {
@@ -29,6 +29,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            applicationIdSuffix providers.gradleProperty('FOODTIME_DEBUG_SUFFIX').getOrElse('')
+        }
         release {
             minifyEnabled false
             if (releaseStorePath) {
