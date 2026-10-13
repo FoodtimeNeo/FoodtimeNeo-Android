@@ -21,6 +21,7 @@ public final class HttpTransport {
       return values == null || values.isEmpty() ? "" : values.get(0);
     }
   }
+  public record BinaryResponse(int status,byte[] body,Map<String,List<String>> headers) {}
 
   private final URI base;
   private final CookieManager cookies;
@@ -45,6 +46,13 @@ public final class HttpTransport {
 
   public synchronized Response send(String method, String path, byte[] payload, String contentType,
       String csrf) throws IOException {
+    BinaryResponse raw=exchange(method,path,payload,contentType,csrf);
+    return new Response(raw.status(),new String(raw.body(),StandardCharsets.UTF_8),raw.headers());
+  }
+  public synchronized BinaryResponse bytes(String path) throws IOException {
+    return exchange("GET",path,null,null,null);
+  }
+  private BinaryResponse exchange(String method,String path,byte[] payload,String contentType,String csrf) throws IOException {
     URI target = base.resolve(path.startsWith("/") ? path.substring(1) : path);
     if (!base.getScheme().equals(target.getScheme()) || !base.getAuthority().equals(target.getAuthority())) {
       throw new IllegalArgumentException("Requests must remain on the configured API origin");
@@ -75,7 +83,7 @@ public final class HttpTransport {
         if (name != null && values != null) headers.put(name, List.copyOf(values));
       });
       InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
-      String body = "";
+      byte[] body = new byte[0];
       if (stream != null) {
         try (stream; var out = new ByteArrayOutputStream()) {
           byte[] buffer = new byte[8192];
@@ -84,10 +92,10 @@ public final class HttpTransport {
             if (out.size() + count > 20 * 1024 * 1024) throw new IOException("Response exceeds limit");
             out.write(buffer, 0, count);
           }
-          body = new String(out.toByteArray(), StandardCharsets.UTF_8);
+          body = out.toByteArray();
         }
       }
-      return new Response(status, body, Collections.unmodifiableMap(headers));
+      return new BinaryResponse(status, body, Collections.unmodifiableMap(headers));
     } finally { connection.disconnect(); }
   }
 
