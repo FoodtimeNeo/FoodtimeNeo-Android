@@ -231,7 +231,7 @@ public class AcceptanceRunner extends Instrumentation {
             a.go("mine-submissions", "");
           });
       waitForIdleSync();
-      check(has(a.root, "待审核"), "Submission status visible");
+      awaitText(a,"待审核","Submission status visible");
       shot("10-submissions");
       runOnMainSync(
           () -> {
@@ -290,6 +290,19 @@ public class AcceptanceRunner extends Instrumentation {
       for (int i = 0; i < group.getChildCount(); i++)
         if (has(group.getChildAt(i), text)) return true;
     return false;
+  }
+
+  private void awaitText(MainActivity activity,String text,String message) throws InterruptedException {
+    // Spinner posts its initial selection callback after the first layout pass.
+    // Read views on the main thread and wait for that rendered result.
+    for(int attempt=0;attempt<50;attempt++){
+      waitForIdleSync();
+      boolean[] visible={false};
+      runOnMainSync(()->visible[0]=has(activity.root,text));
+      if(visible[0]){check(true,message);return;}
+      Thread.sleep(100);
+    }
+    check(false,message);
   }
 
   private void shot(String name) throws IOException {
