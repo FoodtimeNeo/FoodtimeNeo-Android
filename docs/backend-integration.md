@@ -25,7 +25,7 @@ Cookie 名称 `FOODTIME_SESSION`。登录后必须重新获取 CSRF，因为原�
 
 ## 接入入口
 
-实现 `FoodtimeRepository`，替换 `MainActivity.onCreate` 中的 `new LocalRepository(this)`。该接口覆盖浏览、认证、投稿、评论、个人记录和管理。模型集中在 `Models`；管理实体目前使用 JSONObject（本地 active 布尔值需映射到数据库 active/inactive 字符串）。可以逐模块迁移，本地模拟实现应保留给离线演示。
+在 `data/remote` 中实现 `FoodtimeRepository`，然后只修改 `FoodtimeApplication` 中的装配。页面始终面向 domain 接口，不需要知道具体实现。该接口覆盖浏览、认证、投稿、评论、个人记录和管理；模型集中在 `domain/model/Models`，管理实体使用 `AdminEntity`，避免把本地 JSON 格式泄漏到界面和 domain。可以逐模块迁移，本地模拟实现应保留给离线演示与自动化测试。
 
 网络 I/O 必须在后台线程执行；先取数据/更新缓存，再在主线程 `render()`。不要把同步网络调用放进当前 View 的点击回调。加载期间应显示明确的加载反馈并禁用提交，失败恢复按钮并保留草稿。缓存读接口可沿用当前列表模型。加入 `INTERNET` 权限；开发模拟器访问本机后端通常用 `10.0.2.2`，正式地址使用 HTTPS。
 

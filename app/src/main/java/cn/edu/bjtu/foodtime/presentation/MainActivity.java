@@ -1,9 +1,11 @@
-package cn.edu.bjtu.foodtime;
+package cn.edu.bjtu.foodtime.presentation;
 
 import android.app.Activity;
 import android.os.Bundle;
 import android.view.*;
 import android.widget.*;
+import cn.edu.bjtu.foodtime.domain.repository.FoodtimeRepository;
+import cn.edu.bjtu.foodtime.domain.repository.RepositoryProvider;
 import java.util.*;
 
 public class MainActivity extends Activity {
@@ -28,7 +30,7 @@ public class MainActivity extends Activity {
   public void onCreate(Bundle state) {
     super.onCreate(state);
     Design.init(this);
-    repo = new LocalRepository(this);
+    repo = ((RepositoryProvider) getApplication()).repository();
     registerScreens();
     for (String key : List.of("dining", "profile", "admin"))
       stacks.put(key, new ArrayList<>(List.of(new Route(key, ""))));

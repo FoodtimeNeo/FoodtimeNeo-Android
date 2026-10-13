@@ -1,8 +1,8 @@
-package cn.edu.bjtu.foodtime;
+package cn.edu.bjtu.foodtime.presentation;
 
 import android.view.View;
 import android.widget.*;
-import cn.edu.bjtu.foodtime.Models.*;
+import cn.edu.bjtu.foodtime.domain.model.Models.*;
 
 final class ReviewScreen {
   static void create(MainActivity a, LinearLayout page, MainActivity.Route route) {

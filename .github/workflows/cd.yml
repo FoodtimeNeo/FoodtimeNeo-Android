@@ -1,0 +1,66 @@
+name: Android Release Build
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release-build:
+    name: Verify release after merge to main
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout merged commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Verify and build release
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          signing_args=()
+          if [[ -n "$ANDROID_KEYSTORE_BASE64" ]]; then
+            for value in "$ANDROID_KEYSTORE_PASSWORD" "$ANDROID_KEY_ALIAS" "$ANDROID_KEY_PASSWORD"; do
+              if [[ -z "$value" ]]; then
+                echo "Android signing secrets are incomplete."
+                exit 1
+              fi
+            done
+            keystore_path="$RUNNER_TEMP/foodtime-release.jks"
+            printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+            signing_args+=(
+              "-PFOODTIME_RELEASE_STORE_FILE=$keystore_path"
+              "-PFOODTIME_RELEASE_STORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD"
+              "-PFOODTIME_RELEASE_KEY_ALIAS=$ANDROID_KEY_ALIAS"
+              "-PFOODTIME_RELEASE_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
+            )
+          else
+            echo "Signing secrets are not configured; verifying an unsigned release build."
+          fi
+          ./gradlew verifyArchitecture testDebugUnitTest lintRelease assembleRelease bundleRelease \
+            --no-configuration-cache "${signing_args[@]}"

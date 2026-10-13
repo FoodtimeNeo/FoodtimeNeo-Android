@@ -1,17 +1,104 @@
-plugins { id 'com.android.application' }
+plugins {
+    id 'com.android.application'
+}
+
+def releaseStorePath = providers.gradleProperty('FOODTIME_RELEASE_STORE_FILE').orNull
+
 android {
     namespace 'cn.edu.bjtu.foodtime'
     compileSdk 36
+
     defaultConfig {
         applicationId 'cn.edu.bjtu.foodtime'
         minSdk 26
         targetSdk 36
         versionCode 1
         versionName '0.1.0'
-        testInstrumentationRunner 'cn.edu.bjtu.foodtime.AcceptanceRunner'
+        testInstrumentationRunner 'cn.edu.bjtu.foodtime.presentation.AcceptanceRunner'
     }
-    buildTypes { release { minifyEnabled false } }
-    compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
-    testOptions { unitTests.returnDefaultValues = true }
+
+    signingConfigs {
+        if (releaseStorePath) {
+            release {
+                storeFile file(releaseStorePath)
+                storePassword providers.gradleProperty('FOODTIME_RELEASE_STORE_PASSWORD').get()
+                keyAlias providers.gradleProperty('FOODTIME_RELEASE_KEY_ALIAS').get()
+                keyPassword providers.gradleProperty('FOODTIME_RELEASE_KEY_PASSWORD').get()
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            if (releaseStorePath) {
+                signingConfig signingConfigs.release
+            }
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+
+    testOptions {
+        unitTests.returnDefaultValues = true
+    }
 }
-dependencies { testImplementation 'junit:junit:4.13.2' }
+
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+}
+
+def verifyArchitecture = tasks.register('verifyArchitecture') {
+    group = 'verification'
+    description = 'Checks that source packages respect the documented dependency direction.'
+    def sourceFiles = fileTree('src/main/java') { include '**/*.java' }
+    inputs.files(sourceFiles)
+
+    doLast {
+        def violations = []
+        sourceFiles.each { source ->
+            def path = source.path.replace('\\', '/')
+            def content = source.getText('UTF-8')
+
+            if (path.contains('/domain/')) {
+                [
+                    'import android.',
+                    'import cn.edu.bjtu.foodtime.app.',
+                    'import cn.edu.bjtu.foodtime.data.',
+                    'import cn.edu.bjtu.foodtime.presentation.'
+                ].each { forbidden ->
+                    if (content.contains(forbidden)) violations << "${source.name}: domain cannot use ${forbidden}"
+                }
+            }
+            if (path.contains('/data/')) {
+                [
+                    'import cn.edu.bjtu.foodtime.app.',
+                    'import cn.edu.bjtu.foodtime.presentation.'
+                ].each { forbidden ->
+                    if (content.contains(forbidden)) violations << "${source.name}: data cannot use ${forbidden}"
+                }
+            }
+            if (path.contains('/presentation/')) {
+                [
+                    'import cn.edu.bjtu.foodtime.app.',
+                    'import cn.edu.bjtu.foodtime.data.'
+                ].each { forbidden ->
+                    if (content.contains(forbidden)) {
+                        violations << "${source.name}: presentation must depend on domain contracts, not ${forbidden}"
+                    }
+                }
+            }
+        }
+
+        if (!violations.isEmpty()) {
+            throw new GradleException('Architecture violations:\n - ' + violations.join('\n - '))
+        }
+    }
+}
+
+tasks.matching { it.name == 'check' || it.name == 'preBuild' }.configureEach {
+    dependsOn verifyArchitecture
+}
