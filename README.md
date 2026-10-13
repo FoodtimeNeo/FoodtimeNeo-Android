@@ -64,4 +64,4 @@ macOS / Linux：
 
 ## 分支与自动化
 
-后续开发统一采用 `feature-<功能名> → dev → main`。CI 在 Pull Request 指向 main/dev 以及代码进入这两个分支后运行；Release 构建只在 Pull Request 合并到 main 后运行。详见 [CONTRIBUTING.md](CONTRIBUTING.md)。
+后续开发统一采用 `feature-<功能名> → dev → main`。CI 在 Pull Request 指向 main/dev 以及代码进入这两个分支后运行；CD 只在 Pull Request 合并到 main 后运行，并把已签名 APK 发布到 GitHub Releases。详见 [CONTRIBUTING.md](CONTRIBUTING.md)。

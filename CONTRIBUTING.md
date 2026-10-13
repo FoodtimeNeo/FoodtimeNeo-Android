@@ -27,9 +27,9 @@ git push -u origin feature-<功能名>
 ## 自动化
 
 - Android CI：Pull Request 指向 main/dev，以及代码进入 main/dev 后都会运行。它检查分支流、架构边界、单元测试、Lint 和 Debug 构建。
-- Android Release Build：只有 Pull Request 真正合并到 main 后才运行，重新验证并生成 Release APK/AAB。
-- Release 签名：在 GitHub Actions Secrets 配置 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 后会自动签名；缺少密钥时仅验证未签名构建。
+- Android CD：只有 Pull Request 真正合并到 main 后才运行，重新验证、生成已签名 Release APK，并发布到 GitHub Releases。Release 标签格式为 `android-main-<运行编号>-<短提交号>`。
+- Release 签名：必须先在 GitHub Actions Secrets 配置 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`；任何一项缺失都会中止发布，避免上传无法安装的未签名 APK。
 
 仓库管理员还应为 dev 和 main 开启分支保护：要求 Pull Request、要求 Android CI 通过、禁止强推；main 只接受 dev 的 Pull Request。
 
-发布产物的最终目的地需要在 GitHub Actions Artifact、GitHub Release 或 Google Play 之间确定。当前 Release 工作流只完成构建和验证，不会擅自上传二进制。
+CD 使用 GitHub 自动提供的 `GITHUB_TOKEN` 创建 Release 和上传 APK，不需要额外创建个人访问令牌。
