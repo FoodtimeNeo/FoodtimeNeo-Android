@@ -1,9 +1,8 @@
-package cn.edu.bjtu.foodtime;
+package cn.edu.bjtu.foodtime.domain.repository;
 
-import cn.edu.bjtu.foodtime.Models.*;
+import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import java.math.BigDecimal;
 import java.util.List;
-import org.json.JSONObject;
 
 /** Screen-facing contract. Network implementations should load/cache off the main thread. */
 public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
@@ -30,9 +29,9 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
 
   List<Audit> audits();
 
-  List<JSONObject> entities(String table, String parentId);
+  List<AdminEntity> entities(String table, String parentId);
 
-  JSONObject entity(String table, String id);
+  AdminEntity entity(String table, String id);
 
   void editEntity(
       String table,

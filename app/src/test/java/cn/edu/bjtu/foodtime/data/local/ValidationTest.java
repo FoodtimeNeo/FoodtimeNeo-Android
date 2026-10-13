@@ -1,7 +1,8 @@
-package cn.edu.bjtu.foodtime;
+package cn.edu.bjtu.foodtime.data.local;
 
 import static org.junit.Assert.*;
 
+import cn.edu.bjtu.foodtime.domain.validation.Validation;
 import org.junit.Test;
 
 public class ValidationTest {

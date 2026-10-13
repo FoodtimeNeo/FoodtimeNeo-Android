@@ -1,6 +1,6 @@
-package cn.edu.bjtu.foodtime;
+package cn.edu.bjtu.foodtime.domain.repository;
 
-import cn.edu.bjtu.foodtime.Models.User;
+import cn.edu.bjtu.foodtime.domain.model.Models.User;
 
 public interface AuthRepository {
   User currentUser();

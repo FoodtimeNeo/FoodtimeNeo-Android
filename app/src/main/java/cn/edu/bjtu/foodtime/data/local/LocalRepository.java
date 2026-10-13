@@ -1,8 +1,10 @@
-package cn.edu.bjtu.foodtime;
+package cn.edu.bjtu.foodtime.data.local;
 
 import android.content.Context;
 import android.content.SharedPreferences;
-import cn.edu.bjtu.foodtime.Models.*;
+import cn.edu.bjtu.foodtime.domain.model.Models.*;
+import cn.edu.bjtu.foodtime.domain.repository.FoodtimeRepository;
+import cn.edu.bjtu.foodtime.domain.validation.Validation;
 import java.math.BigDecimal;
 import java.util.*;
 import org.json.*;
@@ -61,11 +63,22 @@ public class LocalRepository implements FoodtimeRepository {
     }
   }
 
-  public JSONObject entity(String table, String id) {
+  public AdminEntity entity(String table, String id) {
     requireAdmin();
     if (!List.of("halls", "stalls", "dishes").contains(table))
       throw new IllegalArgumentException("未知实体");
-    return find(table, id);
+    return toAdminEntity(find(table, id));
+  }
+
+  private static AdminEntity toAdminEntity(JSONObject value) {
+    if (value == null) return null;
+    return new AdminEntity(
+        value.optString("id"),
+        value.optString("name"),
+        value.optString("description"),
+        value.optString("price"),
+        value.optString("coverImageUrl"),
+        value.optBoolean("active", true));
   }
 
   protected static String id() {
@@ -777,16 +790,16 @@ public class LocalRepository implements FoodtimeRepository {
     return list;
   }
 
-  public List<JSONObject> entities(String table, String parentId) {
+  public List<AdminEntity> entities(String table, String parentId) {
     requireAdmin();
     if (!List.of("halls", "stalls", "dishes").contains(table))
       throw new IllegalArgumentException("未知实体");
-    List<JSONObject> result = new ArrayList<>();
+    List<AdminEntity> result = new ArrayList<>();
     for (int i = 0; i < rows(table).length(); i++) {
       JSONObject o = rows(table).optJSONObject(i);
       if (table.equals("halls")
           || (table.equals("stalls") ? o.optString("diningHallId") : o.optString("stallId"))
-              .equals(parentId)) result.add(o);
+              .equals(parentId)) result.add(toAdminEntity(o));
     }
     return result;
   }

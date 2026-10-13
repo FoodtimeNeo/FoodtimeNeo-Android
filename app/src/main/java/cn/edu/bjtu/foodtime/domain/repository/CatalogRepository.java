@@ -1,6 +1,6 @@
-package cn.edu.bjtu.foodtime;
+package cn.edu.bjtu.foodtime.domain.repository;
 
-import cn.edu.bjtu.foodtime.Models.*;
+import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import java.util.List;
 
 /** Replace the local implementation with API calls, without changing screen rendering. */

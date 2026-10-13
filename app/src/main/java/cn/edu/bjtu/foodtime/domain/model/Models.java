@@ -1,4 +1,4 @@
-package cn.edu.bjtu.foodtime;
+package cn.edu.bjtu.foodtime.domain.model;
 
 import java.math.BigDecimal;
 
@@ -40,6 +40,15 @@ public final class Models {
       long createdAt) {}
 
   public record Photo(String id, String dishId, String imageUrl, String userId) {}
+
+  /** Editable catalog item exposed to administration screens without leaking storage JSON. */
+  public record AdminEntity(
+      String id,
+      String name,
+      String description,
+      String price,
+      String coverImageUrl,
+      boolean active) {}
 
   public record Audit(
       String id,

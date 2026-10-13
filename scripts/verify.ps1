@@ -12,7 +12,7 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'Application installation failed.' }
         & adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
         if ($LASTEXITCODE -ne 0) { throw 'Device test installation failed.' }
-        $acceptanceResult = & adb shell am instrument -w cn.edu.bjtu.foodtime.test/cn.edu.bjtu.foodtime.AcceptanceRunner
+        $acceptanceResult = & adb shell am instrument -w cn.edu.bjtu.foodtime.test/cn.edu.bjtu.foodtime.presentation.AcceptanceRunner
         $acceptanceResult | Write-Output
         if ($LASTEXITCODE -ne 0 -or ($acceptanceResult -join "`n") -notmatch 'PASS: \d+ acceptance assertions') {
             throw 'Device acceptance did not pass.'

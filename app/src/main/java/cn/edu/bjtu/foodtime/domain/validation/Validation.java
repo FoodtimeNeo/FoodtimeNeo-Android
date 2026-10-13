@@ -1,4 +1,4 @@
-package cn.edu.bjtu.foodtime;
+package cn.edu.bjtu.foodtime.domain.validation;
 
 import java.math.BigDecimal;
 import java.util.Locale;

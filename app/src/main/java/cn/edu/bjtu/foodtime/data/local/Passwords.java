@@ -1,4 +1,4 @@
-package cn.edu.bjtu.foodtime;
+package cn.edu.bjtu.foodtime.data.local;
 
 import java.security.*;
 import java.util.*;

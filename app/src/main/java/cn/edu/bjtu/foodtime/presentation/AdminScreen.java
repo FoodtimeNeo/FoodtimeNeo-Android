@@ -1,10 +1,9 @@
-package cn.edu.bjtu.foodtime;
+package cn.edu.bjtu.foodtime.presentation;
 
 import android.app.AlertDialog;
 import android.widget.*;
-import cn.edu.bjtu.foodtime.Models.*;
+import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import java.util.*;
-import org.json.JSONObject;
 
 final class AdminScreen {
   static void guard(MainActivity a) {
@@ -104,23 +103,22 @@ final class AdminScreen {
     String table = args[0], parent = args.length > 1 ? args[1] : "";
     String title = table.equals("halls") ? "食堂管理" : table.equals("stalls") ? "档口管理" : "菜品管理";
     a.heading(page, "02.2", title, "停用的信息不会出现在同学的列表中");
-    List<JSONObject> list = a.repo.entities(table, parent);
+    List<AdminEntity> list = a.repo.entities(table, parent);
     if (list.isEmpty()) Ui.empty(page, "还没有记录", "点击下方按钮新增一条信息。");
-    for (JSONObject o : list) {
+    for (AdminEntity o : list) {
       LinearLayout card = Ui.card(page);
-      card.addView(Ui.title(a, o.optString("name"), 25));
+      card.addView(Ui.title(a, o.name(), 25));
       Ui.gap(card, 8);
       card.addView(
           Ui.stamp(
               a,
-              o.optBoolean("active") ? "启用" : "停用",
-              o.optBoolean("active") ? Design.GREEN : Design.RED));
+              o.active() ? "启用" : "停用", o.active() ? Design.GREEN : Design.RED));
       if (table.equals("dishes")) {
         Ui.gap(card, 8);
-        card.addView(Ui.text(a, "¥" + o.optString("price"), 16, Design.RED));
+        card.addView(Ui.text(a, "¥" + o.price(), 16, Design.RED));
       }
       Ui.gap(card, 16);
-      Ui.action(card, "编辑信息与状态", false, () -> a.go("admin-edit", table + "~" + o.optString("id")));
+      Ui.action(card, "编辑信息与状态", false, () -> a.go("admin-edit", table + "~" + o.id()));
       if (!table.equals("dishes")) {
         Ui.gap(card, 8);
         Ui.action(
@@ -130,7 +128,7 @@ final class AdminScreen {
             () ->
                 a.go(
                     "admin-data",
-                    (table.equals("halls") ? "stalls" : "dishes") + "~" + o.optString("id")));
+                    (table.equals("halls") ? "stalls" : "dishes") + "~" + o.id()));
       }
     }
     Ui.action(
@@ -145,7 +143,7 @@ final class AdminScreen {
     String[] args = route.id().split("~", -1);
     String table = args[0], value = args.length > 1 ? args[1] : "";
     boolean creating = route.kind().equals("admin-new");
-    JSONObject o = creating ? null : a.repo.entity(table, value);
+    AdminEntity o = creating ? null : a.repo.entity(table, value);
     if (!creating && o == null) throw new IllegalArgumentException("记录不存在");
     a.heading(page, "02.2", creating ? "添一条新信息" : "编辑信息", "名称、价格和状态按实际情况填写");
     LinearLayout form = Ui.card(page);
@@ -155,9 +153,9 @@ final class AdminScreen {
     if (price != null) price.setInputType(8194);
     if (o != null) {
       if (!a.drafts.containsKey(a.draftKey("loaded"))) {
-        name.setText(o.optString("name"));
-        description.setText(o.optString("description"));
-        if (price != null) price.setText(o.optString("price"));
+        name.setText(o.name());
+        description.setText(o.description());
+        if (price != null) price.setText(o.price());
         a.drafts.putBoolean(a.draftKey("loaded"), true);
       }
     }
@@ -167,12 +165,12 @@ final class AdminScreen {
     enabled.setTextSize(16);
     enabled.setMinHeight(Ui.dp(a, 48));
     String activeKey = a.draftKey("active");
-    enabled.setChecked(a.drafts.getBoolean(activeKey, o == null || o.optBoolean("active")));
+    enabled.setChecked(a.drafts.getBoolean(activeKey, o == null || o.active()));
     enabled.setOnCheckedChangeListener((v, checked) -> a.drafts.putBoolean(activeKey, checked));
     form.addView(enabled);
     Ui.gap(form, 16);
     String imageKey = a.draftKey("image");
-    String image = a.drafts.getString(imageKey, o == null ? "" : o.optString("coverImageUrl"));
+    String image = a.drafts.getString(imageKey, o == null ? "" : o.coverImageUrl());
     if (!table.equals("dishes")) {
       form.addView(Ui.image(a, image, "可添加封面", true));
       Ui.gap(form, 16);

@@ -1,4 +1,4 @@
-package cn.edu.bjtu.foodtime;
+package cn.edu.bjtu.foodtime.presentation;
 
 import android.app.*;
 import android.content.*;
@@ -6,7 +6,9 @@ import android.graphics.Bitmap;
 import android.os.Bundle;
 import android.view.*;
 import android.widget.*;
-import cn.edu.bjtu.foodtime.Models.*;
+import cn.edu.bjtu.foodtime.data.local.LocalRepository;
+import cn.edu.bjtu.foodtime.domain.model.Models.*;
+import cn.edu.bjtu.foodtime.domain.validation.Validation;
 import java.io.*;
 import java.util.*;
 
