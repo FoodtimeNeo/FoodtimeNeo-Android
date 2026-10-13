@@ -15,7 +15,7 @@ final class AuthScreen {
     if(register) {
       code.setInputType(InputType.TYPE_CLASS_NUMBER);
       Ui.submit(card,"获取验证码",error,() -> {String value=email.getText().toString();return () -> a.repo.sendVerificationCode(value);},() -> a.message("验证码已发送"));
-      card.addView(Ui.text(a,"邮箱服务暂未接通",14,Design.MUTED));Ui.gap(card,12);
+      Ui.gap(card,12);
     }
     Ui.submit(card,register?"注册":"登录",error,() -> {
       String account=email.getText().toString(),secret=password.getText().toString(),verification=register?code.getText().toString():"";

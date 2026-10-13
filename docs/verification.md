@@ -3,11 +3,11 @@
 本轮应用默认使用真实Backend，经ADB reverse以127.0.0.1:8080通信。没有注入LocalRepository，旧离线仓库已移到testShared，不进入APK。
 
 - 架构检查、8项JVM测试、Lint、Debug APK及设备测试包构建通过。
-- RemoteRepositoryRunner：21项真实设备检查通过，覆盖JSON契约、Keystore加密Cookie恢复、三级目录、评论审批/删除、每日评分快照、图片私有读取/驳回原因、无价格菜品补价、档口投稿、日志及角色更新。
-- RemoteUiRunner：正常字体16项检查通过，操作实际登录/栏目导航与滚动恢复/评论提交审核删除/后台图片导入与投稿/用户禁用恢复/三级目录新增编辑删除/改密注销和新密码登录。
-- 1.3倍字体下基础页面流程10项检查通过。已检查详情、资料、登录、投稿截图，无横向溢出或文字重叠；字体设置随后恢复1.0。
+- RemoteRepositoryRunner：最终22项真实设备检查通过，覆盖JSON契约、Keystore加密Cookie恢复与服务来源绑定、三级目录、评论审批/删除、每日评分快照、图片私有读取/驳回原因、无价格菜品补价、档口投稿、日志及角色更新。
+- RemoteUiRunner：正常字体及最终1.3倍字体各19项检查通过，操作实际登录/栏目导航与滚动恢复/评论提交审核删除/后台图片导入与投稿/用户禁用恢复/三级目录新增编辑删除/改密注销和新密码登录；提交过程中重建Activity，恢复结果且只写入一次。
+- 已检查最终详情、资料、登录、投稿和用户管理截图，无横向溢出或文字重叠；字体设置随后恢复1.0。Lint为0错误，仅有旧版忽略API33返回属性的一条非阻断提示；API26–32另有返回兼容路径。
 - 金额显示在JSON解析后仍保持两位小数；个人投稿价格为null时显示“价格未填写”，不会假设已有价格。
-- 设备使用独立.integration包名，保留原来不同签名安装及数据。截图位于设备私有files/remote-ui-evidence目录，读取需adb exec-out run-as；本轮本机副本在build/remote-ui-evidence和build/remote-ui-large-font-evidence。
+- 设备使用独立.integration包名，保留原来不同签名安装及数据。截图位于设备私有files/remote-ui-evidence目录，读取需adb exec-out run-as；最终本机副本在build/quality-large-font-evidence。检查APK dex确认不含LocalRepository或foodtime_mock_v1，Java新版字符串操作由构建工具生成回退实现，不是直接调用API33的String方法。
 
 系统图片选择器供应商的具体界面仍需真机体验；自动验证了原生选图请求及回传URI后的真实导入、压缩、上传和投稿。未执行API26–32设备运行；保留对应返回路径。正式邮箱投递、点赞/收藏/分类不在本轮验收范围，依据用户明确确认。
 

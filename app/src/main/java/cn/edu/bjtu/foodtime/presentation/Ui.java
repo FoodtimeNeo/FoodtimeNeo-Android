@@ -157,7 +157,7 @@ public final class Ui {
     input.setId(caption.getLabelFor());
     l.addView(input, new LinearLayout.LayoutParams(-1, -2));
     gap(l, 16);
-    if (!password && c instanceof MainActivity a && a.repo.currentUser() != null) {
+    if (!password && !label.equals("邮箱验证码") && c instanceof MainActivity a) {
       String key = a.draftKey(label);
       input.setText(a.drafts.getString(key, ""));
       observe(input, () -> a.drafts.putString(key, input.getText().toString()));
@@ -207,7 +207,8 @@ public final class Ui {
     if(path!=null&&!path.isBlank() && c instanceof MainActivity a) {
       var user=a.repo.currentUser();String identity=user==null?"anonymous":user.id()+":"+user.role();
       String key=identity+":"+path;int ticket=imageGeneration;
-      Bitmap cached=IMAGE_CACHE.get(key);
+      boolean cacheable=!(path.startsWith("/api/")||path.startsWith("http:")||path.startsWith("https:"));
+      Bitmap cached=cacheable?IMAGE_CACHE.get(key):null;
       if(cached!=null) {image.setImageBitmap(cached);placeholder.setVisibility(View.GONE);}
       else IMAGES.execute(() -> {
         Bitmap bitmap=null;
@@ -227,7 +228,7 @@ public final class Ui {
         Bitmap loaded=bitmap;
         a.runOnUiThread(() -> {
           if(a.isDestroyed()||ticket!=imageGeneration||loaded==null) return;
-          IMAGE_CACHE.put(key,loaded);if(!frame.isAttachedToWindow()) return;
+          if(cacheable) IMAGE_CACHE.put(key,loaded);if(!frame.isAttachedToWindow()) return;
           image.setImageBitmap(loaded);placeholder.setVisibility(View.GONE);
         });
       });

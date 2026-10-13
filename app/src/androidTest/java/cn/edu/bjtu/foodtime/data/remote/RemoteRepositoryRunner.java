@@ -37,6 +37,8 @@ public class RemoteRepositoryRunner extends Instrumentation {
       student.login("20260001@bjtu.edu.cn",PASSWORD);check(student.currentUser().role().equals("user"),"Role comes from server");
       RemoteRepository restored=repository(context,namespace);restored.restoreSession();check(restored.currentUser().id().equals(student.currentUser().id()),"Encrypted cookies restore server session");
       check(!context.getSharedPreferences(namespace,0).getAll().toString().contains("FOODTIME_SESSION"),"Cookie name/value is not stored as plaintext");
+      EncryptedCookieStore changedOrigin=new EncryptedCookieStore(context,"http://127.0.0.1:9999/api/v1/",namespace);
+      check(changedOrigin.getCookies().isEmpty(),"Changing Backend origin cannot restore another origin's session cookie");
       load(student,ContentRequest.Query.HALLS,"");Hall hall=student.halls().stream().filter(h -> h.name().equals("联调示例食堂")).findFirst().orElseThrow();
       load(student,ContentRequest.Query.STALLS,hall.id());Stall stall=student.stalls(hall.id()).get(0);
       load(student,ContentRequest.Query.DISHES,stall.id());Dish dish=student.dishes(stall.id()).stream().filter(d -> d.name().equals("联调示例菜品")).findFirst().orElseThrow();
