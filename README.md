@@ -6,11 +6,10 @@
 
 ```powershell
 .\gradlew.bat verifyArchitecture testDebugUnitTest lintDebug assembleDebug --no-configuration-cache
-adb reverse tcp:8080 tcp:8080
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-Backend须在开发电脑监听8080，应用地址为 `http://127.0.0.1:8080/api/v1/`。地址可通过 `-PFOODTIME_API_BASE_URL=https://服务地址/api/v1/` 配置；明文HTTP仅放行127.0.0.1。已有不同签名安装时，可以使用 `-PFOODTIME_DEBUG_SUFFIX=.integration` 构建独立联调包，保留旧安装的数据。
+默认请求服务器 `http://154.9.252.201/api/v1/`，手机或模拟器联网后可直接使用，无需ADB端口映射。地址可通过 `-PFOODTIME_API_BASE_URL=https://服务地址/api/v1/` 配置；明文HTTP仅放行指定服务器和本机 `127.0.0.1`，其他来源保持禁用。已有不同签名安装时，可以使用 `-PFOODTIME_DEBUG_SUFFIX=.integration` 构建独立联调包，保留旧安装的数据。切换服务来源后，旧来源的Cookie不会复用。
 
 应用提供食堂/档口/菜品浏览与搜索、评分评论与图册、图片/菜品/档口投稿、个人评论与提交记录、改密和退出。管理员可审核、维护三级目录、删除违规评论；平台管理员可搜索用户、调整他人角色和状态。普通用户底栏为“食堂 / 我的”，管理员增加“管理”。各栏目保留页面栈和滚动位置。
 
@@ -26,7 +25,7 @@ Backend须在开发电脑监听8080，应用地址为 `http://127.0.0.1:8080/api
 - [验收记录](docs/verification.md)
 - [分支协作](CONTRIBUTING.md)
 
-设备验收需要已启动的专用Backend和ADB端口映射：
+本地设备验收脚本使用专用Backend和ADB端口映射，并显式将被测应用构建为本机地址，不会将会写入数据的集成测试指向线上库：
 
 ```powershell
 .\scripts\verify.ps1 -Device -ApplicationSuffix .integration

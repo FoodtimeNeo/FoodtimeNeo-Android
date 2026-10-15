@@ -2,6 +2,8 @@
 
 默认应用已连接真实Backend，前缀为/api/v1。响应为code/message/data/timestamp/requestId；UUID作为ID，金额按BigDecimal处理。
 
+当前默认服务为 `http://154.9.252.201/api/v1/`，直接通过设备网络访问。仍可用 `FOODTIME_API_BASE_URL` 构建属性切回专用本地服务；Cookie按来源绑定，切换地址会清除不匹配的旧会话。应用不保存账号密码，也不预填线上账号。明文连接只为该指定IP和本机地址放行。
+
 | 行为 | 接口 |
 | --- | --- |
 | CSRF、登录、注册验证码、注册、退出 | /auth/csrf、/auth/login、/auth/register/email-code、/auth/register、/auth/logout |
@@ -23,3 +25,7 @@ Cookie名为FOODTIME_SESSION。登录后重新获取CSRF；写请求带Cookie与
 菜品/档口投稿通过后才创建正式实体；菜品投稿价格可空，通过前必须补齐。图片直接进入dish_images的pending，通过后才进图册；2026-10-14经用户确认的V4补充审核人、时间、原因及日志图片外键，日志四类外键只能填一个。历史名称来自真实关联，不在手机端伪造失效父级。
 
 Backend完整字段与错误契约见同级仓库docs/api/README.md。本文只描述Android映射，不另行定义数据库或接口。按用户确认，本轮不增加点赞、收藏、分类、运营员归属表；正式邮箱投递暂不验证。
+
+## 2026-10-16 服务器接入验证
+
+`verifyArchitecture testDebugUnitTest lintDebug assembleDebug` 通过，8项单元测试无失败。API36.1模拟器安装后由用户登录线上账号，页面实际显示留园、明湖等服务端食堂数据，未使用ADB端口映射。仅验证登录和浏览，未在线上执行投稿、评论、审核或数据库集成测试。设备验收脚本固定构建本机API地址，以继续将写入测试限定在专用本地环境。
