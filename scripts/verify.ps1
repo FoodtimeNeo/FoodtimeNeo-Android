@@ -6,7 +6,11 @@ $deviceArgs=@();if($Serial) {$deviceArgs=@('-s',$Serial)}
 Push-Location -LiteralPath $projectPath
 try {
     $buildArgs=@('verifyArchitecture','assembleDebug','testDebugUnitTest','lintDebug','--no-configuration-cache','--console=plain',"-PFOODTIME_DEBUG_SUFFIX=$ApplicationSuffix")
-    if($Device) {$buildArgs+='assembleDebugAndroidTest'}
+    if($Device) {
+        # Device tests create and mutate fixture records; always target the dedicated local Backend.
+        $buildArgs+='-PFOODTIME_API_BASE_URL=http://127.0.0.1:8080/api/v1/'
+        $buildArgs+='assembleDebugAndroidTest'
+    }
     & .\gradlew.bat @buildArgs
     if($LASTEXITCODE -ne 0) {throw 'Build, architecture, tests or lint failed'}
     if($Device) {
