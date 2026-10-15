@@ -1,6 +1,7 @@
 package cn.edu.bjtu.foodtime.presentation;
 
 import android.widget.*;
+import android.view.View;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import java.util.*;
 
@@ -31,34 +32,73 @@ final class SubmissionScreen {
 
   static void mine(MainActivity a, LinearLayout page, MainActivity.Route route) {
     a.heading(page, "03", "我的提交", "");
+    page.addView(Ui.text(a, "通过审核的点评会出现在“我的评论”。", 14, Design.MUTED));
+    Ui.gap(page, 16);
     List<Submission> all = a.repo.submissions(a.repo.currentUser().id());
-    Spinner filter = new Spinner(a);
-    String[] options = {"全部提交", "待审核", "已通过", "已驳回"};
-    filter.setAdapter(
-        new ArrayAdapter<>(a, android.R.layout.simple_spinner_dropdown_item, options));
-    filter.setMinimumHeight(Ui.dp(a, 48));
-    filter.setContentDescription("按审核状态筛选");
-    page.addView(filter);
+    String statusKey = a.draftKey("submission-status");
+    String typeKey = a.draftKey("submission-type");
+    String[] statuses = {"", "pending", "approved", "rejected"};
+    String[] types = {"", "review", "dish", "stall", "photo"};
+    Spinner status = filter(a, page, "审核状态", new String[] {"全部状态", "待审核", "已通过", "已驳回"}, a.drafts.getInt(statusKey, 0));
+    Spinner type = filter(a, page, "投稿类型", new String[] {"全部类型", "点评", "菜品", "档口", "图片"}, a.drafts.getInt(typeKey, 0));
+    Ui.gap(page, 8);
+    TextView count = Ui.text(a, "", 14, Design.MUTED);
+    count.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+    page.addView(count);
     Ui.gap(page, 16);
     LinearLayout list = Ui.col(a);
     page.addView(list);
-    filter.setOnItemSelectedListener(
-        new AdapterView.OnItemSelectedListener() {
-          public void onNothingSelected(AdapterView<?> p) {}
+    Runnable update = () -> {
+      int statusIndex = status.getSelectedItemPosition();
+      int typeIndex = type.getSelectedItemPosition();
+      a.drafts.putInt(statusKey, statusIndex);
+      a.drafts.putInt(typeKey, typeIndex);
+      list.removeAllViews();
+      int found = 0;
+      for (Submission submission : all) {
+        if ((statusIndex == 0 || submission.status().equals(statuses[statusIndex]))
+            && (typeIndex == 0 || submission.type().equals(types[typeIndex]))) {
+          found++;
+          card(a, list, submission);
+        }
+      }
+      count.setText("显示 " + found + " / " + all.size() + " 条记录");
+      if (found == 0) {
+        if (all.isEmpty()) {
+          Ui.empty(list, "暂无投稿记录", "从食堂找到档口和菜品，即可在对应页面参与投稿。");
+          Ui.action(list, "去逛食堂", true, a::home);
+        } else {
+          Ui.empty(list, "没有符合筛选条件的记录", "调整类型或状态，或清除筛选查看全部。");
+          Ui.action(list, "清除筛选", false, () -> {
+            status.setSelection(0);
+            type.setSelection(0);
+          });
+        }
+      }
+    };
+    AdapterView.OnItemSelectedListener listener = new AdapterView.OnItemSelectedListener() {
+      public void onNothingSelected(AdapterView<?> parent) {}
+      public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+        update.run();
+      }
+    };
+    status.setOnItemSelectedListener(listener);
+    type.setOnItemSelectedListener(listener);
+    update.run();
+  }
 
-          public void onItemSelected(AdapterView<?> p, android.view.View v, int pos, long id) {
-            list.removeAllViews();
-            String state =
-                pos == 0 ? "" : new String[] {"", "pending", "approved", "rejected"}[pos];
-            int count = 0;
-            for (Submission s : all)
-              if (state.isEmpty() || s.status().equals(state)) {
-                count++;
-                card(a, list, s);
-              }
-            if (count == 0) Ui.empty(list, "暂无提交", "");
-          }
-        });
+  private static Spinner filter(MainActivity a, LinearLayout page, String label, String[] options, int selected) {
+    TextView caption = Ui.text(a, label, 14, Design.INK);
+    page.addView(caption);
+    Spinner filter = new Spinner(a);
+    filter.setId(View.generateViewId());
+    caption.setLabelFor(filter.getId());
+    filter.setContentDescription("按" + label + "筛选");
+    filter.setAdapter(new ArrayAdapter<>(a, android.R.layout.simple_spinner_dropdown_item, options));
+    filter.setMinimumHeight(Ui.dp(a, 48));
+    filter.setSelection(Math.max(0, Math.min(options.length - 1, selected)));
+    page.addView(filter);
+    return filter;
   }
 
   static LinearLayout card(MainActivity a, LinearLayout page, Submission s) {
