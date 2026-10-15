@@ -26,9 +26,9 @@ final class ProfileScreen {
             user.role().equals("superadmin") ? "平台管理员" : user.isAdmin() ? "管理员" : "普通用户",
             user.isAdmin() ? Design.RED : Design.BLUE));
     LinearLayout menu = Ui.card(page);
-    Ui.action(menu, "我的评论", false, () -> a.go("mine-reviews", ""));
+    Ui.action(menu, "我的评论 · 已发布", false, () -> a.go("mine-reviews", ""));
     Ui.gap(menu, 12);
-    Ui.action(menu, "我的提交", false, () -> a.go("mine-submissions", ""));
+    Ui.action(menu, "我的提交 · 审核记录", false, () -> a.go("mine-submissions", ""));
     Ui.gap(menu, 12);
     Ui.action(menu, "修改密码", false, () -> a.go("password", ""));
     Ui.gap(menu, 24);
@@ -38,7 +38,10 @@ final class ProfileScreen {
   static void reviews(MainActivity a, LinearLayout page, MainActivity.Route route) {
     a.heading(page, "02.1", "我的评论", "");
     List<Review> reviews = a.repo.myReviews();
-    if (reviews.isEmpty()) Ui.empty(page, "暂无已发布评论", "审核记录见“我的提交”");
+    if (reviews.isEmpty()) {
+      Ui.empty(page, "暂无已发布评论", "刚提交的点评需要先审核，可在“我的提交”查看进度和驳回原因。");
+      Ui.action(page, "查看点评审核记录", true, () -> a.go("mine-submissions", ""));
+    }
     for (Review r : reviews) {
       LinearLayout card = Ui.card(page);
       card.addView(Ui.text(a, "评论ID：" + r.id(), 12, Design.MUTED));
