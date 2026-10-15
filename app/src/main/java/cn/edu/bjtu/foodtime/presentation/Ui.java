@@ -194,7 +194,8 @@ public final class Ui {
             super.onMeasure(
                 w,
                 MeasureSpec.makeMeasureSpec(
-                    wide ? width * 9 / 16 : width, MeasureSpec.EXACTLY));
+                    wide ? (path == null || path.isBlank() ? dp(c, 120) : width * 9 / 16) : width,
+                    MeasureSpec.EXACTLY));
           }
         };
     frame.setBackgroundColor(Design.ALT);
