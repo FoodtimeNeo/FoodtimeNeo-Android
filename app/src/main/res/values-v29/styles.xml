@@ -1,0 +1,7 @@
+<resources>
+    <style name="Theme.Foodtime" parent="Theme.Foodtime.Base">
+        <item name="android:windowLightNavigationBar">true</item>
+        <item name="android:navigationBarColor">#f2efe6</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
+</resources>

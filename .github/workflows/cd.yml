@@ -1,0 +1,96 @@
+name: Android CD
+
+on:
+  pull_request:
+    branches: [main]
+    types: [closed]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-main
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Publish signed APK after merge to main
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout merged commit
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Set up Java 17
+        uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+
+      - name: Verify and build release
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          for value in \
+            "$ANDROID_KEYSTORE_BASE64" \
+            "$ANDROID_KEYSTORE_PASSWORD" \
+            "$ANDROID_KEY_ALIAS" \
+            "$ANDROID_KEY_PASSWORD"; do
+            if [[ -z "$value" ]]; then
+              echo "Android signing secrets are required before publishing a GitHub Release."
+              exit 1
+            fi
+          done
+
+          keystore_path="$RUNNER_TEMP/foodtime-release.jks"
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore_path"
+
+          ./gradlew verifyArchitecture testDebugUnitTest lintRelease assembleRelease \
+            --no-configuration-cache \
+            "-PFOODTIME_RELEASE_STORE_FILE=$keystore_path" \
+            "-PFOODTIME_RELEASE_STORE_PASSWORD=$ANDROID_KEYSTORE_PASSWORD" \
+            "-PFOODTIME_RELEASE_KEY_ALIAS=$ANDROID_KEY_ALIAS" \
+            "-PFOODTIME_RELEASE_KEY_PASSWORD=$ANDROID_KEY_PASSWORD"
+
+      - name: Publish APK to GitHub Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          apk_path="$(find app/build/outputs/apk/release -maxdepth 1 -name '*.apk' ! -name '*unsigned*' -print -quit)"
+          if [[ -z "$apk_path" ]]; then
+            echo "A signed release APK was not produced."
+            exit 1
+          fi
+
+          short_sha="${MERGE_SHA:0:7}"
+          release_tag="android-main-${GITHUB_RUN_NUMBER}-${short_sha}"
+          release_apk="$RUNNER_TEMP/Foodtime-${release_tag}.apk"
+          cp "$apk_path" "$release_apk"
+
+          if gh release view "$release_tag" >/dev/null 2>&1; then
+            asset_name="$(basename "$release_apk")"
+            if gh release view "$release_tag" --json assets --jq '.assets[].name' \
+              | grep -Fqx "$asset_name"; then
+              echo "Release and APK already exist; nothing to publish."
+            else
+              gh release upload "$release_tag" "$release_apk"
+            fi
+          else
+            gh release create "$release_tag" "$release_apk" \
+              --target "$MERGE_SHA" \
+              --title "Foodtime Android #${GITHUB_RUN_NUMBER}" \
+              --generate-notes
+          fi
