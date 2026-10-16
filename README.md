@@ -2,6 +2,8 @@
 
 原生 Java 17 / Android View 应用，默认访问真实 Backend。视觉沿用所给 Web 风格的纸张底色、墨棕描边、实色阴影与中文字体。
 
+完整入口见 [文档导航](docs/README.md)；构建参数、专用设备验收和Release说明见 [构建与测试](docs/build-and-test.md)。
+
 使用 JDK 17、Android SDK 36 构建，最低支持 API 26：
 
 ```powershell
@@ -15,7 +17,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 角色、审核状态、账号权限均由Backend决定。Cookie用Android Keystore加密保存，密码不保存；重启后通过服务端恢复会话。评价与投稿审核通过后公开，评分使用每日更新的服务端物化视图。投稿价格可空，通过前由管理员补齐。模拟仓库仅在testShared源码中，不进入正式APK。
 
-正式邮箱投递按用户要求暂不验收，注册页面不生成或自动填入验证码。仅在Backend显式启用本地联调样例时，才可使用其文档中的三个测试账号；应用不会预设管理员身份。
+正式邮箱投递按用户要求暂不验收，注册页面不生成或自动填入验证码。Backend的dev环境启用测试开关时，可手工使用 `000000`，prod拒绝启用；具体以实际服务配置为准。仅在Backend显式启用本地联调样例时，才可使用其文档中的测试账号；应用不会预设管理员身份。
 
 - [本地连接](docs/local-backend.md)
 - [架构](docs/architecture.md)
