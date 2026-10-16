@@ -87,7 +87,7 @@ final class SubmissionScreen {
     update.run();
   }
 
-  private static Spinner filter(MainActivity a, LinearLayout page, String label, String[] options, int selected) {
+  static Spinner filter(MainActivity a, LinearLayout page, String label, String[] options, int selected) {
     TextView caption = Ui.text(a, label, 14, Design.INK);
     page.addView(caption);
     Spinner filter = new Spinner(a);

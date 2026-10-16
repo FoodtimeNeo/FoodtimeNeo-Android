@@ -22,13 +22,27 @@ final class AdminScreen {
     if(a.repo.currentUser().role().equals("superadmin")) {Ui.gap(card,12);Ui.action(card,"用户管理",false,() -> a.go("admin-users",""));}
   }
   static void audit(MainActivity a,LinearLayout page,MainActivity.Route route) {
-    guard(a);a.heading(page,"","审核投稿","");int count=0;
-    for(Submission s:a.repo.submissions(null)) if(s.status().equals("pending")) {
-      count++;LinearLayout card=SubmissionScreen.card(a,page,s);Ui.gap(card,16);
-      Ui.action(card,"通过",false,() -> decision(a,s,true));Ui.gap(card,8);
-      Ui.action(card,"驳回",false,() -> decision(a,s,false));
-    }
-    if(count==0) Ui.empty(page,"暂无待审核投稿","");
+    guard(a);a.heading(page,"","审核投稿","");
+    List<Submission> all=a.repo.submissions(null);
+    String key=a.draftKey("audit-status");
+    String[] states={"pending","approved","rejected"};
+    Spinner status=SubmissionScreen.filter(a,page,"审核状态",new String[]{"待审核","已通过","已驳回"},a.drafts.getInt(key,0));
+    LinearLayout list=Ui.col(a);page.addView(list);
+    Runnable update=() -> {
+      int index=status.getSelectedItemPosition();a.drafts.putInt(key,index);list.removeAllViews();int count=0;
+      for(Submission s:all) if(s.status().equals(states[index])) {
+        count++;LinearLayout card=SubmissionScreen.card(a,list,s);
+        if(s.status().equals("pending")) {
+          Ui.gap(card,16);Ui.action(card,"通过",false,() -> decision(a,s,true));Ui.gap(card,8);
+          Ui.action(card,"驳回",false,() -> decision(a,s,false));
+        }
+      }
+      if(count==0) Ui.empty(list,"暂无"+SubmissionScreen.status(states[index])+"投稿","");
+    };
+    status.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+      public void onNothingSelected(AdapterView<?> parent) {}
+      public void onItemSelected(AdapterView<?> parent,android.view.View view,int position,long id) {update.run();}
+    });update.run();
   }
   private static void decision(MainActivity a,Submission s,boolean approve) {
     LinearLayout form=Ui.col(a);form.setPadding(Ui.dp(a,20),Ui.dp(a,16),Ui.dp(a,20),Ui.dp(a,8));
@@ -97,13 +111,25 @@ final class AdminScreen {
   }
   static void reviews(MainActivity a,LinearLayout page,MainActivity.Route route) {
     guard(a);a.heading(page,"","评论管理","");List<Review> all=a.repo.reviews(null);
-    if(all.isEmpty()) Ui.empty(page,"暂无评论","");
-    for(Review review:all) {
-      LinearLayout card=Ui.card(page);card.addView(Ui.text(a,review.userId(),12,Design.BLUE));Ui.gap(card,8);
-      card.addView(Ui.text(a,a.repo.context(review.dishId()),14,Design.MUTED));
-      card.addView(Ui.text(a,"★".repeat(review.rating()),16,Design.RED));card.addView(Ui.text(a,review.content(),16,Design.INK));Ui.gap(card,12);
-      Ui.action(card,"删除违规评论",false,() -> removeReview(a,review));
-    }
+    page.addView(Ui.text(a,"仅展示审核通过的评论；删除须填写原因，评分在每日快照刷新后更新。",14,Design.MUTED));
+    EditText search=Ui.field(page,"按用户 ID 查询评论",false,false);
+    TextView count=Ui.text(a,"",14,Design.MUTED);count.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);page.addView(count);
+    LinearLayout list=Ui.col(a);page.addView(list);
+    Runnable filter=() -> {
+      String query=search.getText().toString().strip().toLowerCase(Locale.ROOT);list.removeAllViews();int found=0;
+      for(Review review:all) if(review.userId().toLowerCase(Locale.ROOT).contains(query)) {
+        found++;LinearLayout card=Ui.card(list);card.addView(Ui.text(a,"用户 ID："+review.userId(),12,Design.BLUE));Ui.gap(card,8);
+        card.addView(Ui.text(a,"评论 ID："+review.id(),12,Design.MUTED));
+        card.addView(Ui.text(a,SubmissionScreen.date(review.createdAt()),12,Design.MUTED));
+        card.addView(Ui.text(a,a.repo.context(review.dishId()),14,Design.MUTED));
+        card.addView(Ui.text(a,"★".repeat(review.rating())+" · "+review.rating()+" / 5",16,Design.RED));card.addView(Ui.text(a,review.content(),16,Design.INK));Ui.gap(card,12);
+        Ui.action(card,"删除违规评论",false,() -> removeReview(a,review));
+      }
+      count.setText("显示 "+found+" / "+all.size()+" 条评论");
+      if(found==0) Ui.empty(list,query.isEmpty()?"暂无正式评论":"没有找到该用户的评论","");
+    };Ui.observe(search,filter);filter.run();
+    Ui.action(page,"清除筛选",false,() -> search.setText(""));
+    Ui.gap(page,12);Ui.action(page,"查看投稿审核记录",false,() -> a.go("admin-audit",""));
   }
   private static void removeReview(MainActivity a,Review review) {
     LinearLayout form=Ui.col(a);form.setPadding(Ui.dp(a,20),Ui.dp(a,16),Ui.dp(a,20),Ui.dp(a,8));
