@@ -33,3 +33,5 @@ git push -u origin feature-<功能名>
 仓库管理员还应为 dev 和 main 开启分支保护：要求 Pull Request、要求 Android CI 通过、禁止强推；main 只接受 dev 的 Pull Request。
 
 CD 使用 GitHub 自动提供的 `GITHUB_TOKEN` 创建 Release 和上传 APK，不需要额外创建个人访问令牌。
+
+构建参数、CI与设备验收的区别、签名属性及当前服务器切换方式集中维护在 [构建与测试](docs/build-and-test.md)，其他文档通过链接引用，避免重复维护多套启动命令。
