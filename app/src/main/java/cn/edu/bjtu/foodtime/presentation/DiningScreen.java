@@ -35,7 +35,7 @@ final class DiningScreen {
     card.setGravity(Gravity.CENTER_VERTICAL);
     card.setPadding(0, 0, 0, Ui.dp(a, 4));
     if (image != null && !image.isBlank())
-      card.addView(Ui.image(a, image, name, false), new LinearLayout.LayoutParams(Ui.dp(a, 80), Ui.dp(a, 80)));
+      card.addView(Ui.image(a, Ui.thumb(image), name, false), new LinearLayout.LayoutParams(Ui.dp(a, 80), Ui.dp(a, 80)));
     LinearLayout label = Ui.row(a);
     label.setPadding(Ui.dp(a, 16), Ui.dp(a, 12), Ui.dp(a, 16), Ui.dp(a, 12));
     label.setMinimumHeight(Ui.dp(a, 64));
