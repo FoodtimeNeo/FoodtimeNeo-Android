@@ -131,7 +131,7 @@ final class SubmissionScreen {
     }
     if (!s.imageUrl().isBlank()) {
       Ui.gap(card, 12);
-      card.addView(Ui.image(a, s.imageUrl(), "提交的图片", true));
+      card.addView(Ui.image(a, Ui.thumb(s.imageUrl()), "提交的图片", true));
     }
     if (!s.reason().isBlank()) {
       Ui.gap(card, 12);

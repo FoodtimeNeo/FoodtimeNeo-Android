@@ -184,6 +184,12 @@ public final class Ui {
     if(!message.isBlank()) {gap(c,8);c.addView(text(l.getContext(),message,14,Design.MUTED));}
   }
 
+  /** Thumbnail variant for list display; local files and full-size remote images pass through. */
+  public static String thumb(String path) {
+    if (path == null || path.isBlank() || !path.startsWith("/api/")) return path;
+    return path.contains("?") ? path + "&size=thumb" : path + "?size=thumb";
+  }
+
   @android.annotation.SuppressLint("DrawAllocation") // Bitmap decoding below runs in IMAGES, never in onMeasure/draw.
   public static View image(Context c, String path, String label, boolean wide) {
     FrameLayout frame =
@@ -208,7 +214,9 @@ public final class Ui {
     if(path!=null&&!path.isBlank() && c instanceof MainActivity a) {
       var user=a.repo.currentUser();String identity=user==null?"anonymous":user.id()+":"+user.role();
       String key=identity+":"+path;int ticket=imageGeneration;
-      boolean cacheable=!(path.startsWith("/api/")||path.startsWith("http:")||path.startsWith("https:"));
+      boolean remoteFull=(path.startsWith("/api/")||path.startsWith("http:")||path.startsWith("https:"))
+          && !path.contains("size=thumb");
+      boolean cacheable=!remoteFull;
       Bitmap cached=cacheable?IMAGE_CACHE.get(key):null;
       if(cached!=null) {image.setImageBitmap(cached);placeholder.setVisibility(View.GONE);}
       else IMAGES.execute(() -> {

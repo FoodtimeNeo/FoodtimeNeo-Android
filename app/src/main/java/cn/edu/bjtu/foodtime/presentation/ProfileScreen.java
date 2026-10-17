@@ -10,7 +10,7 @@ final class ProfileScreen {
     User user = a.repo.currentUser();
     a.heading(page, "02", "我的", "");
     LinearLayout identity = Ui.card(page);
-    android.view.View avatar=Ui.image(a,user.avatarUrl(),user.displayName().isEmpty()?"用户":user.displayName().substring(0,1),false);
+    android.view.View avatar=Ui.image(a,Ui.thumb(user.avatarUrl()),user.displayName().isEmpty()?"用户":user.displayName().substring(0,1),false);
     avatar.setBackground(Ui.shape(a,Design.ALT,Design.RED,999));avatar.setClipToOutline(true);
     avatar.setContentDescription("个人头像");
     identity.addView(avatar, new LinearLayout.LayoutParams(Ui.dp(a, 64), Ui.dp(a, 64)));
