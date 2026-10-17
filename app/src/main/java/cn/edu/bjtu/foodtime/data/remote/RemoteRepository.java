@@ -135,7 +135,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private List<Review> reviewPage(String path) {
     return page(path,j -> {
       contexts.put(text(j,"dishId"),joined(j,true));
-      return new Review(text(j,"id"),text(j,"dishId"),text(j,"userId"),j.optInt("rating"),text(j,"content"),time(j,"createdAt"));
+      return new Review(text(j,"id"),text(j,"dishId"),text(j,"userId"),text(j,"userDisplayName"),j.optInt("rating"),text(j,"content"),time(j,"createdAt"));
     });
   }
   private void fetchOwnSubmissions() {
@@ -150,8 +150,8 @@ public final class RemoteRepository implements FoodtimeRepository {
     String target=admin?text(j,"targetId"):text(j,type.equals("dish")?"stallId":type.equals("stall")?"diningHallId":"dishId");
     String context=admin?adminContext(type,target):joined(j,type.equals("review")||type.equals("photo"));
     String name=text(j,admin||type.equals("dish")||type.equals("stall")?"name":"dishName");
-    return new Submission(text(j,"id"),type,target,admin?text(j,"userId"):user.id(),name,
-        text(j,admin||type.equals("review")?"content":"description"),decimal(j,"price"),
+    return new Submission(text(j,"id"),type,target,admin?text(j,"userId"):user.id(),admin?text(j,"userDisplayName"):"",
+        name,text(j,admin||type.equals("review")?"content":"description"),decimal(j,"price"),
         text(j,type.equals("stall")&&!admin?"coverImageUrl":"imageUrl"),j.optInt("rating"),text(j,"status"),
         text(j,admin?"reason":"reviewReason"),time(j,type.equals("review")&&!admin?"submittedAt":"createdAt"),context);
   }

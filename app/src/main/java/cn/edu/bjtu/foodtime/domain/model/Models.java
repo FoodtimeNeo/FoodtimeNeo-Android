@@ -27,13 +27,18 @@ public final class Models {
   }
 
   public record Review(
-      String id, String dishId, String userId, int rating, String content, long createdAt) {}
+      String id, String dishId, String userId, String userDisplayName, int rating, String content, long createdAt) {
+    public Review(String id, String dishId, String userId, int rating, String content, long createdAt) {
+      this(id, dishId, userId, "", rating, content, createdAt);
+    }
+  }
 
   public record Submission(
       String id,
       String type,
       String targetId,
       String userId,
+      String userDisplayName,
       String name,
       String content,
       BigDecimal price,
@@ -44,7 +49,11 @@ public final class Models {
       long createdAt, String context) {
     public Submission(String id,String type,String targetId,String userId,String name,String content,
         BigDecimal price,String imageUrl,int rating,String status,String reason,long createdAt) {
-      this(id,type,targetId,userId,name,content,price,imageUrl,rating,status,reason,createdAt,"");
+      this(id,type,targetId,userId,"",name,content,price,imageUrl,rating,status,reason,createdAt,"");
+    }
+    public Submission(String id,String type,String targetId,String userId,String userDisplayName,String name,String content,
+        BigDecimal price,String imageUrl,int rating,String status,String reason,long createdAt) {
+      this(id,type,targetId,userId,userDisplayName,name,content,price,imageUrl,rating,status,reason,createdAt,"");
     }
   }
 

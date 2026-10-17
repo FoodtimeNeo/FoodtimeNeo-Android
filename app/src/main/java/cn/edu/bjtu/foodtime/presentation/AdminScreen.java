@@ -118,7 +118,7 @@ final class AdminScreen {
     Runnable filter=() -> {
       String query=search.getText().toString().strip().toLowerCase(Locale.ROOT);list.removeAllViews();int found=0;
       for(Review review:all) if(review.userId().toLowerCase(Locale.ROOT).contains(query)) {
-        found++;LinearLayout card=Ui.card(list);card.addView(Ui.text(a,"用户 ID："+review.userId(),12,Design.BLUE));Ui.gap(card,8);
+        found++;LinearLayout card=Ui.card(list);card.addView(Ui.text(a,"作者："+(review.userDisplayName().isEmpty()?review.userId():review.userDisplayName()),12,Design.BLUE));Ui.gap(card,8);
         card.addView(Ui.text(a,"评论 ID："+review.id(),12,Design.MUTED));
         card.addView(Ui.text(a,SubmissionScreen.date(review.createdAt()),12,Design.MUTED));
         card.addView(Ui.text(a,a.repo.context(review.dishId()),14,Design.MUTED));

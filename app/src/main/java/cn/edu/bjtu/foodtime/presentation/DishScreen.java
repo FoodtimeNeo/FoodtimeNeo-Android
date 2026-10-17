@@ -103,7 +103,7 @@ final class DishScreen {
     if (reviews.isEmpty()) Ui.empty(page, "暂无评论", "");
     for (Review r : reviews) {
       LinearLayout c = Ui.card(page);
-      c.addView(Ui.text(a, r.userId(), 12, Design.BLUE));
+      c.addView(Ui.text(a, r.userDisplayName().isEmpty() ? r.userId() : r.userDisplayName(), 12, Design.BLUE));
       c.addView(Ui.text(a, "★".repeat(r.rating()) + " · " + r.rating() + " / 5", 16, Design.RED));
       Ui.gap(c, 5);
       c.addView(Ui.text(a, r.content(), 16, Design.INK));
