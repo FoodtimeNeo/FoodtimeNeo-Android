@@ -118,6 +118,7 @@ final class SubmissionScreen {
     card.addView(Ui.title(a, s.name(), 24));
     Ui.gap(card, 8);
     card.addView(Ui.text(a, "提交ID：" + s.id(), 12, Design.MUTED));
+    if(!s.userDisplayName().isBlank()) card.addView(Ui.text(a, "投稿者：" + s.userDisplayName(), 12, Design.BLUE));
     card.addView(Ui.text(a, date(s.createdAt()), 12, Design.MUTED));
     if(!s.context().isBlank()) card.addView(Ui.text(a,s.context(),14,Design.MUTED));
     else if(s.type().equals("review")||s.type().equals("photo")) card.addView(Ui.text(a,a.repo.context(s.targetId()),14,Design.MUTED));
