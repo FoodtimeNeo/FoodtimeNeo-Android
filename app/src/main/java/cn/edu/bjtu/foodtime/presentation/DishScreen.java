@@ -88,7 +88,7 @@ final class DishScreen {
     score.addView(
         Ui.text(
             a,
-            summary.reviewCount()+" 条评价 · 每日更新",
+            summary.reviewCount()+" 条评价 · 实时统计",
             14,
             Design.MUTED));
     LinearLayout action = Ui.row(a);
@@ -103,10 +103,14 @@ final class DishScreen {
     if (reviews.isEmpty()) Ui.empty(page, "暂无评论", "");
     for (Review r : reviews) {
       LinearLayout c = Ui.card(page);
-      c.addView(Ui.text(a, r.userId(), 12, Design.BLUE));
-      c.addView(Ui.text(a, "★".repeat(r.rating()) + " · " + r.rating() + " / 5", 16, Design.RED));
+      LinearLayout head=Ui.row(a);c.addView(head);
+      TextView author=Ui.text(a,r.userDisplayName().isEmpty()?r.userId():r.userDisplayName(),16,Design.INK);
+      author.setTypeface(Design.body(),android.graphics.Typeface.BOLD);head.addView(author,new LinearLayout.LayoutParams(0,-2,1));
+      head.addView(Ui.stamp(a,r.rating()+" / 5",Design.RED));
       Ui.gap(c, 5);
       c.addView(Ui.text(a, r.content(), 16, Design.INK));
+      Ui.gap(c,8);
+      EmbeddedReviewReplies.attach(a,c,r);
     }
   }
 

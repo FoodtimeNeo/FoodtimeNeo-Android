@@ -18,6 +18,7 @@ final class SubmissionScreen {
     return switch (value) {
       case "photo" -> "图片提交";
       case "review" -> "评论提交";
+      case "dish-review-reply" -> "点评回复";
       case "stall" -> "档口提交";
       default -> "菜品提交";
     };
@@ -87,7 +88,7 @@ final class SubmissionScreen {
     update.run();
   }
 
-  private static Spinner filter(MainActivity a, LinearLayout page, String label, String[] options, int selected) {
+  static Spinner filter(MainActivity a, LinearLayout page, String label, String[] options, int selected) {
     TextView caption = Ui.text(a, label, 14, Design.INK);
     page.addView(caption);
     Spinner filter = new Spinner(a);
@@ -118,6 +119,7 @@ final class SubmissionScreen {
     card.addView(Ui.title(a, s.name(), 24));
     Ui.gap(card, 8);
     card.addView(Ui.text(a, "提交ID：" + s.id(), 12, Design.MUTED));
+    if(!s.userDisplayName().isBlank()) card.addView(Ui.text(a, "投稿者：" + s.userDisplayName(), 12, Design.BLUE));
     card.addView(Ui.text(a, date(s.createdAt()), 12, Design.MUTED));
     if(!s.context().isBlank()) card.addView(Ui.text(a,s.context(),14,Design.MUTED));
     else if(s.type().equals("review")||s.type().equals("photo")) card.addView(Ui.text(a,a.repo.context(s.targetId()),14,Design.MUTED));
@@ -130,7 +132,7 @@ final class SubmissionScreen {
     }
     if (!s.imageUrl().isBlank()) {
       Ui.gap(card, 12);
-      card.addView(Ui.image(a, s.imageUrl(), "提交的图片", true));
+      card.addView(Ui.image(a, Ui.thumb(s.imageUrl()), "提交的图片", true));
     }
     if (!s.reason().isBlank()) {
       Ui.gap(card, 12);

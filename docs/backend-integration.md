@@ -9,7 +9,7 @@
 | CSRF、登录、注册验证码、注册、退出 | /auth/csrf、/auth/login、/auth/register/email-code、/auth/register、/auth/logout |
 | 当前资料与改密 | /users/me/profile、/users/me/password |
 | 三级目录 | /dining-halls、/dining-halls/{id}/stalls、/stalls/{id}/dishes；data为数组 |
-| 菜品详情、评分快照、评论、图册 | /dishes/{id}及/rating、/reviews、/images；评论/图册分页 |
+| 菜品详情、实时评分、评论、图册 | /dishes/{id}及/rating、/reviews、/images；评论/图册分页 |
 | 图片文件 | POST /uploads/images；GET /media/{id} |
 | 投稿 | POST /dishes/{id}/image-submissions、/stalls/{id}/submissions、/dining-halls/{id}/submissions、/dishes/{id}/reviews |
 | 个人记录 | /users/me/reviews及/review-submissions、/dish-submissions、/stall-submissions、/image-submissions |
@@ -20,12 +20,26 @@
 
 Cookie名为FOODTIME_SESSION。登录后重新获取CSRF；写请求带Cookie与CSRF，GET带Cookie。401清除当前会话，403/429/503显示服务端错误，写请求不自动重试。账号状态/角色从数据库重读，不能依赖客户端缓存授权。
 
-评论先进入dish_review_submissions，最多一条pending；通过后按用户/菜品唯一更新dish_reviews并复制提交时间。评分不由客户端重新平均，按服务器每日物化视图显示。删除正式评论保留审核历史。
+评论先进入dish_review_submissions，最多一条pending；通过后按用户/菜品唯一更新未删除dish_reviews；首次created_at复制提交时间，重评保留首次时间。评分不由客户端重新平均，按服务器实时汇总显示。正式评论软删除并保留审核历史，同步扣除评分。
 
 菜品/档口投稿通过后才创建正式实体；菜品投稿价格可空，通过前必须补齐。图片直接进入dish_images的pending，通过后才进图册；2026-10-14经用户确认的V4补充审核人、时间、原因及日志图片外键，日志四类外键只能填一个。历史名称来自真实关联，不在手机端伪造失效父级。
 
-Backend完整字段与错误契约见同级仓库docs/api/README.md。本文只描述Android映射，不另行定义数据库或接口。按用户确认，本轮不增加点赞、收藏、分类、运营员归属表；正式邮箱投递暂不验证。
+Backend完整字段与错误契约见同级仓库docs/api/README.md。本文只描述Android映射，不另行定义数据库或接口。当前开发按用户授权增加点评点赞、回复及回复点赞；其他数据库增强不在本轮范围；正式邮箱投递暂不验证。
 
 ## 2026-10-16 服务器接入验证
 
 `verifyArchitecture testDebugUnitTest lintDebug assembleDebug` 通过，8项单元测试无失败。API36.1模拟器安装后由用户登录线上账号，页面实际显示留园、明湖等服务端食堂数据，未使用ADB端口映射。仅验证登录和浏览，未在线上执行投稿、评论、审核或数据库集成测试。设备验收脚本固定构建本机API地址，以继续将写入测试限定在专用本地环境。
+
+## 管理员评论管理补充（2026-10-16）
+
+底部“管理”入口仅对admin/superadmin显示，进入“评论管理”可查看正式评论的用户ID、评论ID、时间、菜品归属、正文和1–5评分，支持按已加载完整记录中的用户ID过滤、数量提示和清除。删除必须填写原因并确认；失败保留输入，成功重新加载。数据源继续使用真实 /admin/reviews，后端验证管理员和CSRF，普通用户不能越权。待审核、已通过、已驳回内容在“审核投稿”按状态筛选，只有待审核项显示通过/驳回操作，筛选状态随页面保存。评分读取后端实时汇总，不在客户端编造新分数。
+
+评论点赞：PUT /reviews/{id}/like，DELETE同路径取消；无需正文。评论列表附带likeCount/replyCount/likedByMe/counterVersion，点赞返回likedByMe/likeCount/counterVersion，客户端不自行+1。
+
+## 点评回复（2026-10-20）
+
+GET/POST /reviews/{id}/replies，公开列表size20与nextCursor游标；POST携带content、replyToId和clientRequestId，成功202后提示审核中。GET /users/me/review-replies?page=&size=20 获取本人审核记录；DELETE /review-replies/{id}本人软删除；DELETE /admin/review-replies/{id}携带reason管理员删除。审核类型dish-review-reply沿用admin/moderation。回复和点赞不影响评分，公开reply_count来自服务端统计。
+
+## 回复点赞（2026-10-20）
+
+PUT/DELETE /review-replies/{id}/like，响应likedByMe/likeCount/counterVersion。公开回复附带同样字段，直接显示；处理中禁用重复操作，失败保留状态并显示错误。只更新回复统计及按钮，不刷新整个菜品页，不改变一级评论计数或菜品评分。
