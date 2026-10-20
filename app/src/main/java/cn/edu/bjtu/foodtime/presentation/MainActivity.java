@@ -106,6 +106,9 @@ public class MainActivity extends Activity {
     screens.put("password", PasswordScreen::show);
     screens.put("detail", DishScreen::detail);
     screens.put("review", ReviewScreen::create);
+    screens.put("review-replies", ReviewReplyScreen::thread);
+    screens.put("reply-create", ReviewReplyScreen::create);
+    screens.put("mine-review-replies", ReviewReplyScreen::mine);
     screens.put("admin", AdminScreen::home);
     screens.put("admin-audit", AdminScreen::audit);
     screens.put("admin-data", AdminScreen::data);
@@ -235,6 +238,8 @@ public class MainActivity extends Activity {
       case "dishes","submit-dish" -> ContentRequest.Query.DISHES;
       case "detail","gallery","upload-photo","review" -> ContentRequest.Query.DISH_DETAIL;
       case "mine-reviews" -> ContentRequest.Query.MY_REVIEWS;
+      case "review-replies","reply-create" -> ContentRequest.Query.REVIEW_REPLIES;
+      case "mine-review-replies" -> ContentRequest.Query.MY_REVIEW_REPLIES;
       case "mine-submissions" -> ContentRequest.Query.MY_SUBMISSIONS;
       case "admin","admin-audit" -> ContentRequest.Query.MODERATION;
       case "admin-data","admin-new" -> ContentRequest.Query.CATALOG;
@@ -246,6 +251,8 @@ public class MainActivity extends Activity {
     };
     return new ContentRequest(q,route.id());
   }
+
+  void redraw() { rememberScroll();renderContent(); }
 
   private void renderContent() {
     shell(true);

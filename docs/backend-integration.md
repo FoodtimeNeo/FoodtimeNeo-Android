@@ -35,3 +35,7 @@ Backend完整字段与错误契约见同级仓库docs/api/README.md。本文只�
 底部“管理”入口仅对admin/superadmin显示，进入“评论管理”可查看正式评论的用户ID、评论ID、时间、菜品归属、正文和1–5评分，支持按已加载完整记录中的用户ID过滤、数量提示和清除。删除必须填写原因并确认；失败保留输入，成功重新加载。数据源继续使用真实 /admin/reviews，后端验证管理员和CSRF，普通用户不能越权。待审核、已通过、已驳回内容在“审核投稿”按状态筛选，只有待审核项显示通过/驳回操作，筛选状态随页面保存。评分读取后端实时汇总，不在客户端编造新分数。
 
 评论点赞：PUT /reviews/{id}/like，DELETE同路径取消；无需正文。评论列表附带likeCount/replyCount/likedByMe/counterVersion，点赞返回likedByMe/likeCount/counterVersion，客户端不自行+1。
+
+## 点评回复（2026-10-20）
+
+GET/POST /reviews/{id}/replies，公开列表size20与nextCursor游标；POST携带content、replyToId和clientRequestId，成功202后提示审核中。GET /users/me/review-replies?page=&size=20 获取本人审核记录；DELETE /review-replies/{id}本人软删除；DELETE /admin/review-replies/{id}携带reason管理员删除。审核类型dish-review-reply沿用admin/moderation。回复和点赞不影响评分，公开reply_count来自服务端统计。
