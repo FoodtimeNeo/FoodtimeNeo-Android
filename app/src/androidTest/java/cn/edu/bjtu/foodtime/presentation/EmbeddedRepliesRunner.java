@@ -75,6 +75,7 @@ public final class EmbeddedRepliesRunner extends Instrumentation {
       case "photos" -> List.of();
       case "rating" -> new RatingSummary(new BigDecimal("5.00"),1);
       case "reviews" -> List.of(new Review("root","dish","user","评论作者",5,"一级评论正文",0,0,publicCount,false,0));
+      case "dishReviews" -> new ReviewPage(((FoodtimeRepository)proxy).reviews((String)args[0]),1,1,false);
       default -> throw new AssertionError("Unexpected repository call "+method.getName());
     });
   }

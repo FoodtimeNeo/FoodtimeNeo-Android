@@ -28,6 +28,11 @@ public final class Models {
 
   public record LikeState(boolean likedByMe, long likeCount, long counterVersion) {}
 
+  public record ReviewPage(java.util.List<Review> items,long total,int page,boolean hasMore) {
+    public ReviewPage { items=java.util.List.copyOf(items); }
+    public static ReviewPage empty() { return new ReviewPage(java.util.List.of(),0,0,false); }
+  }
+
   public record ReviewReply(String id,String reviewId,String replyToId,String userDisplayName,String content,
       String status,String reviewReason,long createdAt,boolean replyToDeleted,String replyToUserDisplayName,
       boolean ownedByMe,String dishId,String dishName,boolean reviewDeleted,LikeState likes) {}

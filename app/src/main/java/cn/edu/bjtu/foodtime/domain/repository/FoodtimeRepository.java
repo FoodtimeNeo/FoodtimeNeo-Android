@@ -10,6 +10,12 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default void restoreSession() {}
   default void refresh(ContentRequest request) {}
   default RatingSummary rating(String dishId) { return new RatingSummary(null,0); }
+  default ReviewPage dishReviews(String dishId) {
+    List<Review> items=reviews(dishId);return new ReviewPage(items,items.size(),1,false);
+  }
+  /** Public dish comments are fetched one page at a time, on the worker. */
+  default void loadDishReviews(String dishId) { refresh(new ContentRequest(ContentRequest.Query.DISH_DETAIL,dishId)); }
+  default void loadMoreDishReviews(String dishId) { throw new UnsupportedOperationException(); }
   default byte[] loadImage(String reference) { throw new UnsupportedOperationException(); }
   void submitPhoto(String dishId, String imageUrl);
 

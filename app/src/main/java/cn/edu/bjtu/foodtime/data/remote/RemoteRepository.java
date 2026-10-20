@@ -25,6 +25,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private final Map<String,List<Stall>> stallLists=new ConcurrentHashMap<>();
   private final Map<String,List<Dish>> dishLists=new ConcurrentHashMap<>();
   private final Map<String,List<Review>> reviews=new ConcurrentHashMap<>();
+  private final Map<String,ReviewPage> dishReviewPages=new ConcurrentHashMap<>();
   private final Map<String,List<Photo>> photos=new ConcurrentHashMap<>();
   private final Map<String,RatingSummary> ratings=new ConcurrentHashMap<>();
   private final Map<String,String> contexts=new ConcurrentHashMap<>();
@@ -137,16 +138,48 @@ public final class RemoteRepository implements FoodtimeRepository {
     fetchHalls(); fetchStalls(text(j,"diningHallId"));
     dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true));
     contexts.put(id,joined(j,true));
-    reviews.put(id,reviewPage("dishes/"+id+"/reviews"));
+    dishReviewPages.put(id,fetchDishReviewPage(id,1));
     photos.put(id,page("dishes/"+id+"/images",p -> new Photo(text(p,"id"),id,text(p,"imageUrl"),"")));
     JSONObject rating=call("GET","dishes/"+id+"/rating",null);
     ratings.put(id,new RatingSummary(decimal(rating,"averageScore"),rating.optLong("reviewCount")));
   }
   private List<Review> reviewPage(String path) {
-    return page(path,j -> {
-      contexts.put(text(j,"dishId"),joined(j,true));
-      return new Review(text(j,"id"),text(j,"dishId"),text(j,"userId"),text(j,"userDisplayName"),j.optInt("rating"),text(j,"content"),time(j,"createdAt"),j.optLong("likeCount"),j.optLong("replyCount"),j.optBoolean("likedByMe"),j.optLong("counterVersion"));
-    });
+    return page(path,this::review);
+  }
+  private Review review(JSONObject j) {
+    contexts.put(text(j,"dishId"),joined(j,true));
+    return new Review(text(j,"id"),text(j,"dishId"),text(j,"userId"),text(j,"userDisplayName"),j.optInt("rating"),text(j,"content"),time(j,"createdAt"),j.optLong("likeCount"),j.optLong("replyCount"),j.optBoolean("likedByMe"),j.optLong("counterVersion"));
+  }
+  private ReviewPage fetchDishReviewPage(String dishId,int number) {
+    JSONObject data=call("GET","dishes/"+dishId+"/reviews?page="+number+"&size=20",null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null) throw new RepositoryException(502,"INVALID_RESPONSE","评论列表响应异常",0);
+    List<Review> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++) {
+      JSONObject row=rows.optJSONObject(i);
+      if(row==null) throw new RepositoryException(502,"INVALID_RESPONSE","评论列表响应异常",0);
+      items.add(review(row));
+    }
+    long total=data.optLong("total");
+    return new ReviewPage(items,total,number,!items.isEmpty()&&number*20L<total);
+  }
+  @Override public ReviewPage dishReviews(String id) { return dishReviewPages.getOrDefault(id,ReviewPage.empty()); }
+  @Override public void loadDishReviews(String id) {
+    ReviewPage first=fetchDishReviewPage(id,1);
+    JSONObject rating=call("GET","dishes/"+id+"/rating",null);
+    dishReviewPages.put(id,first);
+    ratings.put(id,new RatingSummary(decimal(rating,"averageScore"),rating.optLong("reviewCount")));
+  }
+  @Override public void loadMoreDishReviews(String id) {
+    ReviewPage old=dishReviews(id);if(!old.hasMore()) return;
+    ReviewPage next=fetchDishReviewPage(id,old.page()+1);
+    Map<String,Review> merged=new LinkedHashMap<>();
+    for(Review row:old.items()) merged.put(row.id(),row);
+    for(Review row:next.items()) {
+      Review previous=merged.get(row.id());
+      if(previous==null||previous.counterVersion()<=row.counterVersion()) merged.put(row.id(),row);
+    }
+    dishReviewPages.put(id,new ReviewPage(List.copyOf(merged.values()),next.total(),next.page(),next.hasMore()));
   }
   private void fetchOwnSubmissions() {
     List<Submission> all=new ArrayList<>();
@@ -159,7 +192,12 @@ public final class RemoteRepository implements FoodtimeRepository {
 
   @Override public LikeState setReviewLike(String reviewId, boolean liked) {
     JSONObject result=call(liked?"PUT":"DELETE","reviews/"+reviewId+"/like",null);
-    return new LikeState(result.optBoolean("likedByMe"),result.optLong("likeCount"),result.optLong("counterVersion"));
+    LikeState state=new LikeState(result.optBoolean("likedByMe"),result.optLong("likeCount"),result.optLong("counterVersion"));
+    dishReviewPages.replaceAll((id,page) -> new ReviewPage(page.items().stream().map(row -> {
+      if(!row.id().equals(reviewId)||row.counterVersion()>state.counterVersion()) return row;
+      return new Review(row.id(),row.dishId(),row.userId(),row.userDisplayName(),row.rating(),row.content(),row.createdAt(),state.likeCount(),row.replyCount(),state.likedByMe(),state.counterVersion());
+    }).collect(java.util.stream.Collectors.toList()),page.total(),page.page(),page.hasMore()));
+    return state;
   }
   @Override public ReplyPage reviewReplies(String reviewId) { return replyPages.getOrDefault(reviewId,ReplyPage.empty()); }
   @Override public boolean hasLoadedReviewReplies(String reviewId) { return replyPages.containsKey(reviewId); }
@@ -247,7 +285,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public Dish dish(String id) { return dishes.get(id); }
   @Override public List<Stall> stalls(String id) { return stallLists.getOrDefault(id,List.of()); }
   @Override public List<Dish> dishes(String id) { return dishLists.getOrDefault(id,List.of()); }
-  @Override public List<Review> reviews(String id) { return reviews.getOrDefault(id==null?"admin":id,List.of()); }
+  @Override public List<Review> reviews(String id) { return id==null||id.equals("admin")?reviews.getOrDefault("admin",List.of()):dishReviews(id).items(); }
   @Override public List<Photo> photos(String id) { return photos.getOrDefault(id,List.of()); }
   @Override public RatingSummary rating(String id) { return ratings.getOrDefault(id,new RatingSummary(null,0)); }
   @Override public List<Review> myReviews() { return ownReviews; }
@@ -384,6 +422,6 @@ public final class RemoteRepository implements FoodtimeRepository {
   private void clear() {
     user=null;csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
-    replyPages.clear();ownReplies=ReplyPage.empty();ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();
+    dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();
   }
 }
