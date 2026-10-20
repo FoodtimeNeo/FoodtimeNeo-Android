@@ -68,3 +68,7 @@
 未执行真实设备/旧版Android运行测试；API26–32在代码中保留系统返回兼容路径。首版没有扩展较早文档中的收藏、点赞、消息、社区等增强项；FEATURE规定的核心功能与管理入口已实现。
 
 接入步骤和已存在/待新增接口见 `backend-integration.md`。可安装包为 debug 签名演示 APK，正式签名和发布由后续交付配置完成。
+
+## 2026-10-20 实时评分
+
+feature/realtime-dish-ratings 维持服务端评分来源并更新“实时统计”说明，进入详情继续通过worker刷新真实汇总。verifyArchitecture testDebugUnitTest lintDebug assembleDebug --no-configuration-cache 全部通过。未运行设备写入验收；本轮后端测试使用专用本地库。
