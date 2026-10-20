@@ -17,3 +17,7 @@ Review模型增加likeCount/replyCount/likedByMe/counterVersion。新增PUT/DELE
 菜品评论卡片新增“回复 · N”。进入讨论只取20条；加载更多按nextCursor取下一页，不递归拉取整楼。提供回复点评、回复某条、本人确认删除及删除对象占位。写回复表单保留草稿和clientRequestId，失败重试同内容/对象复用标识，成功清除；未审核内容不显示在公开列表。
 
 个人页新增“我的回复 · 审核记录”，每页20条，显示审核状态、原因与原点评删除提示。管理员审核页支持dish-review-reply决策，已通过回复可填写原因后删除。网络操作在worker，加载更多从缓存重绘，避免重新加载第一页。
+
+## 回复点赞（2026-10-20）
+
+PUT/DELETE /review-replies/{id}/like，响应likedByMe/likeCount/counterVersion。公开回复附带同样字段，直接显示；处理中禁用重复操作，失败保留状态并显示错误。只更新回复统计及按钮，不刷新整个菜品页，不改变一级评论计数或菜品评分。

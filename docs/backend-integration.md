@@ -39,3 +39,7 @@ Backend完整字段与错误契约见同级仓库docs/api/README.md。本文只�
 ## 点评回复（2026-10-20）
 
 GET/POST /reviews/{id}/replies，公开列表size20与nextCursor游标；POST携带content、replyToId和clientRequestId，成功202后提示审核中。GET /users/me/review-replies?page=&size=20 获取本人审核记录；DELETE /review-replies/{id}本人软删除；DELETE /admin/review-replies/{id}携带reason管理员删除。审核类型dish-review-reply沿用admin/moderation。回复和点赞不影响评分，公开reply_count来自服务端统计。
+
+## 回复点赞（2026-10-20）
+
+PUT/DELETE /review-replies/{id}/like，响应likedByMe/likeCount/counterVersion。公开回复附带同样字段，直接显示；处理中禁用重复操作，失败保留状态并显示错误。只更新回复统计及按钮，不刷新整个菜品页，不改变一级评论计数或菜品评分。

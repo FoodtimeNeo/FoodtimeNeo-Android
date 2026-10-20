@@ -4,7 +4,7 @@
 
 FoodtimeApplication装配RemoteRepository、同源HttpTransport、Keystore加密CookieStore以及应用生命周期内的串行工作线程。LocalRepository和其密码工具位于testShared，只供历史测试使用，不进入APK。
 
-- domain/model：UUID字符串、精确金额、可空投稿价格、服务端评分快照与真实关联上下文。
+- domain/model：UUID字符串、精确金额、可空投稿价格、服务端实时评分汇总与真实关联上下文。
 - domain/repository：FoodtimeRepository、ContentRequest业务查询、RepositoryProvider装配端口、安全错误类型。
 - data/remote：请求/响应解释、认证、分页、上传及缓存。公开读取与管理读取使用对应接口；公开列表的active是服务端过滤的结果。
 - presentation：Activity管理栏目导航、草稿与滚动，Screen渲染缓存和表单。提交先在主线程捕获输入，再交给工作线程；成功/错误回到主线程更新View。页面加载用版本号丢弃过时回调。
@@ -20,3 +20,5 @@ FoodtimeApplication装配RemoteRepository、同源HttpTransport、Keystore加密
 OperationStore在进程内保留提交结果；Activity重建后恢复结果和导航，不重发请求。进程被系统结束后无法推断未确认的写入结果，恢复页面会提示检查已有记录，保留草稿，不自动重试。密码和验证码不进入保存状态。Cookie密文绑定配置的服务来源，切换Backend地址会丢弃旧来源会话。
 
 新增功能先定义实际需要的业务契约和DTO映射，再实现数据和页面，按必要风险补充真实接口/设备验证；不为数据库没有的模型增加客户端假数据。
+
+点评回复采用独立ContentRequest查询：公开列表每页20条游标加载、个人记录按page分页；加载更多只更新缓存和当前页面。两类点赞在worker写入，直接使用服务器状态更新按钮；回复点赞同时更新缓存，避免加载更多重绘时倒退。
