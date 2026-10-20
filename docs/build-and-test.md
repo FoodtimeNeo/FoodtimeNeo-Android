@@ -50,8 +50,13 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 ## GitHub CI与Release
 
 - [CI](../.github/workflows/ci.yml) 在main/dev的PR及push时运行架构、JVM测试、Lint、Debug与测试包构建；构建测试包不等于运行设备测试。PR进入main时要求来源为dev。
-- [CD](../.github/workflows/cd.yml) 只在PR实际合并进main后运行，检出该合并SHA，再执行架构、JVM测试、Release Lint和签名构建。它创建GitHub Release并上传APK，不部署Backend或Web，也不安装到用户设备。
+- [CD](../.github/workflows/cd.yml) 在PR实际合并进main后运行，检出该合并SHA，再执行架构、JVM测试、Release Lint和签名构建；支持在Actions选择main手动执行，非main手动执行不会发布。
+- 产物为真正的release变体 `app-release.apk`，使用固定发布证书签名，并以 `apksigner verify` 校验。同步生成 `app-release.apk.sha256`；两份文件上传Actions artifact（保留30天）及GitHub Release。Release先以草稿创建，附件完整上传后公开；失败重跑可覆盖同一次运行的附件，不重复创建标签。
 - Release需要 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 四个Actions Secrets，缺少任何一项会停止发布。本文不读取或保存它们的实际值。
 - 自动标签为 `android-main-<运行编号>-<短SHA>`。仅同步dev或推送文档功能分支不会触发这条main发布流程；实际发布结果以Actions与Release为准，不能从YAML存在推断已经发布成功。
 
 本地Release配置使用 `FOODTIME_RELEASE_STORE_FILE`、`FOODTIME_RELEASE_STORE_PASSWORD`、`FOODTIME_RELEASE_KEY_ALIAS`、`FOODTIME_RELEASE_KEY_PASSWORD`。保持发布签名连续，签名信息不得写入文档或Git。
+
+CD通过Gradle环境变量传递签名参数，临时密钥只写入runner的临时目录，并在流程结束时清理；密钥不进入APK artifact。首次发布建立的固定签名保存在本机被Git忽略的 `.release-signing/`，需要单独安全备份，后续版本沿用同一证书。该目录与所有 `.jks`、`.keystore` 文件均被忽略，不能随源码提交。
+
+下载APK后可使用 `sha256sum -c app-release.apk.sha256` 校验完整性。安装命令为 `adb install -r app-release.apk`；已有同包名且签名不同的debug包不能直接覆盖，安装正式包前请自行处理旧包及数据。
