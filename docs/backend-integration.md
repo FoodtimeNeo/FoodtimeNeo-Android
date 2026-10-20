@@ -33,3 +33,5 @@ Backend完整字段与错误契约见同级仓库docs/api/README.md。本文只�
 ## 管理员评论管理补充（2026-10-16）
 
 底部“管理”入口仅对admin/superadmin显示，进入“评论管理”可查看正式评论的用户ID、评论ID、时间、菜品归属、正文和1–5评分，支持按已加载完整记录中的用户ID过滤、数量提示和清除。删除必须填写原因并确认；失败保留输入，成功重新加载。数据源继续使用真实 /admin/reviews，后端验证管理员和CSRF，普通用户不能越权。待审核、已通过、已驳回内容在“审核投稿”按状态筛选，只有待审核项显示通过/驳回操作，筛选状态随页面保存。评分读取后端实时汇总，不在客户端编造新分数。
+
+评论点赞：PUT /reviews/{id}/like，DELETE同路径取消；无需正文。评论列表附带likeCount/replyCount/likedByMe/counterVersion，点赞返回likedByMe/likeCount/counterVersion，客户端不自行+1。

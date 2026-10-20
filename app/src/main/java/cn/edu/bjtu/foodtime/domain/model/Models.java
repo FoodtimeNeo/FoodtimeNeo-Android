@@ -26,8 +26,14 @@ public final class Models {
     }
   }
 
+  public record LikeState(boolean likedByMe, long likeCount, long counterVersion) {}
+
   public record Review(
-      String id, String dishId, String userId, String userDisplayName, int rating, String content, long createdAt) {
+      String id, String dishId, String userId, String userDisplayName, int rating, String content, long createdAt,
+      long likeCount, long replyCount, boolean likedByMe, long counterVersion) {
+    public Review(String id, String dishId, String userId, String userDisplayName, int rating, String content, long createdAt) {
+      this(id,dishId,userId,userDisplayName,rating,content,createdAt,0,0,false,0);
+    }
     public Review(String id, String dishId, String userId, int rating, String content, long createdAt) {
       this(id, dishId, userId, "", rating, content, createdAt);
     }
