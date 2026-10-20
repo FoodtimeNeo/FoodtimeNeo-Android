@@ -4,6 +4,8 @@
 
 完整入口见 [文档导航](docs/README.md)；构建参数、专用设备验收和Release说明见 [构建与测试](docs/build-and-test.md)。
 
+正式安装包由CD生成并使用固定发布证书签名：[下载最新 app-release.apk](https://github.com/FoodtimeNeo/FoodtimeNeo-Android/releases/latest/download/app-release.apk)。各版本和SHA-256校验文件见[GitHub Releases](https://github.com/FoodtimeNeo/FoodtimeNeo-Android/releases)。
+
 使用 JDK 17、Android SDK 36 构建，最低支持 API 26：
 
 ```powershell
@@ -33,6 +35,6 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 .\scripts\verify.ps1 -Device -ApplicationSuffix .integration
 ```
 
-本轮按最新dev建立功能分支，使用中文提交，并以一次非快进合并回dev；复用旧功能分支时先让其指针指向最新dev。main发布流程由项目的CI/CD配置负责，本轮不发布main。
+按最新dev建立功能分支，使用中文提交，并以一次非快进合并回dev；复用旧功能分支时先让其指针指向最新dev。正式发布通过dev → main的PR；合并后CD验证、构建并发布签名release APK，也支持在main手动执行。
 
 点评已支持点赞、回复、回复点赞和“我的回复”审核记录，具体交互见[点评互动](docs/review-interactions.md)。
