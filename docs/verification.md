@@ -1,5 +1,9 @@
 # 验收记录
 
+## 2026-10-21 一级评论按需分页
+
+feature/dish-review-pagination将公开菜品评论改为每页20条。架构、11项JVM测试、lintDebug和Debug/AndroidTest构建通过；DishReviewPagingRunner在API36.1模拟器通过15项真实RemoteRepository HTTP/原生界面检查，覆盖首屏仅一页、分页失败与相同页重试、末页停止、非法响应保留原缓存、点赞缓存、追加保留回复草稿、空列表与刷新后的NULL评分/0计数。HTTP来自模拟器内部受控服务，不向真实Backend写入。
+
 ## 2026-10-21 楼层读取队列回归
 
 feature/review-read-queue修复多楼恢复时后续请求被全局写互斥丢弃的问题。架构、11项JVM测试、lintDebug和Debug/AndroidTest构建通过。独立 `.completion` 包在API36.1模拟器运行ReviewReadQueueRunner，12项原生检查通过：双楼恢复、重绘订阅去重、加载反馈结束、保存状态后多个回调、失败隔离与重试、串行执行和重复写保护、读取期间导航及旧页面回调隔离。受控仓库不写Backend或用户数据，原.integration安装保留。

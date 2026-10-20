@@ -51,6 +51,7 @@ public final class ReviewReadQueueRunner extends Instrumentation {
       case "photos" -> List.of();
       case "rating" -> new RatingSummary(new BigDecimal("5"),2);
       case "reviews" -> List.of(new Review("a","dish","u1","作者甲",5,"评论甲",0,0,1,false,0),new Review("b","dish","u2","作者乙",5,"评论乙",0,0,1,false,0));
+      case "dishReviews" -> new ReviewPage(((FoodtimeRepository)p).reviews((String)args[0]),2,1,false);
       case "hasLoadedReviewReplies" -> loaded.contains((String)args[0]);
       case "reviewReplies" -> new ReplyPage(List.of(),loaded.contains((String)args[0])?1:0,false,"");
       case "loadReviewReplies" -> {
