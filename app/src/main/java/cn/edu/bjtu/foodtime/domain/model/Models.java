@@ -26,33 +26,14 @@ public final class Models {
     }
   }
 
-  public record LikeState(boolean likedByMe, long likeCount, long counterVersion) {}
-
-  public record ReviewReply(String id,String reviewId,String replyToId,String userDisplayName,String content,
-      String status,String reviewReason,long createdAt,boolean replyToDeleted,String replyToUserDisplayName,
-      boolean ownedByMe,String dishId,String dishName,boolean reviewDeleted,LikeState likes) {}
-
-  public record ReplyPage(java.util.List<ReviewReply> items,long total,boolean hasMore,String nextCursor) {
-    public static ReplyPage empty() { return new ReplyPage(java.util.List.of(),0,false,""); }
-  }
-
   public record Review(
-      String id, String dishId, String userId, String userDisplayName, int rating, String content, long createdAt,
-      long likeCount, long replyCount, boolean likedByMe, long counterVersion) {
-    public Review(String id, String dishId, String userId, String userDisplayName, int rating, String content, long createdAt) {
-      this(id,dishId,userId,userDisplayName,rating,content,createdAt,0,0,false,0);
-    }
-    public Review(String id, String dishId, String userId, int rating, String content, long createdAt) {
-      this(id, dishId, userId, "", rating, content, createdAt);
-    }
-  }
+      String id, String dishId, String userId, int rating, String content, long createdAt) {}
 
   public record Submission(
       String id,
       String type,
       String targetId,
       String userId,
-      String userDisplayName,
       String name,
       String content,
       BigDecimal price,
@@ -63,17 +44,13 @@ public final class Models {
       long createdAt, String context) {
     public Submission(String id,String type,String targetId,String userId,String name,String content,
         BigDecimal price,String imageUrl,int rating,String status,String reason,long createdAt) {
-      this(id,type,targetId,userId,"",name,content,price,imageUrl,rating,status,reason,createdAt,"");
-    }
-    public Submission(String id,String type,String targetId,String userId,String userDisplayName,String name,String content,
-        BigDecimal price,String imageUrl,int rating,String status,String reason,long createdAt) {
-      this(id,type,targetId,userId,userDisplayName,name,content,price,imageUrl,rating,status,reason,createdAt,"");
+      this(id,type,targetId,userId,name,content,price,imageUrl,rating,status,reason,createdAt,"");
     }
   }
 
   public record Photo(String id, String dishId, String imageUrl, String userId) {}
 
-  /** The server's transactionally maintained rating summary; average is null when no score is available. */
+  /** The server's materialized rating snapshot; average is null when no score is available. */
   public record RatingSummary(BigDecimal averageScore,long reviewCount) {}
 
   /** Editable catalog item exposed to administration screens without leaking storage JSON. */

@@ -106,9 +106,6 @@ public class MainActivity extends Activity {
     screens.put("password", PasswordScreen::show);
     screens.put("detail", DishScreen::detail);
     screens.put("review", ReviewScreen::create);
-    screens.put("review-replies", ReviewReplyScreen::thread);
-    screens.put("reply-create", ReviewReplyScreen::create);
-    screens.put("mine-review-replies", ReviewReplyScreen::mine);
     screens.put("admin", AdminScreen::home);
     screens.put("admin-audit", AdminScreen::audit);
     screens.put("admin-data", AdminScreen::data);
@@ -238,8 +235,6 @@ public class MainActivity extends Activity {
       case "dishes","submit-dish" -> ContentRequest.Query.DISHES;
       case "detail","gallery","upload-photo","review" -> ContentRequest.Query.DISH_DETAIL;
       case "mine-reviews" -> ContentRequest.Query.MY_REVIEWS;
-      case "review-replies","reply-create" -> ContentRequest.Query.REVIEW_REPLIES;
-      case "mine-review-replies" -> ContentRequest.Query.MY_REVIEW_REPLIES;
       case "mine-submissions" -> ContentRequest.Query.MY_SUBMISSIONS;
       case "admin","admin-audit" -> ContentRequest.Query.MODERATION;
       case "admin-data","admin-new" -> ContentRequest.Query.CATALOG;
@@ -251,8 +246,6 @@ public class MainActivity extends Activity {
     };
     return new ContentRequest(q,route.id());
   }
-
-  void redraw() { rememberScroll();renderContent(); }
 
   private void renderContent() {
     shell(true);
@@ -417,7 +410,6 @@ public class MainActivity extends Activity {
     String action=trigger instanceof TextView text?text.getText().toString():"";
     startOperation(trigger,error,action,null,() -> {work.run();return null;},ignored -> success.run());
   }
-  boolean operationInFlight() { return writeInFlight; }
   private void startOperation(View trigger,TextView error,String action,String imageDraft,Supplier<String> work,Consumer<String> success) {
     if(writeInFlight) return;
     writeInFlight=true;if(trigger!=null) trigger.setEnabled(false);if(error!=null) error.setText("");
@@ -455,7 +447,6 @@ public class MainActivity extends Activity {
     }
     if(task.action().equals("注册")) {showAuth(false);message("注册成功，请登录");return;}
     if(repo.currentUser()==null) {signedOut();return;}
-    if(task.action().equals("发布回复")) {EmbeddedReviewReplies.completeSubmission(this);message("回复已提交，审核通过后公开");}
     if(task.imageDraft()!=null) {
       String previous=drafts.getString(task.imageDraft(),"");drafts.putString(task.imageDraft(),outcome.value());
       worker.execute(() -> PhotoImport.discard(this,previous));

@@ -10,7 +10,7 @@ final class ProfileScreen {
     User user = a.repo.currentUser();
     a.heading(page, "02", "我的", "");
     LinearLayout identity = Ui.card(page);
-    android.view.View avatar=Ui.image(a,Ui.thumb(user.avatarUrl()),user.displayName().isEmpty()?"用户":user.displayName().substring(0,1),false);
+    android.view.View avatar=Ui.image(a,user.avatarUrl(),user.displayName().isEmpty()?"用户":user.displayName().substring(0,1),false);
     avatar.setBackground(Ui.shape(a,Design.ALT,Design.RED,999));avatar.setClipToOutline(true);
     avatar.setContentDescription("个人头像");
     identity.addView(avatar, new LinearLayout.LayoutParams(Ui.dp(a, 64), Ui.dp(a, 64)));
@@ -30,8 +30,6 @@ final class ProfileScreen {
     Ui.gap(menu, 12);
     Ui.action(menu, "我的提交 · 审核记录", false, () -> a.go("mine-submissions", ""));
     Ui.gap(menu, 12);
-    Ui.action(menu,"我的回复 · 审核记录",false,() -> a.go("mine-review-replies","1"));
-    Ui.gap(menu,12);
     Ui.action(menu, "修改密码", false, () -> a.go("password", ""));
     Ui.gap(menu, 24);
     Ui.action(menu, "退出登录", true, () -> Ui.confirm(a, "退出登录？", "", a::logout));
