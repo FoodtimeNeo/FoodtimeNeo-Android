@@ -1,5 +1,13 @@
 # 验收记录
 
+## 2026-10-21 Release APK 与CD
+
+在 `origin/dev 9f04715` 基础上使用 `feature/release-apk-cd`，仅修改交付配置与文档。CD新增main手动发布入口、签名校验、APK与SHA-256双产物、30天Actions artifact和完整附件上传后公开Release的流程。
+
+本机JDK21、SDK36下，使用首次发布的固定RSA3072证书运行 `verifyArchitecture testDebugUnitTest lintRelease assembleRelease --no-configuration-cache` 成功，11项JVM测试全部通过。生成 `app/build/outputs/apk/release/app-release.apk`，`apksigner verify --verbose --print-certs` 验证通过，APK包名 `cn.edu.bjtu.foodtime`，versionName仍为0.1.0、versionCode为1；本次要求的v1.1.0版本号仅用于Web仓库。没有改动客户端业务代码或运行线上写入测试。
+
+actionlint 1.7.12静态校验CI及CD工作流通过。四项Actions签名Secrets已配置，签名备份被Git忽略并限制本机用户访问；不在文档中保存密码或私钥。签名证书SHA-256为 `94e7db3a30937a0cd8bc8596f80666122e3bd3f3323e55bfef14f72e9c454b92`。实际远端CD和Release下载结果以发布PR及Actions为准。
+
 ## 2026-10-16 个人记录体验
 
 个人入口区分已发布评论和投稿审核记录；空评论页说明审核流程，并提供进入“我的提交”的按钮。投稿记录新增类型筛选、实际匹配数和清除筛选，审核状态与类型按路由恢复。筛选只处理当前用户已读取的四类真实投稿，不增加服务器接口或修改数据。
