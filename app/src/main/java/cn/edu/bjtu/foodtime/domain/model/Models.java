@@ -28,6 +28,11 @@ public final class Models {
 
   public record LikeState(boolean likedByMe, long likeCount, long counterVersion) {}
 
+  public record AiAssessment(String riskLevel,BigDecimal confidence,java.util.List<String> labels,String reason,long checkedAt) {
+    public AiAssessment { labels=labels==null?java.util.List.of():java.util.List.copyOf(labels); }
+    public static AiAssessment empty() { return new AiAssessment("",null,java.util.List.of(),"",0); }
+  }
+
   public record ReviewPage(java.util.List<Review> items,long total,int page,boolean hasMore) {
     public ReviewPage { items=java.util.List.copyOf(items); }
     public static ReviewPage empty() { return new ReviewPage(java.util.List.of(),0,0,false); }
@@ -43,7 +48,11 @@ public final class Models {
 
   public record Review(
       String id, String dishId, String userId, String userDisplayName, int rating, String content, long createdAt,
-      long likeCount, long replyCount, boolean likedByMe, long counterVersion) {
+      long likeCount, long replyCount, boolean likedByMe, long counterVersion,AiAssessment ai) {
+    public Review(String id,String dishId,String userId,String userDisplayName,int rating,String content,long createdAt,
+        long likeCount,long replyCount,boolean likedByMe,long counterVersion) {
+      this(id,dishId,userId,userDisplayName,rating,content,createdAt,likeCount,replyCount,likedByMe,counterVersion,AiAssessment.empty());
+    }
     public Review(String id, String dishId, String userId, String userDisplayName, int rating, String content, long createdAt) {
       this(id,dishId,userId,userDisplayName,rating,content,createdAt,0,0,false,0);
     }
@@ -65,7 +74,11 @@ public final class Models {
       int rating,
       String status,
       String reason,
-      long createdAt, String context) {
+      long createdAt, String context,AiAssessment ai) {
+    public Submission(String id,String type,String targetId,String userId,String userDisplayName,String name,String content,
+        BigDecimal price,String imageUrl,int rating,String status,String reason,long createdAt,String context) {
+      this(id,type,targetId,userId,userDisplayName,name,content,price,imageUrl,rating,status,reason,createdAt,context,AiAssessment.empty());
+    }
     public Submission(String id,String type,String targetId,String userId,String name,String content,
         BigDecimal price,String imageUrl,int rating,String status,String reason,long createdAt) {
       this(id,type,targetId,userId,"",name,content,price,imageUrl,rating,status,reason,createdAt,"");

@@ -1,5 +1,9 @@
 # 验收记录
 
+## 2026-10-21 AI审核信息对齐
+
+feature/moderation-ai-details补齐投稿审核及正式评论管理的服务端AI字段与只读展示。架构、11项JVM测试、lintDebug和构建通过；扩展DishReviewPagingRunner后共21项原生HTTP/UI检查通过，新增验证中文风险、置信度95%及0%、标签、上海时间、NULL结论、保留人工决策和普通页面隔离。测试使用模拟器内部受控HTTP服务，不向线上或真实本地内容写入。
+
 ## 2026-10-21 一级评论按需分页
 
 feature/dish-review-pagination将公开菜品评论改为每页20条。架构、11项JVM测试、lintDebug和Debug/AndroidTest构建通过；DishReviewPagingRunner在API36.1模拟器通过15项真实RemoteRepository HTTP/原生界面检查，覆盖首屏仅一页、分页失败与相同页重试、末页停止、非法响应保留原缓存、点赞缓存、追加保留回复草稿、空列表与刷新后的NULL评分/0计数。HTTP来自模拟器内部受控服务，不向真实Backend写入。
