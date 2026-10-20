@@ -88,7 +88,7 @@ final class DishScreen {
     score.addView(
         Ui.text(
             a,
-            summary.reviewCount()+" 条评价 · 每日更新",
+            summary.reviewCount()+" 条评价 · 实时统计",
             14,
             Design.MUTED));
     LinearLayout action = Ui.row(a);

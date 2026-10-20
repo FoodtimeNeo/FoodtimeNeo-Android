@@ -29,8 +29,8 @@ jobs:
           BASE_BRANCH: ${{ github.base_ref }}
           HEAD_BRANCH: ${{ github.head_ref }}
         run: |
-          if [[ "$BASE_BRANCH" == "dev" && ! "$HEAD_BRANCH" =~ ^feature-[a-z0-9][a-z0-9._-]*$ ]]; then
-            echo "Pull requests into dev must come from feature-<name> branches."
+          if [[ "$BASE_BRANCH" == "dev" && ! "$HEAD_BRANCH" =~ ^feature[-/][a-z0-9][a-z0-9._-]*$ ]]; then
+            echo "Pull requests into dev must come from feature/<name> branches (legacy feature- names are accepted)."
             exit 1
           fi
           if [[ "$BASE_BRANCH" == "main" && "$HEAD_BRANCH" != "dev" ]]; then

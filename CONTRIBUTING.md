@@ -3,7 +3,7 @@
 ## 分支流程
 
 ```text
-dev → feature-<功能名> → dev；发布时 dev → main
+dev → feature/<功能名> → dev；发布时 dev → main
 ```
 
 1. 从最新 dev 创建功能分支。复用旧分支时先确认其工作已合并，再将该分支指针同步到最新dev；不要将dev合并进旧feature形成交叉历史。
@@ -17,11 +17,11 @@ dev → feature-<功能名> → dev；发布时 dev → main
 ```bash
 git switch dev
 git pull --ff-only
-git switch -c feature-<功能名>
+git switch -c feature/<功能名>
 
 ./gradlew verifyArchitecture testDebugUnitTest lintDebug assembleDebug --no-configuration-cache
 
-git push -u origin feature-<功能名>
+git push -u origin feature/<功能名>
 ```
 
 ## 自动化
