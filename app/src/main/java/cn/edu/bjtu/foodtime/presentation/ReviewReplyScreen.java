@@ -8,20 +8,8 @@ import java.util.UUID;
 
 final class ReviewReplyScreen {
   static void thread(MainActivity a,LinearLayout page,MainActivity.Route route) {
-    ReplyPage replies=a.repo.reviewReplies(route.id());
-    a.heading(page,"","评论回复",replies.total()+" 条已公开回复");
-    Ui.action(page,"回复这条点评",true,() -> a.go("reply-create",route.id()+"~"));
-    Ui.gap(page,12);
-    if(replies.items().isEmpty()) Ui.empty(page,"还没有已公开的回复", "回复审核通过后公开，可在“我的回复”查看进度。");
-    for(ReviewReply row:replies.items()) {
-      LinearLayout card=card(a,page,row,false);
-      ReviewActions.like(a,card,"回复",row.likes(),liked -> a.repo.setReplyLike(row.id(),liked));
-      Ui.action(card,"回复这条",false,() -> a.go("reply-create",route.id()+"~"+row.id()));
-      if(row.ownedByMe()) remove(a,card,row);
-    }
-    TextView error=Ui.text(a,"",14,Design.RED);page.addView(error);
-    if(replies.hasMore()) Ui.submit(page,"加载更多回复",error,() -> () -> a.repo.loadMoreReplies(route.id()),a::redraw);
-    Ui.action(page,"刷新回复",false,a::render);
+    a.heading(page,"","评论回复","审核通过后公开");
+    EmbeddedReviewReplies.thread(a,page,route.id());
   }
   static void create(MainActivity a,LinearLayout page,MainActivity.Route route) {
     String[] args=route.id().split("~",-1);String root=args[0],target=args.length>1?args[1]:"";

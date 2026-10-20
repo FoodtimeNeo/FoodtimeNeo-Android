@@ -82,7 +82,7 @@ public final class RemoteRepository implements FoodtimeRepository {
       case MY_REVIEWS -> ownReviews=reviewPage("users/me/reviews");
       case MY_SUBMISSIONS -> fetchOwnSubmissions();
       case REVIEW_REPLIES -> {
-        String root=request.id().split("~",-1)[0]; replyPages.put(root,fetchReplyPage(root,""));
+        loadReviewReplies(request.id().split("~",-1)[0]);
       }
       case MY_REVIEW_REPLIES -> {
         int number=request.id().isBlank()?1:Integer.parseInt(request.id());
@@ -162,6 +162,8 @@ public final class RemoteRepository implements FoodtimeRepository {
     return new LikeState(result.optBoolean("likedByMe"),result.optLong("likeCount"),result.optLong("counterVersion"));
   }
   @Override public ReplyPage reviewReplies(String reviewId) { return replyPages.getOrDefault(reviewId,ReplyPage.empty()); }
+  @Override public boolean hasLoadedReviewReplies(String reviewId) { return replyPages.containsKey(reviewId); }
+  @Override public void loadReviewReplies(String reviewId) { replyPages.put(reviewId,fetchReplyPage(reviewId,"")); }
   @Override public ReplyPage myReviewReplies() { return ownReplies; }
   private ReplyPage fetchReplyPage(String root,String cursor) {
     if(!cursor.matches("[A-Za-z0-9_-]*")) throw new RepositoryException(502,"INVALID_RESPONSE","回复游标响应异常",0);
