@@ -84,3 +84,13 @@ verifyArchitecture testDebugUnitTest lintDebug assembleDebug --no-configuration-
 ## 2026-10-20 回复点赞与最终检查
 
 verifyArchitecture testDebugUnitTest lintDebug assembleDebug --no-configuration-cache全部通过，11项单元测试无失败。修复Stream.toList对API34的要求，保持minSdk26；回复点赞直接更新按钮及缓存。未运行设备/模拟器写入验收。
+
+## 2026-10-21 嵌入式楼中楼
+
+基于 origin/dev 28f10f7，在 feature/embedded-review-replies 开发。Java/Gradle/SDK沿用本地联调环境，verifyArchitecture testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest --no-configuration-cache全部通过；11项JVM测试通过，Lint无错误。
+
+FoodtimeLocal（API36.1、411dp竖屏）安装独立.integration调试包，专用 EmbeddedRepliesRunner 完成20项原生组件检查：展开前无取数、每楼一页、停留菜品路由、删除对象占位、按需编辑器、收起保留草稿与对象、失败恢复输入、同ID重试、待审隔离、点赞不重载、折叠保留最新点赞，以及Activity保存草稿、新的一级点评回复数使旧缓存刷新。另将操作组件在248dp可用宽度及1.3倍文字尺寸下实际测量/布局，检查换行、无越界和48dp触控高度。
+
+测试替换进程内数据源，不写后端、不修改联调账号和密码，结束后恢复真实数据源。新增测试发现快速失败可能早于输入框禁用，已将禁用放到提交前，重跑通过。已查看原生楼层和编辑器截图（gitignored同级Backend tmp/local-run/01-inline-thread.png、02-inline-composer.png），确认层级与按钮一致。测试包及截图使用明确测试内容，不能代替真实接口写入联调。本轮未执行真机、旧版系统、完整横屏或最大系统字号验收；未改数据库或后端API。
+
+复现时构建参数增加 -PFOODTIME_TEST_RUNNER=cn.edu.bjtu.foodtime.presentation.EmbeddedRepliesRunner，并用 adb shell am instrument -w cn.edu.bjtu.foodtime.integration.test/cn.edu.bjtu.foodtime.presentation.EmbeddedRepliesRunner 执行。该runner独立于会修改账号/数据的旧全量联调runner。

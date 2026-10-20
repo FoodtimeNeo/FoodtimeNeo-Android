@@ -417,6 +417,7 @@ public class MainActivity extends Activity {
     String action=trigger instanceof TextView text?text.getText().toString():"";
     startOperation(trigger,error,action,null,() -> {work.run();return null;},ignored -> success.run());
   }
+  boolean operationInFlight() { return writeInFlight; }
   private void startOperation(View trigger,TextView error,String action,String imageDraft,Supplier<String> work,Consumer<String> success) {
     if(writeInFlight) return;
     writeInFlight=true;if(trigger!=null) trigger.setEnabled(false);if(error!=null) error.setText("");
@@ -454,6 +455,7 @@ public class MainActivity extends Activity {
     }
     if(task.action().equals("注册")) {showAuth(false);message("注册成功，请登录");return;}
     if(repo.currentUser()==null) {signedOut();return;}
+    if(task.action().equals("发布回复")) {EmbeddedReviewReplies.completeSubmission(this);message("回复已提交，审核通过后公开");}
     if(task.imageDraft()!=null) {
       String previous=drafts.getString(task.imageDraft(),"");drafts.putString(task.imageDraft(),outcome.value());
       worker.execute(() -> PhotoImport.discard(this,previous));

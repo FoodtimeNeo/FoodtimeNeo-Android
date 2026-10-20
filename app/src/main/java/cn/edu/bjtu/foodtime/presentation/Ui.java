@@ -178,6 +178,15 @@ public final class Ui {
         });
   }
 
+  /** Empty local errors should not reserve a line in compact review action groups. */
+  static void observeError(TextView error) {
+    error.addTextChangedListener(new TextWatcher() {
+      public void beforeTextChanged(CharSequence s,int st,int count,int after) {}
+      public void onTextChanged(CharSequence s,int st,int before,int count) {error.setVisibility(s.length()==0?View.GONE:View.VISIBLE);}
+      public void afterTextChanged(Editable s) {}
+    });
+  }
+
   public static void empty(LinearLayout l, String title, String message) {
     LinearLayout c = card(l);
     c.addView(title(l.getContext(), title, 24));
