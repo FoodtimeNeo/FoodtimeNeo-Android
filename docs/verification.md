@@ -80,3 +80,7 @@ feature/realtime-dish-ratings 维持服务端评分来源并更新“实时统�
 ## 2026-10-20 点评回复
 
 verifyArchitecture testDebugUnitTest lintDebug assembleDebug --no-configuration-cache全部通过。Lint发现的API26不支持URLEncoder Charset重载已改为服务端Base64URL游标校验，保持最低版本兼容。未运行设备写入验收。
+
+## 2026-10-20 回复点赞与最终检查
+
+verifyArchitecture testDebugUnitTest lintDebug assembleDebug --no-configuration-cache全部通过，11项单元测试无失败。修复Stream.toList对API34的要求，保持minSdk26；回复点赞直接更新按钮及缓存。未运行设备/模拟器写入验收。

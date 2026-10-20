@@ -15,6 +15,7 @@ final class ReviewReplyScreen {
     if(replies.items().isEmpty()) Ui.empty(page,"还没有已公开的回复", "回复审核通过后公开，可在“我的回复”查看进度。");
     for(ReviewReply row:replies.items()) {
       LinearLayout card=card(a,page,row,false);
+      ReviewActions.like(a,card,"回复",row.likes(),liked -> a.repo.setReplyLike(row.id(),liked));
       Ui.action(card,"回复这条",false,() -> a.go("reply-create",route.id()+"~"+row.id()));
       if(row.ownedByMe()) remove(a,card,row);
     }

@@ -21,6 +21,7 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default void loadMoreReplies(String reviewId) { throw new UnsupportedOperationException(); }
   default void submitReply(String reviewId,String replyToId,String content,String clientRequestId) { throw new UnsupportedOperationException(); }
   default void deleteReply(String replyId) { throw new UnsupportedOperationException(); }
+  default LikeState setReplyLike(String replyId,boolean liked) { throw new UnsupportedOperationException(); }
   default void removeReplyAsAdmin(String replyId,String reason) { throw new UnsupportedOperationException(); }
 
   void submitDish(

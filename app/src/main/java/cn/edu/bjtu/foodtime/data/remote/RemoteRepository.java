@@ -194,6 +194,15 @@ public final class RemoteRepository implements FoodtimeRepository {
     call("POST","reviews/"+root+"/replies",json("content",content,"replyToId",target.isBlank()?null:target,"clientRequestId",requestId));
   }
   @Override public void deleteReply(String id) { call("DELETE","review-replies/"+id,null); }
+  @Override public LikeState setReplyLike(String id,boolean liked) {
+    JSONObject result=call(liked?"PUT":"DELETE","review-replies/"+id+"/like",null);
+    LikeState state=new LikeState(result.optBoolean("likedByMe"),result.optLong("likeCount"),result.optLong("counterVersion"));
+    replyPages.replaceAll((root,page) -> new ReplyPage(List.copyOf(page.items().stream().map(row -> {
+      if(!row.id().equals(id)||row.likes().counterVersion()>state.counterVersion()) return row;
+      return new ReviewReply(row.id(),row.reviewId(),row.replyToId(),row.userDisplayName(),row.content(),row.status(),row.reviewReason(),row.createdAt(),row.replyToDeleted(),row.replyToUserDisplayName(),row.ownedByMe(),row.dishId(),row.dishName(),row.reviewDeleted(),state);
+    }).collect(java.util.stream.Collectors.toList())),page.total(),page.hasMore(),page.nextCursor()));
+    return state;
+  }
   @Override public void removeReplyAsAdmin(String id,String reason) { call("DELETE","admin/review-replies/"+id,json("reason",reason)); }
 
   private Submission submission(JSONObject j,String type,boolean admin) {
