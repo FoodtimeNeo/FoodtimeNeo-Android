@@ -72,3 +72,7 @@
 ## 2026-10-20 实时评分
 
 feature/realtime-dish-ratings 维持服务端评分来源并更新“实时统计”说明，进入详情继续通过worker刷新真实汇总。verifyArchitecture testDebugUnitTest lintDebug assembleDebug --no-configuration-cache 全部通过。未运行设备写入验收；本轮后端测试使用专用本地库。
+
+## 2026-10-20 评论点赞
+
+新增真实服务端点赞/取消入口，使用响应直接更新按钮，不刷新整页。verifyArchitecture testDebugUnitTest lintDebug assembleDebug通过；未执行设备运行或线上写入。

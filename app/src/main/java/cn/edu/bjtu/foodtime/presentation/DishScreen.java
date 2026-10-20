@@ -107,6 +107,8 @@ final class DishScreen {
       c.addView(Ui.text(a, "★".repeat(r.rating()) + " · " + r.rating() + " / 5", 16, Design.RED));
       Ui.gap(c, 5);
       c.addView(Ui.text(a, r.content(), 16, Design.INK));
+      ReviewActions.like(a,c,"评论",new LikeState(r.likedByMe(),r.likeCount(),r.counterVersion()),
+          liked -> a.repo.setReviewLike(r.id(),liked));
     }
   }
 

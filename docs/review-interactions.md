@@ -7,3 +7,7 @@
 实时评分使用 GET /dishes/{id}/rating 的 averageScore/reviewCount；后端在正式点评变化的事务中更新汇总。无评论时均分为NULL；Android不重新平均。每次进入详情通过既有repo.refresh重新请求，画面显示“实时统计”，不轮询每条计数。
 
 一级点评、回复和两类点赞分开存储。主点评重评通过保留ID和互动；删除后新点评不复用旧讨论。回复和点赞不影响评分。后续各功能提交同步维护接口映射及验证记录。
+
+## 一级点评点赞
+
+Review模型增加likeCount/replyCount/likedByMe/counterVersion。新增PUT/DELETE /reviews/{id}/like；按钮在worker提交，直接应用服务端计数和状态，不重新加载整张菜品页。处理期间禁用重复提交，失败就近说明。架构、单元测试、Lint与Debug构建通过；未运行设备验收。

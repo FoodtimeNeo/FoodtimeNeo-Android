@@ -135,7 +135,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private List<Review> reviewPage(String path) {
     return page(path,j -> {
       contexts.put(text(j,"dishId"),joined(j,true));
-      return new Review(text(j,"id"),text(j,"dishId"),text(j,"userId"),text(j,"userDisplayName"),j.optInt("rating"),text(j,"content"),time(j,"createdAt"));
+      return new Review(text(j,"id"),text(j,"dishId"),text(j,"userId"),text(j,"userDisplayName"),j.optInt("rating"),text(j,"content"),time(j,"createdAt"),j.optLong("likeCount"),j.optLong("replyCount"),j.optBoolean("likedByMe"),j.optLong("counterVersion"));
     });
   }
   private void fetchOwnSubmissions() {
@@ -145,6 +145,11 @@ public final class RemoteRepository implements FoodtimeRepository {
       all.addAll(page(path,j -> submission(j,type,false)));
     }
     all.sort(Comparator.comparingLong(Submission::createdAt).reversed()); ownSubmissions=List.copyOf(all);
+  }
+
+  @Override public LikeState setReviewLike(String reviewId, boolean liked) {
+    JSONObject result=call(liked?"PUT":"DELETE","reviews/"+reviewId+"/like",null);
+    return new LikeState(result.optBoolean("likedByMe"),result.optLong("likeCount"),result.optLong("counterVersion"));
   }
   private Submission submission(JSONObject j,String type,boolean admin) {
     String target=admin?text(j,"targetId"):text(j,type.equals("dish")?"stallId":type.equals("stall")?"diningHallId":"dishId");
