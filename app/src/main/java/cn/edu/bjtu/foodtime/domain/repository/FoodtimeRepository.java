@@ -11,6 +11,22 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default void refresh(ContentRequest request) {}
   default RatingSummary rating(String dishId) { return new RatingSummary(null,0); }
   default byte[] loadImage(String reference) { throw new UnsupportedOperationException(); }
+
+  default List<CommunityPost> communityPosts() { return List.of(); }
+  default CommunityPost communityPost(String id) { return null; }
+  default List<CommunityComment> communityComments(String postId) { return List.of(); }
+  default void submitCommunityPost(String content, List<String> images) {
+    throw new UnsupportedOperationException("此数据源不支持社区发帖");
+  }
+  default void submitCommunityComment(String postId, String content) {
+    throw new UnsupportedOperationException("此数据源不支持社区评论");
+  }
+  default CommunityAction toggleCommunityLike(String targetType, String targetId) {
+    throw new UnsupportedOperationException("此数据源不支持点赞");
+  }
+  default CommunityAction toggleCommunityFavorite(String postId) {
+    throw new UnsupportedOperationException("此数据源不支持收藏");
+  }
   void submitPhoto(String dishId, String imageUrl);
 
   void submitReview(String dishId, int rating, String content);

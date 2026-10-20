@@ -190,20 +190,26 @@ public final class Ui {
     return path.contains("?") ? path + "&size=thumb" : path + "?size=thumb";
   }
 
-  @android.annotation.SuppressLint("DrawAllocation") // Bitmap decoding below runs in IMAGES, never in onMeasure/draw.
+  /** Feed cover that starts at a stable ratio, then adopts the decoded image's real ratio. */
+  public static View communityImage(Context c,String path,String label,float fallbackHeightRatio) {
+    return imageFrame(c,path,label,Math.max(.72f,Math.min(1.45f,fallbackHeightRatio)),true,false);
+  }
+
   public static View image(Context c, String path, String label, boolean wide) {
-    FrameLayout frame =
-        new FrameLayout(c) {
-          @Override
-          protected void onMeasure(int w, int h) {
-            int width = MeasureSpec.getSize(w);
-            super.onMeasure(
-                w,
-                MeasureSpec.makeMeasureSpec(
-                    wide ? (path == null || path.isBlank() ? dp(c, 120) : width * 9 / 16) : width,
-                    MeasureSpec.EXACTLY));
-          }
-        };
+    return imageFrame(c,path,label,wide?9f/16f:1f,false,wide);
+  }
+
+  @android.annotation.SuppressLint("DrawAllocation") // Bitmap decoding below runs in IMAGES, never in onMeasure/draw.
+  private static View imageFrame(Context c,String path,String label,float initialRatio,
+      boolean adaptive,boolean shortBlank) {
+    final float[] heightRatio={initialRatio};
+    FrameLayout frame = new FrameLayout(c) {
+      @Override protected void onMeasure(int w,int h) {
+        int width=MeasureSpec.getSize(w);
+        int height=shortBlank&&(path==null||path.isBlank())?dp(c,120):Math.round(width*heightRatio[0]);
+        super.onMeasure(w,MeasureSpec.makeMeasureSpec(height,MeasureSpec.EXACTLY));
+      }
+    };
     frame.setBackgroundColor(Design.ALT);
     ImageView image = new ImageView(c);
     image.setScaleType(ImageView.ScaleType.CENTER_CROP);
@@ -218,7 +224,10 @@ public final class Ui {
           && !path.contains("size=thumb");
       boolean cacheable=!remoteFull;
       Bitmap cached=cacheable?IMAGE_CACHE.get(key):null;
-      if(cached!=null) {image.setImageBitmap(cached);placeholder.setVisibility(View.GONE);}
+      if(cached!=null) {
+        if(adaptive&&cached.getWidth()>0) heightRatio[0]=Math.max(.72f,Math.min(1.45f,(float)cached.getHeight()/cached.getWidth()));
+        image.setImageBitmap(cached);placeholder.setVisibility(View.GONE);
+      }
       else IMAGES.execute(() -> {
         Bitmap bitmap=null;
         try {
@@ -238,6 +247,10 @@ public final class Ui {
         a.runOnUiThread(() -> {
           if(a.isDestroyed()||ticket!=imageGeneration||loaded==null) return;
           if(cacheable) IMAGE_CACHE.put(key,loaded);if(!frame.isAttachedToWindow()) return;
+          if(adaptive&&loaded.getWidth()>0) {
+            heightRatio[0]=Math.max(.72f,Math.min(1.45f,(float)loaded.getHeight()/loaded.getWidth()));
+            frame.requestLayout();
+          }
           image.setImageBitmap(loaded);placeholder.setVisibility(View.GONE);
         });
       });
