@@ -16,6 +16,7 @@ final class EmbeddedReviewReplies {
   private final TextView toggle,error,progress;
   private long total;
   private boolean needsReload;
+  private boolean loading;
 
   static void attach(MainActivity a,LinearLayout card,Review review) {new EmbeddedReviewReplies(a,card,review.id(),review.replyCount(),review);}
   static void thread(MainActivity a,LinearLayout page,String root) {
@@ -56,12 +57,16 @@ final class EmbeddedReviewReplies {
     if(next&&(!a.repo.hasLoadedReviewReplies(root)||needsReload)) load(toggle,false);
   }
   private void load(View trigger,boolean more) {
-    if(a.operationInFlight()) return;
+    if(loading) return;
+    loading=true;
     progress.setVisibility(View.VISIBLE);
-    a.request(trigger,error,() -> {if(more) a.repo.loadMoreReplies(root);else a.repo.loadReviewReplies(root);},() -> {needsReload=false;paint();});
+    a.read("review-replies:"+root,trigger,error,
+        () -> {if(more) a.repo.loadMoreReplies(root);else a.repo.loadReviewReplies(root);},
+        () -> {needsReload=false;paint();},
+        () -> {loading=false;progress.setVisibility(View.GONE);});
   }
   private void paint() {
-    progress.setVisibility(View.GONE);
+    progress.setVisibility(loading&&expanded()?View.VISIBLE:View.GONE);
     if(a.repo.hasLoadedReviewReplies(root)&&!needsReload) total=a.repo.reviewReplies(root).total();
     toggle.setText((expanded()?"收起回复":"回复")+" · "+total);
     toggle.setContentDescription((expanded()?"收起":"展开")+total+"条回复");
@@ -73,6 +78,7 @@ final class EmbeddedReviewReplies {
     heading.addView(title,new LinearLayout.LayoutParams(0,-2,1));
     TextView refresh=ReviewActions.button(a,"刷新",() -> {});heading.addView(refresh);
     refresh.setContentDescription("刷新回复");refresh.setOnClickListener(v -> load(v,false));
+    refresh.setEnabled(!loading);
     ReplyPage replies=a.repo.reviewReplies(root);
     if(replies.items().isEmpty()) {
       panel.addView(Ui.text(a,a.repo.hasLoadedReviewReplies(root)?"还没有已公开的回复，来聊聊这道菜吧。":"尚未加载回复，可点击刷新重试。",14,Design.MUTED));
@@ -102,6 +108,7 @@ final class EmbeddedReviewReplies {
     }
     if(replies.hasMore()) {
       TextView more=ReviewActions.button(a,"加载更多回复",() -> {});panel.addView(more);more.setOnClickListener(v -> load(v,true));
+      more.setEnabled(!loading);
     }
     composer();
   }

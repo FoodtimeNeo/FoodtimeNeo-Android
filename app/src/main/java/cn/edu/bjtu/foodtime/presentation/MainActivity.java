@@ -39,6 +39,9 @@ public class MainActivity extends Activity {
   private boolean authRegistration;
   private boolean stateSaved;
   private Runnable deferredCompletion;
+  private final Map<String,List<ReadListener>> reads=new HashMap<>();
+  private final List<Runnable> deferredReads=new ArrayList<>();
+  private record ReadListener(int generation,View trigger,TextView error,Runnable success,Runnable finished) {}
 
   @Override
   public void onCreate(Bundle state) {
@@ -418,6 +421,36 @@ public class MainActivity extends Activity {
     startOperation(trigger,error,action,null,() -> {work.run();return null;},ignored -> success.run());
   }
   boolean operationInFlight() { return writeInFlight; }
+  /** Coalesce reads per resource, without dropping other floors or blocking navigation/writes. */
+  void read(String key,View trigger,TextView error,Runnable work,Runnable success,Runnable finished) {
+    if(trigger!=null) trigger.setEnabled(false);
+    if(error!=null) error.setText("");
+    ReadListener listener=new ReadListener(generation,trigger,error,success,finished);
+    List<ReadListener> existing=reads.get(key);
+    if(existing!=null) {existing.add(listener);return;}
+    List<ReadListener> listeners=new ArrayList<>();listeners.add(listener);reads.put(key,listeners);
+    worker.execute(() -> {
+      RuntimeException failure=null;try {work.run();}catch(RuntimeException e) {failure=e;}
+      RuntimeException result=failure;
+      runOnUiThread(() -> {
+        if(isDestroyed()) {reads.remove(key);return;}
+        Runnable complete=() -> {
+          List<ReadListener> waiting=reads.remove(key);
+          if(waiting==null) return;
+          for(ReadListener target:waiting) {
+            if(target.trigger()!=null) target.trigger().setEnabled(true);
+            target.finished().run();
+            if(target.generation()!=generation) continue;
+            if(repo.currentUser()==null) {clearNavigation();showAuth(false);message("登录已失效，请重新登录");break;}
+            if(result==null) target.success().run();
+            else if(target.error()!=null) target.error().setText(safeMessage(result));
+            else message(safeMessage(result));
+          }
+        };
+        if(stateSaved) deferredReads.add(complete);else complete.run();
+      });
+    });
+  }
   private void startOperation(View trigger,TextView error,String action,String imageDraft,Supplier<String> work,Consumer<String> success) {
     if(writeInFlight) return;
     writeInFlight=true;if(trigger!=null) trigger.setEnabled(false);if(error!=null) error.setText("");
@@ -498,6 +531,8 @@ public class MainActivity extends Activity {
   @Override protected void onResume() {
     super.onResume();stateSaved=false;
     if(deferredCompletion!=null) {Runnable callback=deferredCompletion;deferredCompletion=null;callback.run();}
+    List<Runnable> callbacks=new ArrayList<>(deferredReads);deferredReads.clear();
+    for(Runnable callback:callbacks) callback.run();
   }
-  @Override protected void onDestroy() {++generation;deferredCompletion=null;super.onDestroy();}
+  @Override protected void onDestroy() {++generation;deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }
