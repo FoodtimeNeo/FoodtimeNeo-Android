@@ -24,7 +24,17 @@ public final class DishReviewPagingRunner extends Instrumentation {
   private volatile boolean malformed,liked;
   private volatile int total=45;
   private volatile String role="user";
-  private MainActivity activity;
+  private volatile MainActivity activity;
+  private String expectedOrientation="";
+  private final Application.ActivityLifecycleCallbacks lifecycle=new Application.ActivityLifecycleCallbacks() {
+    @Override public void onActivityCreated(Activity value,Bundle state) {if(value instanceof MainActivity main) activity=main;}
+    @Override public void onActivityStarted(Activity value) {}
+    @Override public void onActivityResumed(Activity value) {}
+    @Override public void onActivityPaused(Activity value) {}
+    @Override public void onActivityStopped(Activity value) {}
+    @Override public void onActivitySaveInstanceState(Activity value,Bundle state) {}
+    @Override public void onActivityDestroyed(Activity value) {}
+  };
   private int checks;
   private void check(boolean condition,String label) {if(!condition) throw new AssertionError(label);checks++;}
   private TextView find(View view,String value) {
@@ -43,7 +53,35 @@ public final class DishReviewPagingRunner extends Instrumentation {
   private void await(BooleanSupplier ready) throws Exception {
     long end=System.currentTimeMillis()+10000;
     while(System.currentTimeMillis()<end) {waitForIdleSync();if(ready.getAsBoolean()) return;Thread.sleep(30);}
-    throw new AssertionError("Timed out waiting for pagination");
+    StringBuilder state=new StringBuilder();runOnMainSync(() -> dump(activity.root,state));
+    throw new AssertionError("Timed out waiting for pagination: "+state+"; destroyed="+activity.isDestroyed()+"; requests="+requests);
+  }
+  private void dump(View view,StringBuilder state) {
+    if(view==null||view.getVisibility()!=View.VISIBLE) return;
+    if(view instanceof TextView text) state.append(text.getText()).append(" | ");
+    if(view instanceof ViewGroup group) for(int i=0;i<group.getChildCount();i++) dump(group.getChildAt(i),state);
+  }
+  private void screenshot(String name) throws Exception {
+    frame();android.graphics.Bitmap bitmap=getUiAutomation().takeScreenshot();
+    File dir=new File(getTargetContext().getFilesDir(),"review-completion-evidence");dir.mkdirs();
+    var config=activity.getResources().getConfiguration();
+    String suffix=(config.orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE?"landscape":"portrait")+"-"+config.fontScale;
+    try(var out=new FileOutputStream(new File(dir,name+"-"+suffix+".png"))) {bitmap.compress(android.graphics.Bitmap.CompressFormat.PNG,100,out);}finally {bitmap.recycle();}
+  }
+  private void frame() throws Exception {
+    waitForIdleSync();CountDownLatch presented=new CountDownLatch(1);
+    runOnMainSync(() -> activity.getWindow().getDecorView().postOnAnimation(() -> activity.getWindow().getDecorView().postOnAnimation(presented::countDown)));
+    if(!presented.await(3,TimeUnit.SECONDS)) throw new AssertionError("No presented frame for visual evidence");
+    waitForIdleSync();
+  }
+  private void screenshotAt(String name,String label) throws Exception {
+    frame();
+    runOnMainSync(() -> {
+      TextView target=find(activity.root,label);android.graphics.Rect bounds=new android.graphics.Rect();
+      target.getDrawingRect(bounds);activity.scroll.offsetDescendantRectToMyCoords(target,bounds);
+      activity.scroll.scrollTo(0,Math.max(0,bounds.top+activity.scroll.getScrollY()-Ui.dp(activity,12)));
+    });
+    screenshot(name);
   }
   private Object data(String path) throws Exception {
     if(path.equals("users/me/profile")) return new JSONObject("{\"id\":\"user\",\"email\":\"20260001@bjtu.edu.cn\",\"displayName\":\"测试用户\",\"status\":\"active\"}").put("role",role);
@@ -86,7 +124,7 @@ public final class DishReviewPagingRunner extends Instrumentation {
       var out=socket.getOutputStream();out.write(((failure?"HTTP/1.1 503 Service Unavailable":"HTTP/1.1 200 OK")+"\r\nContent-Type: application/json; charset=utf-8\r\nContent-Length: "+bytes.length+"\r\nConnection: close\r\n\r\n").getBytes(StandardCharsets.UTF_8));out.write(bytes);out.flush();
     } catch(Exception error) {if(!server.isClosed()) throw new IllegalStateException(error);}
   }
-  @Override public void onCreate(Bundle args) {super.onCreate(args);start();}
+  @Override public void onCreate(Bundle args) {super.onCreate(args);expectedOrientation=args.getString("expectedOrientation","");start();}
   @Override public void onStart() {
     Bundle report=new Bundle();Object app=getTargetContext().getApplicationContext();Field field=null;Object original=null;
     ExecutorService pool=Executors.newSingleThreadExecutor();
@@ -105,7 +143,10 @@ public final class DishReviewPagingRunner extends Instrumentation {
       malformed=true;try {repo.loadDishReviews("dish");throw new AssertionError("Expected invalid page");}catch(RepositoryException expected) {check(repo.reviews("dish").size()==45,"Malformed refresh preserves visible cached data");}malformed=false;
 
       field=app.getClass().getDeclaredField("repository");field.setAccessible(true);original=field.get(app);field.set(app,repo);
-      activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));await(() -> activity.root!=null);
+      ((Application)app).registerActivityLifecycleCallbacks(lifecycle);
+      startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+      await(() -> activity!=null&&!activity.isDestroyed()&&activity.root!=null&&find(activity.root,"测试食堂")!=null);
+      if(expectedOrientation.equals("landscape")) await(() -> activity.getResources().getConfiguration().orientation==android.content.res.Configuration.ORIENTATION_LANDSCAPE);
       runOnMainSync(() -> {activity.repo=repo;activity.go("detail","dish");});await(() -> find(activity.root,"已显示 20 / 45 条评论")!=null);
       check(find(activity.root,"评论21")==null,"Native screen renders only requested comments");
       click("回复 · 0");await(() -> find(activity.root,"写下你的回复…")!=null);click("写下你的回复…");runOnMainSync(() -> editor(activity.root).setText("分页时保留的草稿"));
@@ -113,6 +154,7 @@ public final class DishReviewPagingRunner extends Instrumentation {
       check(find(activity.root,"评论20")!=null&&find(activity.root,"评论21")==null,"Failed page leaves the original list usable");
       click("加载更多评论");await(() -> find(activity.root,"已显示 40 / 45 条评论")!=null);
       check(editor(activity.root)!=null&&editor(activity.root).getText().toString().equals("分页时保留的草稿"),"Appending does not remount existing reply editors");
+      runOnMainSync(() -> editor(activity.root).requestRectangleOnScreen(new android.graphics.Rect(0,0,editor(activity.root).getWidth(),editor(activity.root).getHeight()),true));screenshot("draft-after-append");
       click("加载更多评论");await(() -> find(activity.root,"已显示 45 / 45 条评论")!=null);
       check(find(activity.root,"加载更多评论")==null,"Native load-more control disappears at the end");
       total=0;click("刷新评论");await(() -> find(activity.root,"暂无评论")!=null);
@@ -124,16 +166,19 @@ public final class DishReviewPagingRunner extends Instrumentation {
       check(find(activity.root,"AI 分诊：暂无结论")!=null,"Null verdict remains an explicit unavailable state");
       check(find(activity.root,"通过")!=null&&find(activity.root,"驳回")!=null,"AI assessment leaves manual decisions available");
       check(repo.submissions(null).stream().filter(s -> s.id().equals("submission1")).findFirst().orElseThrow().ai().labels().size()==2,"Real HTTP JSON populates the structured AI model");
+      screenshotAt("moderation-ai","AI 分诊：高风险 · 置信度 95%");
       runOnMainSync(() -> activity.go("admin-reviews",""));await(() -> find(activity.root,"AI 分诊：需复核 · 置信度 0%")!=null);
       check(repo.reviews(null).get(0).ai().confidence().signum()==0,"Published-review AI retains zero confidence instead of treating it as missing");
       role="user";total=1;runOnMainSync(() -> {activity.selectTab("dining");activity.go("detail","dish");});await(() -> find(activity.root,"评论1")!=null);
       check(find(activity.root,"AI 分诊：需复核 · 置信度 0%")==null&&find(activity.root,"AI 分诊：暂无结论")==null,"Public dish cards do not render moderation-only AI controls");
-      report.putString("stream","Dish review paging PASS: "+checks+" native HTTP/UI checks; no real Backend writes\n");finish(0,report);
+      var config=activity.getResources().getConfiguration();
+      report.putString("stream","Dish review paging PASS: "+checks+" native HTTP/UI checks; "+config.screenWidthDp+"x"+config.screenHeightDp+"dp; fontScale="+config.fontScale+"; no real Backend writes\n");finish(0,report);
     } catch(Throwable error) {
       StringWriter stack=new StringWriter();error.printStackTrace(new PrintWriter(stack));report.putString("stream","Dish review paging FAIL after "+checks+" checks\n"+stack);finish(1,report);
     } finally {
       pool.shutdownNow();
       if(activity!=null) runOnMainSync(activity::finish);
+      ((Application)app).unregisterActivityLifecycleCallbacks(lifecycle);
       if(field!=null) try {field.set(app,original);}catch(IllegalAccessException ignored) {}
     }
   }

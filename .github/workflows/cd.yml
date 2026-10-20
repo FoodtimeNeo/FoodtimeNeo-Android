@@ -17,7 +17,8 @@ jobs:
   release:
     name: Publish signed APK after merge to main
     if: >-
-      (github.event_name == 'pull_request' && github.event.pull_request.merged == true) ||
+      (github.event_name == 'pull_request' && github.event.pull_request.merged == true &&
+        !contains(github.event.pull_request.labels.*.name, 'skip-release')) ||
       (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
     runs-on: ubuntu-latest
     timeout-minutes: 30
