@@ -10,10 +10,28 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default void restoreSession() {}
   default void refresh(ContentRequest request) {}
   default RatingSummary rating(String dishId) { return new RatingSummary(null,0); }
+  default ReviewPage dishReviews(String dishId) {
+    List<Review> items=reviews(dishId);return new ReviewPage(items,items.size(),1,false);
+  }
+  /** Public dish comments are fetched one page at a time, on the worker. */
+  default void loadDishReviews(String dishId) { refresh(new ContentRequest(ContentRequest.Query.DISH_DETAIL,dishId)); }
+  default void loadMoreDishReviews(String dishId) { throw new UnsupportedOperationException(); }
   default byte[] loadImage(String reference) { throw new UnsupportedOperationException(); }
   void submitPhoto(String dishId, String imageUrl);
 
   void submitReview(String dishId, int rating, String content);
+  default LikeState setReviewLike(String reviewId, boolean liked) { throw new UnsupportedOperationException("该数据源不支持评论点赞"); }
+
+  default ReplyPage reviewReplies(String reviewId) { return ReplyPage.empty(); }
+  default boolean hasLoadedReviewReplies(String reviewId) { return false; }
+  /** Fetch only this thread's first page on a worker, without refreshing the dish. */
+  default void loadReviewReplies(String reviewId) { refresh(new ContentRequest(ContentRequest.Query.REVIEW_REPLIES,reviewId)); }
+  default ReplyPage myReviewReplies() { return ReplyPage.empty(); }
+  default void loadMoreReplies(String reviewId) { throw new UnsupportedOperationException(); }
+  default void submitReply(String reviewId,String replyToId,String content,String clientRequestId) { throw new UnsupportedOperationException(); }
+  default void deleteReply(String replyId) { throw new UnsupportedOperationException(); }
+  default LikeState setReplyLike(String replyId,boolean liked) { throw new UnsupportedOperationException(); }
+  default void removeReplyAsAdmin(String replyId,String reason) { throw new UnsupportedOperationException(); }
 
   void submitDish(
       String stallId, String name, String description, BigDecimal price, String imageUrl);

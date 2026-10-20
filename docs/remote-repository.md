@@ -5,3 +5,5 @@
 登录后的Cookie仅通过Android Keystore AES/GCM加密保存，不保存密码、角色或个人资料；重启后先向服务端恢复资料，不能以本地值授权。401、退出和改密成功清除Cookie及内存私有数据。CSRF只在内存中保存，登录更换会话后重新获取；写请求不自动重试。
 
 文件上传先得到私有引用，再创建投稿；文件上传成功不代表投稿或审核成功。同源图片携带Cookie；已有外部HTTPS图片使用独立匿名连接，不携带应用Cookie。写请求不自动重试，重定向不自动跟随。默认应用已装配真实数据源，历史本地模拟器仅在testShared源码中，不能进入APK。真实设备验收结果见verification.md。
+
+公开回复使用size20及nextCursor，只在用户加载更多时获取下一页；我的回复使用page/size20，不使用既有目录的全量分页循环。POST携带稳定clientRequestId，网络层不自动重试写请求。PUT/DELETE /review-replies/{id}/like返回LikeState，更新缓存和当前按钮，不重载菜品及评分。

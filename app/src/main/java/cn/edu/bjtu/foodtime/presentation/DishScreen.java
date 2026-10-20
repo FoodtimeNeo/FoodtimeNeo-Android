@@ -74,23 +74,16 @@ final class DishScreen {
     LinearLayout score = Ui.card(page);
     score.addView(Ui.title(a, "评分", 22));
     Ui.gap(score, 8);
-    List<Review> reviews = a.repo.reviews(d.id());
-    RatingSummary summary=a.repo.rating(d.id());
-    float avg=summary.averageScore()==null?0:summary.averageScore().floatValue();
-    score.addView(
-        Ui.text(
-            a,
-            summary.averageScore()==null
-                ? "暂无评分"
-                : "★".repeat(Math.round(avg)) + "  " + String.format(Locale.ROOT, "%.1f / 5", avg),
-            22,
-            summary.averageScore()==null ? Design.MUTED : Design.RED));
-    score.addView(
-        Ui.text(
-            a,
-            summary.reviewCount()+" 条评价 · 每日更新",
-            14,
-            Design.MUTED));
+    TextView scoreValue=Ui.text(a,"",22,Design.RED),scoreCount=Ui.text(a,"",14,Design.MUTED);
+    score.addView(scoreValue);score.addView(scoreCount);
+    Runnable paintRating=() -> {
+      RatingSummary summary=a.repo.rating(d.id());
+      float average=summary.averageScore()==null?0:summary.averageScore().floatValue();
+      scoreValue.setText(summary.averageScore()==null?"暂无评分":"★".repeat(Math.round(average))+"  "+String.format(Locale.ROOT,"%.1f / 5",average));
+      scoreValue.setTextColor(summary.averageScore()==null?Design.MUTED:Design.RED);
+      scoreCount.setText(summary.reviewCount()+" 条评价 · 实时统计");
+    };
+    paintRating.run();
     LinearLayout action = Ui.row(a);
     action.setGravity(android.view.Gravity.CENTER);
     action.addView(
@@ -100,14 +93,7 @@ final class DishScreen {
     Ui.gap(page, 20);
     page.addView(Ui.title(a, "评论", 25));
     Ui.gap(page, 12);
-    if (reviews.isEmpty()) Ui.empty(page, "暂无评论", "");
-    for (Review r : reviews) {
-      LinearLayout c = Ui.card(page);
-      c.addView(Ui.text(a, r.userId(), 12, Design.BLUE));
-      c.addView(Ui.text(a, "★".repeat(r.rating()) + " · " + r.rating() + " / 5", 16, Design.RED));
-      Ui.gap(c, 5);
-      c.addView(Ui.text(a, r.content(), 16, Design.INK));
-    }
+    new DishReviewSection(a,page,d.id(),paintRating);
   }
 
   static void gallery(MainActivity a, LinearLayout page, MainActivity.Route route) {

@@ -1,5 +1,25 @@
 # 验收记录
 
+## 2026-10-21 AI审核信息对齐
+
+feature/moderation-ai-details补齐投稿审核及正式评论管理的服务端AI字段与只读展示。架构、11项JVM测试、lintDebug和构建通过；扩展DishReviewPagingRunner后共21项原生HTTP/UI检查通过，新增验证中文风险、置信度95%及0%、标签、上海时间、NULL结论、保留人工决策和普通页面隔离。测试使用模拟器内部受控HTTP服务，不向线上或真实本地内容写入。
+
+## 2026-10-21 一级评论按需分页
+
+feature/dish-review-pagination将公开菜品评论改为每页20条。架构、11项JVM测试、lintDebug和Debug/AndroidTest构建通过；DishReviewPagingRunner在API36.1模拟器通过15项真实RemoteRepository HTTP/原生界面检查，覆盖首屏仅一页、分页失败与相同页重试、末页停止、非法响应保留原缓存、点赞缓存、追加保留回复草稿、空列表与刷新后的NULL评分/0计数。HTTP来自模拟器内部受控服务，不向真实Backend写入。
+
+## 2026-10-21 楼层读取队列回归
+
+feature/review-read-queue修复多楼恢复时后续请求被全局写互斥丢弃的问题。架构、11项JVM测试、lintDebug和Debug/AndroidTest构建通过。独立 `.completion` 包在API36.1模拟器运行ReviewReadQueueRunner，12项原生检查通过：双楼恢复、重绘订阅去重、加载反馈结束、保存状态后多个回调、失败隔离与重试、串行执行和重复写保护、读取期间导航及旧页面回调隔离。受控仓库不写Backend或用户数据，原.integration安装保留。
+
+## 2026-10-21 Release APK 与CD
+
+在 `origin/dev 9f04715` 基础上使用 `feature/release-apk-cd`，仅修改交付配置与文档。CD新增main手动发布入口、签名校验、APK与SHA-256双产物、30天Actions artifact和完整附件上传后公开Release的流程。
+
+本机JDK21、SDK36下，使用首次发布的固定RSA3072证书运行 `verifyArchitecture testDebugUnitTest lintRelease assembleRelease --no-configuration-cache` 成功，11项JVM测试全部通过。生成 `app/build/outputs/apk/release/app-release.apk`，`apksigner verify --verbose --print-certs` 验证通过，APK包名 `cn.edu.bjtu.foodtime`，versionName仍为0.1.0、versionCode为1；本次要求的v1.1.0版本号仅用于Web仓库。没有改动客户端业务代码或运行线上写入测试。
+
+actionlint 1.7.12静态校验CI及CD工作流通过。四项Actions签名Secrets已配置，签名备份被Git忽略并限制本机用户访问；不在文档中保存密码或私钥。签名证书SHA-256为 `94e7db3a30937a0cd8bc8596f80666122e3bd3f3323e55bfef14f72e9c454b92`。实际远端CD和Release下载结果以发布PR及Actions为准。
+
 ## 2026-10-16 个人记录体验
 
 个人入口区分已发布评论和投稿审核记录；空评论页说明审核流程，并提供进入“我的提交”的按钮。投稿记录新增类型筛选、实际匹配数和清除筛选，审核状态与类型按路由恢复。筛选只处理当前用户已读取的四类真实投稿，不增加服务器接口或修改数据。
@@ -68,3 +88,44 @@
 未执行真实设备/旧版Android运行测试；API26–32在代码中保留系统返回兼容路径。首版没有扩展较早文档中的收藏、点赞、消息、社区等增强项；FEATURE规定的核心功能与管理入口已实现。
 
 接入步骤和已存在/待新增接口见 `backend-integration.md`。可安装包为 debug 签名演示 APK，正式签名和发布由后续交付配置完成。
+
+## 2026-10-20 实时评分
+
+feature/realtime-dish-ratings 维持服务端评分来源并更新“实时统计”说明，进入详情继续通过worker刷新真实汇总。verifyArchitecture testDebugUnitTest lintDebug assembleDebug --no-configuration-cache 全部通过。未运行设备写入验收；本轮后端测试使用专用本地库。
+
+## 2026-10-20 评论点赞
+
+新增真实服务端点赞/取消入口，使用响应直接更新按钮，不刷新整页。verifyArchitecture testDebugUnitTest lintDebug assembleDebug通过；未执行设备运行或线上写入。
+
+## 2026-10-20 点评回复
+
+verifyArchitecture testDebugUnitTest lintDebug assembleDebug --no-configuration-cache全部通过。Lint发现的API26不支持URLEncoder Charset重载已改为服务端Base64URL游标校验，保持最低版本兼容。未运行设备写入验收。
+
+## 2026-10-20 回复点赞与最终检查
+
+verifyArchitecture testDebugUnitTest lintDebug assembleDebug --no-configuration-cache全部通过，11项单元测试无失败。修复Stream.toList对API34的要求，保持minSdk26；回复点赞直接更新按钮及缓存。未运行设备/模拟器写入验收。
+
+## 2026-10-21 嵌入式楼中楼
+
+基于 origin/dev 28f10f7，在 feature/embedded-review-replies 开发。Java/Gradle/SDK沿用本地联调环境，verifyArchitecture testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest --no-configuration-cache全部通过；11项JVM测试通过，Lint无错误。
+
+FoodtimeLocal（API36.1、411dp竖屏）安装独立.integration调试包，专用 EmbeddedRepliesRunner 完成20项原生组件检查：展开前无取数、每楼一页、停留菜品路由、删除对象占位、按需编辑器、收起保留草稿与对象、失败恢复输入、同ID重试、待审隔离、点赞不重载、折叠保留最新点赞，以及Activity保存草稿、新的一级点评回复数使旧缓存刷新。另将操作组件在248dp可用宽度及1.3倍文字尺寸下实际测量/布局，检查换行、无越界和48dp触控高度。
+
+测试替换进程内数据源，不写后端、不修改联调账号和密码，结束后恢复真实数据源。新增测试发现快速失败可能早于输入框禁用，已将禁用放到提交前，重跑通过。已查看原生楼层和编辑器截图（gitignored同级Backend tmp/local-run/01-inline-thread.png、02-inline-composer.png），确认层级与按钮一致。测试包及截图使用明确测试内容，不能代替真实接口写入联调。本轮未执行真机、旧版系统、完整横屏或最大系统字号验收；未改数据库或后端API。
+
+复现时构建参数增加 -PFOODTIME_TEST_RUNNER=cn.edu.bjtu.foodtime.presentation.EmbeddedRepliesRunner，并用 adb shell am instrument -w cn.edu.bjtu.foodtime.integration.test/cn.edu.bjtu.foodtime.presentation.EmbeddedRepliesRunner 执行。该runner独立于会修改账号/数据的旧全量联调runner。
+
+## 2026-10-21 撤回后的修复与完整版本验收
+
+首次 0.1.0 main 发布已通过保留历史的回退提交 `7d7f696` 撤回，旧 Release 转草稿并暂停 CD。开发版保留全部功能，在最新 dev 上分别完成 `feature/review-read-queue`、`feature/dish-review-pagination`、`feature/moderation-ai-details`，再以 `feature/review-release-readiness` 做累计验收、记录回退祖先及准备 0.1.1（versionCode 2）。固定签名不变。
+
+最终 verifyArchitecture、11 项 JVM 测试、lintDebug、Debug/测试 APK 构建通过；actionlint 通过。API 36.1 独立 `.completion` 包设备结果：
+
+- `ReviewReadQueueRunner`：12 项通过，涵盖两楼恢复、同楼去重、多个延期回调、读取失败、写互斥和旧页面回调隔离。
+- `EmbeddedRepliesRunner`：20 项通过，涵盖嵌入楼层、编辑器、草稿、回复对象、失败重试、点赞、删除对象占位和保存状态。
+- `DishReviewPagingRunner`：21 项真实 Android HTTP/JSON 和原生 UI 检查通过；375×667dp / 1 倍字号竖屏，以及 667×375dp / 2 倍字号横屏均通过。后者同时开启系统夜间模式、关闭 animator 动画，应用保持现有纸张主题。检查实际截图中的分页保留草稿、AI 长原因换行及层级；大字号标题增加单行省略以避免挤占导航按钮。结束恢复模拟器原尺寸、密度、字号、旋转及夜间模式。
+- `ReviewInteractionsRunner`：最终版本连接独立 `foodtime_completion_lab`，21 项真实 Backend/原生交互检查通过：提交主评与回复、原生人工审核、评论/回复点赞与取消、我的回复、指定回复对象、父回复软删除、驳回原因、主评删除及实时评分重算。写入仅为本测试新建菜品和评论，不使用原本地库或生产服务。
+
+累计回归修正了测试替身缺少首页图片空值处理，以及配置切换重建后测试仍等待旧 Activity 的问题；未把这些测试编排故障描述成业务崩溃修复。分页 runner 跟踪当前 Activity，并在保存截图前等待布局及画面呈现。
+
+三端汇总与截图保存在工作区 `docs/review-completion-2026-10-21.md`。本地验收不能证明所有真机/API26设备、长时间压力、真实邮件或真实 AI 提供方已验证；生产应用与 V15–V18 数据迁移仍需在服务器部署时执行。记录中的“实时”是事务更新、下一次请求可见，没有引入轮询或 WebSocket。

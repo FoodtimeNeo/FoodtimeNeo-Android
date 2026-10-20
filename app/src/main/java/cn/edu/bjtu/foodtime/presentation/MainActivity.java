@@ -39,6 +39,9 @@ public class MainActivity extends Activity {
   private boolean authRegistration;
   private boolean stateSaved;
   private Runnable deferredCompletion;
+  private final Map<String,List<ReadListener>> reads=new HashMap<>();
+  private final List<Runnable> deferredReads=new ArrayList<>();
+  private record ReadListener(int generation,View trigger,TextView error,Runnable success,Runnable finished) {}
 
   @Override
   public void onCreate(Bundle state) {
@@ -106,6 +109,9 @@ public class MainActivity extends Activity {
     screens.put("password", PasswordScreen::show);
     screens.put("detail", DishScreen::detail);
     screens.put("review", ReviewScreen::create);
+    screens.put("review-replies", ReviewReplyScreen::thread);
+    screens.put("reply-create", ReviewReplyScreen::create);
+    screens.put("mine-review-replies", ReviewReplyScreen::mine);
     screens.put("admin", AdminScreen::home);
     screens.put("admin-audit", AdminScreen::audit);
     screens.put("admin-data", AdminScreen::data);
@@ -235,6 +241,8 @@ public class MainActivity extends Activity {
       case "dishes","submit-dish" -> ContentRequest.Query.DISHES;
       case "detail","gallery","upload-photo","review" -> ContentRequest.Query.DISH_DETAIL;
       case "mine-reviews" -> ContentRequest.Query.MY_REVIEWS;
+      case "review-replies","reply-create" -> ContentRequest.Query.REVIEW_REPLIES;
+      case "mine-review-replies" -> ContentRequest.Query.MY_REVIEW_REPLIES;
       case "mine-submissions" -> ContentRequest.Query.MY_SUBMISSIONS;
       case "admin","admin-audit" -> ContentRequest.Query.MODERATION;
       case "admin-data","admin-new" -> ContentRequest.Query.CATALOG;
@@ -247,6 +255,8 @@ public class MainActivity extends Activity {
     return new ContentRequest(q,route.id());
   }
 
+  void redraw() { rememberScroll();renderContent(); }
+
   private void renderContent() {
     shell(true);
     displayedLocation=location();
@@ -257,6 +267,8 @@ public class MainActivity extends Activity {
     if (stacks.get(tab).size() > 1)
       bar.addView(back, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
     TextView brand = Ui.title(this, "北交干饭吧", 22);
+    brand.setSingleLine(true);
+    brand.setEllipsize(android.text.TextUtils.TruncateAt.END);
     brand.setGravity(Gravity.CENTER_VERTICAL);
     bar.addView(brand, new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1));
     TextView home = Ui.button(this, "⌂", false, this::home);
@@ -410,6 +422,37 @@ public class MainActivity extends Activity {
     String action=trigger instanceof TextView text?text.getText().toString():"";
     startOperation(trigger,error,action,null,() -> {work.run();return null;},ignored -> success.run());
   }
+  boolean operationInFlight() { return writeInFlight; }
+  /** Coalesce reads per resource, without dropping other floors or blocking navigation/writes. */
+  void read(String key,View trigger,TextView error,Runnable work,Runnable success,Runnable finished) {
+    if(trigger!=null) trigger.setEnabled(false);
+    if(error!=null) error.setText("");
+    ReadListener listener=new ReadListener(generation,trigger,error,success,finished);
+    List<ReadListener> existing=reads.get(key);
+    if(existing!=null) {existing.add(listener);return;}
+    List<ReadListener> listeners=new ArrayList<>();listeners.add(listener);reads.put(key,listeners);
+    worker.execute(() -> {
+      RuntimeException failure=null;try {work.run();}catch(RuntimeException e) {failure=e;}
+      RuntimeException result=failure;
+      runOnUiThread(() -> {
+        if(isDestroyed()) {reads.remove(key);return;}
+        Runnable complete=() -> {
+          List<ReadListener> waiting=reads.remove(key);
+          if(waiting==null) return;
+          for(ReadListener target:waiting) {
+            if(target.trigger()!=null) target.trigger().setEnabled(true);
+            target.finished().run();
+            if(target.generation()!=generation) continue;
+            if(repo.currentUser()==null) {clearNavigation();showAuth(false);message("登录已失效，请重新登录");break;}
+            if(result==null) target.success().run();
+            else if(target.error()!=null) target.error().setText(safeMessage(result));
+            else message(safeMessage(result));
+          }
+        };
+        if(stateSaved) deferredReads.add(complete);else complete.run();
+      });
+    });
+  }
   private void startOperation(View trigger,TextView error,String action,String imageDraft,Supplier<String> work,Consumer<String> success) {
     if(writeInFlight) return;
     writeInFlight=true;if(trigger!=null) trigger.setEnabled(false);if(error!=null) error.setText("");
@@ -447,6 +490,7 @@ public class MainActivity extends Activity {
     }
     if(task.action().equals("注册")) {showAuth(false);message("注册成功，请登录");return;}
     if(repo.currentUser()==null) {signedOut();return;}
+    if(task.action().equals("发布回复")) {EmbeddedReviewReplies.completeSubmission(this);message("回复已提交，审核通过后公开");}
     if(task.imageDraft()!=null) {
       String previous=drafts.getString(task.imageDraft(),"");drafts.putString(task.imageDraft(),outcome.value());
       worker.execute(() -> PhotoImport.discard(this,previous));
@@ -489,6 +533,8 @@ public class MainActivity extends Activity {
   @Override protected void onResume() {
     super.onResume();stateSaved=false;
     if(deferredCompletion!=null) {Runnable callback=deferredCompletion;deferredCompletion=null;callback.run();}
+    List<Runnable> callbacks=new ArrayList<>(deferredReads);deferredReads.clear();
+    for(Runnable callback:callbacks) callback.run();
   }
-  @Override protected void onDestroy() {++generation;deferredCompletion=null;super.onDestroy();}
+  @Override protected void onDestroy() {++generation;deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }
