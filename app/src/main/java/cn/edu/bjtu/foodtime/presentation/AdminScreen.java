@@ -35,6 +35,8 @@ final class AdminScreen {
         if(s.status().equals("pending")) {
           Ui.gap(card,16);Ui.action(card,"通过",false,() -> decision(a,s,true));Ui.gap(card,8);
           Ui.action(card,"驳回",false,() -> decision(a,s,false));
+        } else if(s.type().equals("dish-review-reply")&&s.status().equals("approved")) {
+          Ui.gap(card,12);Ui.action(card,"删除违规回复",false,() -> ReviewReplyScreen.removeAsAdmin(a,s.id()));
         }
       }
       if(count==0) Ui.empty(list,"暂无"+SubmissionScreen.status(states[index])+"投稿","");
@@ -111,7 +113,7 @@ final class AdminScreen {
   }
   static void reviews(MainActivity a,LinearLayout page,MainActivity.Route route) {
     guard(a);a.heading(page,"","评论管理","");List<Review> all=a.repo.reviews(null);
-    page.addView(Ui.text(a,"仅展示审核通过的评论；删除须填写原因，评分在每日快照刷新后更新。",14,Design.MUTED));
+    page.addView(Ui.text(a,"仅展示审核通过的评论；删除须填写原因，评分和评论数实时更新。",14,Design.MUTED));
     EditText search=Ui.field(page,"按用户 ID 查询评论",false,false);
     TextView count=Ui.text(a,"",14,Design.MUTED);count.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);page.addView(count);
     LinearLayout list=Ui.col(a);page.addView(list);

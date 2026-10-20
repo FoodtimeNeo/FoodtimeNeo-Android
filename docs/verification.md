@@ -76,3 +76,7 @@ feature/realtime-dish-ratings 维持服务端评分来源并更新“实时统�
 ## 2026-10-20 评论点赞
 
 新增真实服务端点赞/取消入口，使用响应直接更新按钮，不刷新整页。verifyArchitecture testDebugUnitTest lintDebug assembleDebug通过；未执行设备运行或线上写入。
+
+## 2026-10-20 点评回复
+
+verifyArchitecture testDebugUnitTest lintDebug assembleDebug --no-configuration-cache全部通过。Lint发现的API26不支持URLEncoder Charset重载已改为服务端Base64URL游标校验，保持最低版本兼容。未运行设备写入验收。

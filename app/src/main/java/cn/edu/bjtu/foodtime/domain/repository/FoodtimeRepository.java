@@ -16,6 +16,13 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   void submitReview(String dishId, int rating, String content);
   default LikeState setReviewLike(String reviewId, boolean liked) { throw new UnsupportedOperationException("该数据源不支持评论点赞"); }
 
+  default ReplyPage reviewReplies(String reviewId) { return ReplyPage.empty(); }
+  default ReplyPage myReviewReplies() { return ReplyPage.empty(); }
+  default void loadMoreReplies(String reviewId) { throw new UnsupportedOperationException(); }
+  default void submitReply(String reviewId,String replyToId,String content,String clientRequestId) { throw new UnsupportedOperationException(); }
+  default void deleteReply(String replyId) { throw new UnsupportedOperationException(); }
+  default void removeReplyAsAdmin(String replyId,String reason) { throw new UnsupportedOperationException(); }
+
   void submitDish(
       String stallId, String name, String description, BigDecimal price, String imageUrl);
 

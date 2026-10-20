@@ -28,6 +28,14 @@ public final class Models {
 
   public record LikeState(boolean likedByMe, long likeCount, long counterVersion) {}
 
+  public record ReviewReply(String id,String reviewId,String replyToId,String userDisplayName,String content,
+      String status,String reviewReason,long createdAt,boolean replyToDeleted,String replyToUserDisplayName,
+      boolean ownedByMe,String dishId,String dishName,boolean reviewDeleted,LikeState likes) {}
+
+  public record ReplyPage(java.util.List<ReviewReply> items,long total,boolean hasMore,String nextCursor) {
+    public static ReplyPage empty() { return new ReplyPage(java.util.List.of(),0,false,""); }
+  }
+
   public record Review(
       String id, String dishId, String userId, String userDisplayName, int rating, String content, long createdAt,
       long likeCount, long replyCount, boolean likedByMe, long counterVersion) {
@@ -65,7 +73,7 @@ public final class Models {
 
   public record Photo(String id, String dishId, String imageUrl, String userId) {}
 
-  /** The server's materialized rating snapshot; average is null when no score is available. */
+  /** The server's transactionally maintained rating summary; average is null when no score is available. */
   public record RatingSummary(BigDecimal averageScore,long reviewCount) {}
 
   /** Editable catalog item exposed to administration screens without leaking storage JSON. */

@@ -18,6 +18,7 @@ final class SubmissionScreen {
     return switch (value) {
       case "photo" -> "图片提交";
       case "review" -> "评论提交";
+      case "dish-review-reply" -> "点评回复";
       case "stall" -> "档口提交";
       default -> "菜品提交";
     };

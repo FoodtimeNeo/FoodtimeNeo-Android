@@ -30,6 +30,8 @@ final class ProfileScreen {
     Ui.gap(menu, 12);
     Ui.action(menu, "我的提交 · 审核记录", false, () -> a.go("mine-submissions", ""));
     Ui.gap(menu, 12);
+    Ui.action(menu,"我的回复 · 审核记录",false,() -> a.go("mine-review-replies","1"));
+    Ui.gap(menu,12);
     Ui.action(menu, "修改密码", false, () -> a.go("password", ""));
     Ui.gap(menu, 24);
     Ui.action(menu, "退出登录", true, () -> Ui.confirm(a, "退出登录？", "", a::logout));

@@ -109,6 +109,7 @@ final class DishScreen {
       c.addView(Ui.text(a, r.content(), 16, Design.INK));
       ReviewActions.like(a,c,"评论",new LikeState(r.likedByMe(),r.likeCount(),r.counterVersion()),
           liked -> a.repo.setReviewLike(r.id(),liked));
+      Ui.action(c,"回复 · "+r.replyCount(),false,() -> a.go("review-replies",r.id()));
     }
   }
 
