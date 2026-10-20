@@ -23,6 +23,7 @@ public final class DishReviewPagingRunner extends Instrumentation {
   private final AtomicBoolean failNext=new AtomicBoolean();
   private volatile boolean malformed,liked;
   private volatile int total=45;
+  private volatile String role="user";
   private MainActivity activity;
   private int checks;
   private void check(boolean condition,String label) {if(!condition) throw new AssertionError(label);checks++;}
@@ -45,7 +46,7 @@ public final class DishReviewPagingRunner extends Instrumentation {
     throw new AssertionError("Timed out waiting for pagination");
   }
   private Object data(String path) throws Exception {
-    if(path.equals("users/me/profile")) return new JSONObject("{\"id\":\"user\",\"email\":\"20260001@bjtu.edu.cn\",\"displayName\":\"测试用户\",\"role\":\"user\",\"status\":\"active\"}");
+    if(path.equals("users/me/profile")) return new JSONObject("{\"id\":\"user\",\"email\":\"20260001@bjtu.edu.cn\",\"displayName\":\"测试用户\",\"status\":\"active\"}").put("role",role);
     if(path.equals("auth/csrf")) return new JSONObject().put("token","test");
     if(path.equals("dining-halls")) return new JSONArray("[{\"id\":\"hall\",\"name\":\"测试食堂\"}]");
     if(path.equals("dining-halls/hall/stalls")) return new JSONArray("[{\"id\":\"stall\",\"name\":\"测试档口\"}]");
@@ -54,6 +55,16 @@ public final class DishReviewPagingRunner extends Instrumentation {
     if(path.startsWith("dishes/dish/images?")) return new JSONObject().put("items",new JSONArray()).put("total",0);
     if(path.equals("reviews/r1/like")) {liked=true;return new JSONObject().put("likedByMe",true).put("likeCount",1).put("counterVersion",1);}
     if(path.equals("reviews/r1/replies?size=20")) return new JSONObject().put("items",new JSONArray()).put("total",0).put("hasMore",false).put("nextCursor","");
+    if(path.startsWith("admin/catalog/")) return new JSONObject().put("items",new JSONArray()).put("total",0);
+    if(path.startsWith("admin/moderation?")) {
+      JSONArray rows=new JSONArray();
+      if(path.contains("status=pending")) {
+        rows.put(new JSONObject().put("id","submission1").put("type","dish-review-reply").put("targetId","dish").put("userId","author").put("name","待审核回复").put("content","待审正文").put("status","pending").put("aiRiskLevel","HIGH").put("aiConfidence",0.95).put("aiLabels",new JSONArray().put("广告").put("辱骂")).put("aiReason","请结合上下文检查。".repeat(12)).put("aiCheckedAt","2026-10-21T08:02:03Z"));
+        rows.put(new JSONObject().put("id","submission2").put("type","review").put("targetId","dish").put("name","无分诊结论").put("status","pending").put("aiRiskLevel",JSONObject.NULL).put("aiConfidence",JSONObject.NULL).put("aiLabels",JSONObject.NULL));
+      }
+      return new JSONObject().put("items",rows).put("total",rows.length());
+    }
+    if(path.startsWith("admin/reviews?")) return new JSONObject().put("total",1).put("items",new JSONArray().put(new JSONObject().put("id","published").put("dishId","dish").put("userId","author").put("rating",4).put("content","已审核正文").put("aiRiskLevel","MEDIUM").put("aiConfidence",0).put("aiLabels",new JSONArray()).put("aiReason","需要复核")));
     if(path.startsWith("dishes/dish/reviews?")) {
       if(malformed) return new JSONObject().put("total",total);
       Map<String,String> query=new HashMap<>();for(String part:path.substring(path.indexOf('?')+1).split("&")) {String[] pair=part.split("=");query.put(pair[0],pair[1]);}
@@ -107,6 +118,16 @@ public final class DishReviewPagingRunner extends Instrumentation {
       total=0;click("刷新评论");await(() -> find(activity.root,"暂无评论")!=null);
       check(find(activity.root,"暂无评分")!=null&&find(activity.root,"0 条评价 · 实时统计")!=null,"Refreshing resets the page and updates server-derived score/count");
       check(find(activity.root,"已显示 0 / 0 条评论")!=null,"Empty page has a stable count and refresh action");
+      role="admin";runOnMainSync(() -> activity.selectTab("admin"));await(() -> find(activity.root,"审核投稿")!=null);
+      runOnMainSync(() -> activity.go("admin-audit",""));await(() -> find(activity.root,"AI 分诊：高风险 · 置信度 95%")!=null);
+      check(find(activity.root,"标签：广告、辱骂")!=null&&find(activity.root,"诊断时间：2026-10-21 16:02")!=null,"Moderation maps AI labels and converts diagnosis time to Shanghai");
+      check(find(activity.root,"AI 分诊：暂无结论")!=null,"Null verdict remains an explicit unavailable state");
+      check(find(activity.root,"通过")!=null&&find(activity.root,"驳回")!=null,"AI assessment leaves manual decisions available");
+      check(repo.submissions(null).stream().filter(s -> s.id().equals("submission1")).findFirst().orElseThrow().ai().labels().size()==2,"Real HTTP JSON populates the structured AI model");
+      runOnMainSync(() -> activity.go("admin-reviews",""));await(() -> find(activity.root,"AI 分诊：需复核 · 置信度 0%")!=null);
+      check(repo.reviews(null).get(0).ai().confidence().signum()==0,"Published-review AI retains zero confidence instead of treating it as missing");
+      role="user";total=1;runOnMainSync(() -> {activity.selectTab("dining");activity.go("detail","dish");});await(() -> find(activity.root,"评论1")!=null);
+      check(find(activity.root,"AI 分诊：需复核 · 置信度 0%")==null&&find(activity.root,"AI 分诊：暂无结论")==null,"Public dish cards do not render moderation-only AI controls");
       report.putString("stream","Dish review paging PASS: "+checks+" native HTTP/UI checks; no real Backend writes\n");finish(0,report);
     } catch(Throwable error) {
       StringWriter stack=new StringWriter();error.printStackTrace(new PrintWriter(stack));report.putString("stream","Dish review paging FAIL after "+checks+" checks\n"+stack);finish(1,report);

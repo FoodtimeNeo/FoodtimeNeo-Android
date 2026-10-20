@@ -138,6 +138,8 @@ final class SubmissionScreen {
       Ui.gap(card, 12);
       card.addView(Ui.text(a, "审核说明：" + s.reason(), 14, Design.RED));
     }
+    if(a.repo.currentUser()!=null&&a.repo.currentUser().isAdmin()&&a.route().kind().equals("admin-audit"))
+      AiAssessmentView.show(a,card,s.ai());
     return card;
   }
 }

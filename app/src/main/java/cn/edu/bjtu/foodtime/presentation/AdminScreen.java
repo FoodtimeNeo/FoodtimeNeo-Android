@@ -125,6 +125,7 @@ final class AdminScreen {
         card.addView(Ui.text(a,SubmissionScreen.date(review.createdAt()),12,Design.MUTED));
         card.addView(Ui.text(a,a.repo.context(review.dishId()),14,Design.MUTED));
         card.addView(Ui.text(a,"★".repeat(review.rating())+" · "+review.rating()+" / 5",16,Design.RED));card.addView(Ui.text(a,review.content(),16,Design.INK));Ui.gap(card,12);
+        AiAssessmentView.show(a,card,review.ai());
         Ui.action(card,"删除违规评论",false,() -> removeReview(a,review));
       }
       count.setText("显示 "+found+" / "+all.size()+" 条评论");
