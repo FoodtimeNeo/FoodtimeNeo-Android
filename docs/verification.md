@@ -1,5 +1,9 @@
 # 验收记录
 
+## 2026-10-21 楼层读取队列回归
+
+feature/review-read-queue修复多楼恢复时后续请求被全局写互斥丢弃的问题。架构、11项JVM测试、lintDebug和Debug/AndroidTest构建通过。独立 `.completion` 包在API36.1模拟器运行ReviewReadQueueRunner，12项原生检查通过：双楼恢复、重绘订阅去重、加载反馈结束、保存状态后多个回调、失败隔离与重试、串行执行和重复写保护、读取期间导航及旧页面回调隔离。受控仓库不写Backend或用户数据，原.integration安装保留。
+
 ## 2026-10-21 Release APK 与CD
 
 在 `origin/dev 9f04715` 基础上使用 `feature/release-apk-cd`，仅修改交付配置与文档。CD新增main手动发布入口、签名校验、APK与SHA-256双产物、30天Actions artifact和完整附件上传后公开Release的流程。
