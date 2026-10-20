@@ -267,6 +267,8 @@ public class MainActivity extends Activity {
     if (stacks.get(tab).size() > 1)
       bar.addView(back, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
     TextView brand = Ui.title(this, "北交干饭吧", 22);
+    brand.setSingleLine(true);
+    brand.setEllipsize(android.text.TextUtils.TruncateAt.END);
     brand.setGravity(Gravity.CENTER_VERTICAL);
     bar.addView(brand, new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1));
     TextView home = Ui.button(this, "⌂", false, this::home);

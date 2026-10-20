@@ -60,3 +60,13 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 CD通过Gradle环境变量传递签名参数，临时密钥只写入runner的临时目录，并在流程结束时清理；密钥不进入APK artifact。首次发布建立的固定签名保存在本机被Git忽略的 `.release-signing/`，需要单独安全备份，后续版本沿用同一证书。该目录与所有 `.jks`、`.keystore` 文件均被忽略，不能随源码提交。
 
 下载APK后可使用 `sha256sum -c app-release.apk.sha256` 校验完整性。安装命令为 `adb install -r app-release.apk`；已有同包名且签名不同的debug包不能直接覆盖，安装正式包前请自行处理旧包及数据。
+
+## 2026-10-21 评论修复验收与重新发布
+
+此前 0.1.0 发布已撤回为草稿，修复版使用 versionName 0.1.1 / versionCode 2，沿用原固定证书以支持覆盖升级。CD 在验收期间暂停，三端通过后恢复；以后需要合并但不发布时，可给 PR 添加 `skip-release` 标签。手动发布仍须明确选择 main。
+
+本轮永久原生回归入口：`ReviewReadQueueRunner`（多楼恢复及生命周期）、`EmbeddedRepliesRunner`（楼中楼组件）、`DishReviewPagingRunner`（Android HTTP/JSON、分页与 AI 卡片）、`ReviewInteractionsRunner`（真实本地 Backend 的提交、人工审核、点赞、回复、删除与评分）。构建时通过 `-PFOODTIME_TEST_RUNNER=cn.edu.bjtu.foodtime.presentation.<Runner>` 选择 runner，重新安装对应测试 APK 后执行 `adb shell am instrument -w <包名>.test/cn.edu.bjtu.foodtime.presentation.<Runner>`。
+
+真实写入 runner 强制 `.completion` 独立包名后缀和 `127.0.0.1` API。本次使用 `-PFOODTIME_DEBUG_SUFFIX=.completion -PFOODTIME_API_BASE_URL=http://127.0.0.1:18080/api/v1/` 及 `adb reverse tcp:18080 tcp:18080`，仅连接独立 `foodtime_completion_lab`。它会在该环境创建专用测试菜品及评论，不要把端口反向映射到生产服务。其余三个 runner 使用进程内替身/loopback 服务，不向 Backend 写入。
+
+发布 APK 不会自动部署 Backend；默认 API 服务器必须同步部署包含 V15–V18 迁移的兼容版本。当前记录只证明本地完整版本可用，不代表生产服务已升级。
