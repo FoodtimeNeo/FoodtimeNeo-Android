@@ -18,7 +18,10 @@ final class CommunityScreen {
 
     LinearLayout toolbar=Ui.row(a);
     toolbar.setGravity(Gravity.CENTER_VERTICAL);
-    toolbar.addView(Ui.stamp(a,"今日热门",Design.RED),new LinearLayout.LayoutParams(0,-2,1));
+    LinearLayout sketches=Ui.row(a);
+    sketches.addView(Ui.foodDoodle(a,5,Design.RED),new LinearLayout.LayoutParams(Ui.dp(a,48),Ui.dp(a,42)));
+    sketches.addView(Ui.foodDoodle(a,6,Design.GREEN),new LinearLayout.LayoutParams(Ui.dp(a,48),Ui.dp(a,42)));
+    toolbar.addView(sketches,new LinearLayout.LayoutParams(0,-2,1));
     TextView create=Ui.button(a,"＋ 我来记一笔",true,() -> a.go("community-create",""));
     toolbar.addView(create,new LinearLayout.LayoutParams(-2,-2));
     page.addView(toolbar,new LinearLayout.LayoutParams(-1,-2));
