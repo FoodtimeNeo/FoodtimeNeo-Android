@@ -46,10 +46,11 @@ final class DishScreen {
     List<Photo> photos=a.repo.photos(dish.id());
     if(!photos.isEmpty()) card.addView(Ui.ratioImage(a,Ui.thumb(photos.get(0).imageUrl()),dish.name(),ratio));
     else {
-      FrameLayout art=new FrameLayout(a);art.setBackgroundColor(index%3==0?Design.KRAFT_SOFT:Design.ALT);
-      art.addView(Ui.foodDoodle(a,index+4,index%2==0?Design.RED:Design.GREEN),
-          new FrameLayout.LayoutParams(Ui.dp(a,74),Ui.dp(a,56),Gravity.CENTER));
-      card.addView(art,new LinearLayout.LayoutParams(-1,Ui.dp(a,84+(index%3)*10)));
+      FrameLayout art=new FrameLayout(a);art.setBackgroundColor(Design.ALT);
+      TextView missing=Ui.note(a,"❎");missing.setTextSize(38);missing.setGravity(Gravity.CENTER);
+      missing.setContentDescription("暂无菜品图片");
+      art.addView(missing,new FrameLayout.LayoutParams(-1,-1));
+      card.addView(art,new LinearLayout.LayoutParams(-1,Ui.dp(a,96)));
     }
     LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,12),Ui.dp(a,11),Ui.dp(a,12),Ui.dp(a,13));
     TextView name=Ui.title(a,dish.name(),18);name.setMaxLines(2);body.addView(name);Ui.gap(body,7);
