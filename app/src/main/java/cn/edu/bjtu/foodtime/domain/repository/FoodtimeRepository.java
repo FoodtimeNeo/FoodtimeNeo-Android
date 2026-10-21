@@ -13,6 +13,7 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default byte[] loadImage(String reference) { throw new UnsupportedOperationException(); }
 
   default List<CommunityPost> communityPosts() { return List.of(); }
+  default boolean communityPrototypeEnabled() { return false; }
   default CommunityPost communityPost(String id) { return null; }
   default List<CommunityComment> communityComments(String postId) { return List.of(); }
   default void submitCommunityPost(String content, List<String> images) {

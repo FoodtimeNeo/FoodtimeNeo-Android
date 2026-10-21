@@ -32,6 +32,8 @@ Backend完整字段与错误契约见同级仓库docs/api/README.md。本文只�
 
 Android社区实现对齐Backend `feature/community-p3` 的契约：动态正文1–2000字、最多9个已上传图片引用，公开Feed只返回approved；评论1–500字；点赞和收藏为切换接口。Android当前发帖界面先支持单图，读取端完整支持0–9张图片。动态卡片标题由正文首句生成，不向后端虚构title字段。Backend社区分支合并并部署前，线上默认服务不会提供这些接口，联调时应使用包含P1/P2/P3迁移与接口的服务环境。
 
+后端社区版本尚未部署期间，Debug包默认启用明确标识的本地原型数据，不调用上述社区接口；原型数据不写入服务器，也不冒充线上内容。Release包默认关闭原型。后端部署完成后用`-PFOODTIME_COMMUNITY_PROTOTYPE=false`构建Debug包即可恢复真实接口联调，页面与domain模型无需替换。
+
 ## 2026-10-16 服务器接入验证
 
 `verifyArchitecture testDebugUnitTest lintDebug assembleDebug` 通过，8项单元测试无失败。API36.1模拟器安装后由用户登录线上账号，页面实际显示留园、明湖等服务端食堂数据，未使用ADB端口映射。仅验证登录和浏览，未在线上执行投稿、评论、审核或数据库集成测试。设备验收脚本固定构建本机API地址，以继续将写入测试限定在专用本地环境。

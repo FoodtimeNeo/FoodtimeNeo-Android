@@ -3,6 +3,7 @@ plugins {
 }
 
 def releaseStorePath = providers.gradleProperty('FOODTIME_RELEASE_STORE_FILE').orNull
+def communityPrototype = providers.gradleProperty('FOODTIME_COMMUNITY_PROTOTYPE')
 
 android {
     namespace 'cn.edu.bjtu.foodtime'
@@ -32,9 +33,11 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix providers.gradleProperty('FOODTIME_DEBUG_SUFFIX').getOrElse('')
+            buildConfigField 'boolean', 'COMMUNITY_PROTOTYPE_ENABLED', communityPrototype.getOrElse('true')
         }
         release {
             minifyEnabled false
+            buildConfigField 'boolean', 'COMMUNITY_PROTOTYPE_ENABLED', communityPrototype.getOrElse('false')
             if (releaseStorePath) {
                 signingConfig signingConfigs.release
             }
