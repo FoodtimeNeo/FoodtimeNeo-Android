@@ -60,6 +60,57 @@ public final class Ui {
     return t;
   }
 
+  /** Small code-drawn food sketch used as decoration without bundling another image asset. */
+  public static View foodDoodle(Context c,int variant,int color) {
+    return new View(c) {
+      final Paint p=new Paint(Paint.ANTI_ALIAS_FLAG);
+      {p.setColor(color);p.setStyle(Paint.Style.STROKE);p.setStrokeWidth(dp(c,1.6f));p.setStrokeCap(Paint.Cap.ROUND);}
+      @Override protected void onDraw(Canvas canvas) {
+        super.onDraw(canvas);float w=getWidth(),h=getHeight(),cx=w/2f,cy=h/2f;
+        int kind=Math.floorMod(variant,9);
+        if(kind==0) {
+          RectF bowl=new RectF(w*.16f,h*.39f,w*.84f,h*.77f);
+          canvas.drawArc(bowl,0,180,false,p);canvas.drawLine(w*.2f,h*.58f,w*.8f,h*.58f,p);
+          for(int i=-1;i<=1;i++) {Path steam=new Path();float x=cx+i*w*.16f;steam.moveTo(x,h*.35f);steam.cubicTo(x-w*.05f,h*.25f,x+w*.06f,h*.2f,x,h*.1f);canvas.drawPath(steam,p);}
+        } else if(kind==1) {
+          canvas.drawOval(new RectF(w*.12f,h*.42f,w*.88f,h*.74f),p);
+          canvas.drawCircle(w*.39f,h*.47f,w*.12f,p);canvas.drawCircle(w*.61f,h*.51f,w*.15f,p);
+          canvas.drawLine(w*.74f,h*.12f,w*.48f,h*.66f,p);canvas.drawLine(w*.86f,h*.16f,w*.61f,h*.69f,p);
+        } else if(kind==2) {
+          Path leaf=new Path();leaf.moveTo(w*.18f,h*.7f);leaf.cubicTo(w*.25f,h*.23f,w*.63f,h*.12f,w*.82f,h*.22f);
+          leaf.cubicTo(w*.78f,h*.57f,w*.5f,h*.79f,w*.18f,h*.7f);canvas.drawPath(leaf,p);
+          canvas.drawLine(w*.23f,h*.66f,w*.75f,h*.28f,p);canvas.drawCircle(w*.77f,h*.66f,w*.08f,p);
+        } else if(kind==3) {
+          RectF cup=new RectF(w*.2f,h*.34f,w*.68f,h*.75f);canvas.drawRoundRect(cup,w*.07f,w*.07f,p);
+          canvas.drawArc(new RectF(w*.6f,h*.42f,w*.88f,h*.68f),-80,240,false,p);
+          for(int i=0;i<2;i++) {Path steam=new Path();float x=w*(.36f+i*.17f);steam.moveTo(x,h*.28f);steam.cubicTo(x-w*.06f,h*.19f,x+w*.07f,h*.14f,x,h*.06f);canvas.drawPath(steam,p);}
+        } else if(kind==4) {
+          Path fish=new Path();fish.moveTo(w*.16f,h*.5f);fish.cubicTo(w*.34f,h*.2f,w*.69f,h*.23f,w*.8f,h*.5f);
+          fish.cubicTo(w*.68f,h*.77f,w*.34f,h*.78f,w*.16f,h*.5f);canvas.drawPath(fish,p);
+          Path tail=new Path();tail.moveTo(w*.17f,h*.5f);tail.lineTo(w*.04f,h*.29f);tail.lineTo(w*.04f,h*.71f);tail.close();canvas.drawPath(tail,p);
+          canvas.drawCircle(w*.67f,h*.43f,w*.025f,p);
+        } else if(kind==5) {
+          for(int i=0;i<3;i++) {float left=w*(.08f+i*.29f);RectF dumpling=new RectF(left,h*.31f,left+w*.26f,h*.72f);
+            canvas.drawArc(dumpling,180,180,false,p);canvas.drawLine(left,h*.515f,left+w*.26f,h*.515f,p);
+            canvas.drawLine(left+w*.09f,h*.43f,left+w*.13f,h*.51f,p);canvas.drawLine(left+w*.17f,h*.43f,left+w*.13f,h*.51f,p);}
+        } else if(kind==6) {
+          Path apple=new Path();apple.moveTo(cx,h*.28f);apple.cubicTo(w*.24f,h*.17f,w*.13f,h*.5f,w*.25f,h*.72f);
+          apple.cubicTo(w*.36f,h*.88f,w*.47f,h*.75f,cx,h*.76f);apple.cubicTo(w*.56f,h*.75f,w*.68f,h*.88f,w*.78f,h*.72f);
+          apple.cubicTo(w*.9f,h*.48f,w*.76f,h*.17f,cx,h*.28f);canvas.drawPath(apple,p);
+          canvas.drawLine(cx,h*.27f,w*.55f,h*.08f,p);canvas.drawArc(new RectF(w*.52f,h*.08f,w*.74f,h*.26f),185,150,false,p);
+        } else if(kind==7) {
+          canvas.drawOval(new RectF(w*.16f,h*.12f,w*.42f,h*.46f),p);canvas.drawLine(w*.29f,h*.44f,w*.29f,h*.88f,p);
+          for(int i=0;i<3;i++) canvas.drawLine(w*(.58f+i*.09f),h*.12f,w*(.58f+i*.09f),h*.39f,p);
+          canvas.drawLine(w*.67f,h*.38f,w*.67f,h*.88f,p);canvas.drawArc(new RectF(w*.58f,h*.28f,w*.76f,h*.48f),0,180,false,p);
+        } else {
+          Path bread=new Path();bread.moveTo(w*.13f,h*.66f);bread.cubicTo(w*.22f,h*.25f,w*.6f,h*.12f,w*.84f,h*.34f);
+          bread.cubicTo(w*.75f,h*.7f,w*.43f,h*.84f,w*.13f,h*.66f);canvas.drawPath(bread,p);
+          canvas.drawLine(w*.37f,h*.39f,w*.46f,h*.55f,p);canvas.drawLine(w*.52f,h*.31f,w*.61f,h*.47f,p);canvas.drawLine(w*.67f,h*.29f,w*.73f,h*.41f,p);
+        }
+      }
+    };
+  }
+
   public static void gap(LinearLayout l, int n) {
     View v = new View(l.getContext());
     l.addView(v, new LinearLayout.LayoutParams(1, dp(l.getContext(), n)));
@@ -96,7 +147,7 @@ public final class Ui {
     v.setGravity(Gravity.CENTER);
     v.setMinHeight(dp(c, 48));
     v.setPadding(dp(c, 16), dp(c, 8), dp(c, 16), dp(c, 8));
-    v.setBackground(ripple(c, primary ? Design.RED : Design.PAPER, Design.INK, 0));
+    v.setBackground(ripple(c, primary ? Design.RED : Design.PAPER, Design.INK, 16));
     v.setFocusable(true);
     v.setClickable(true);
     v.setOnClickListener(x -> action.run());
@@ -197,6 +248,11 @@ public final class Ui {
 
   public static View image(Context c, String path, String label, boolean wide) {
     return imageFrame(c,path,label,wide?9f/16f:1f,false,wide);
+  }
+
+  /** Fixed-ratio cover used by editorial cards that deliberately mix portrait and landscape shapes. */
+  public static View ratioImage(Context c,String path,String label,float heightRatio) {
+    return imageFrame(c,path,label,Math.max(.65f,Math.min(1.35f,heightRatio)),false,false);
   }
 
   @android.annotation.SuppressLint("DrawAllocation") // Bitmap decoding below runs in IMAGES, never in onMeasure/draw.
