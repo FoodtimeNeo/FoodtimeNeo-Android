@@ -363,14 +363,6 @@ public class MainActivity extends Activity {
   }
 
   public void heading(LinearLayout page, String index, String title, String note) {
-    if (!index.isBlank()) {
-      TextView marker=Ui.text(this,index,12,Design.RED);
-      marker.setLetterSpacing(.12f);
-      marker.setPadding(Ui.dp(this,10),Ui.dp(this,5),Ui.dp(this,10),Ui.dp(this,5));
-      marker.setBackground(Ui.shape(this,Design.ALT,0,14));
-      page.addView(marker,new LinearLayout.LayoutParams(-2,-2));
-      Ui.gap(page,10);
-    }
     page.addView(Ui.title(this, title, 30));
     Ui.gap(page, 8);
     if (!note.isBlank()) page.addView(Ui.note(this, note));
