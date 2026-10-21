@@ -50,7 +50,7 @@ public class MainActivity extends Activity {
     repo = ((RepositoryProvider) getApplication()).repository();
     worker = ((RepositoryProvider) getApplication()).workExecutor();
     registerScreens();
-    for (String key : List.of("dining", "community", "profile", "admin"))
+    for (String key : List.of("dining", "profile", "admin"))
       stacks.put(key, new ArrayList<>(List.of(new Route(key, ""))));
     if (state != null) {
       pendingOperation=state.getLong("pendingOperation",0);
@@ -97,9 +97,6 @@ public class MainActivity extends Activity {
 
   void registerScreens() {
     screens.put("dining", DiningScreen::halls);
-    screens.put("community", CommunityScreen::feed);
-    screens.put("community-detail", CommunityScreen::detail);
-    screens.put("community-create", CommunityScreen::create);
     screens.put("stalls", DiningScreen::stalls);
     screens.put("dishes", DishScreen::dishes);
     screens.put("gallery", DishScreen::gallery);
@@ -108,7 +105,6 @@ public class MainActivity extends Activity {
     screens.put("submit-stall", UploadScreen::stall);
     screens.put("mine-submissions", SubmissionScreen::mine);
     screens.put("profile", ProfileScreen::profile);
-    screens.put("profile-edit", ProfileScreen::edit);
     screens.put("mine-reviews", ProfileScreen::reviews);
     screens.put("password", PasswordScreen::show);
     screens.put("detail", DishScreen::detail);
@@ -244,8 +240,6 @@ public class MainActivity extends Activity {
       case "stalls","submit-stall" -> ContentRequest.Query.STALLS;
       case "dishes","submit-dish" -> ContentRequest.Query.DISHES;
       case "detail","gallery","upload-photo","review" -> ContentRequest.Query.DISH_DETAIL;
-      case "community" -> ContentRequest.Query.COMMUNITY_FEED;
-      case "community-detail" -> ContentRequest.Query.COMMUNITY_DETAIL;
       case "mine-reviews" -> ContentRequest.Query.MY_REVIEWS;
       case "review-replies","reply-create" -> ContentRequest.Query.REVIEW_REPLIES;
       case "mine-review-replies" -> ContentRequest.Query.MY_REVIEW_REPLIES;
@@ -285,7 +279,7 @@ public class MainActivity extends Activity {
       if (s == null) {
         content.addView(
             Ui.title(
-                this, tab.equals("profile") ? "我的" : tab.equals("admin") ? "管理" : tab.equals("community") ? "社区" : "食堂", 30));
+                this, tab.equals("profile") ? "我的" : tab.equals("admin") ? "管理" : "食堂", 30));
       } else s.show(this, content, route());
     } catch (RuntimeException e) {
       Ui.empty(content, "页面加载失败", e.getMessage() == null ? "请重试" : e.getMessage());
@@ -343,7 +337,6 @@ public class MainActivity extends Activity {
       LinearLayout nav = Ui.row(this);
       nav.setBackground(Ui.shape(this, Design.PAPER, Design.BORDER, 0));
       addTab(nav, "食堂", "dining");
-      addTab(nav, "社区", "community");
       if (repo.currentUser().isAdmin()) addTab(nav, "管理", "admin");
       addTab(nav, "我的", "profile");
       root.addView(nav, new LinearLayout.LayoutParams(-1, -2));
@@ -502,7 +495,7 @@ public class MainActivity extends Activity {
       String previous=drafts.getString(task.imageDraft(),"");drafts.putString(task.imageDraft(),outcome.value());
       worker.execute(() -> PhotoImport.discard(this,previous));
     }
-    else if(Set.of("review","upload-photo","submit-dish","submit-stall","community-create","admin-new","admin-edit").contains(task.origin().kind())) {
+    else if(Set.of("review","upload-photo","submit-dish","submit-stall","admin-new","admin-edit").contains(task.origin().kind())) {
       clearDraft(task.origin());if(route().equals(task.origin())&&stacks.get(tab).size()>1) stacks.get(tab).remove(stacks.get(tab).size()-1);
     }
     openApp();

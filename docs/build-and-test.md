@@ -33,8 +33,6 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 `FOODTIME_API_BASE_URL` 应包含 `/api/v1/`。明文HTTP只放行指定服务器和127.0.0.1，其他服务使用HTTPS；只改构建地址不会自动扩大明文白名单。Cookie绑定服务来源，切换来源会放弃旧会话；应用不预填线上凭据。
 
-Debug构建默认启用社区原型模式，Feed、详情、点赞、收藏、评论和发帖都使用进程内样例数据及仓库内图片，不请求尚未部署的社区接口；认证及食堂等其他模块仍连接所选Backend。可用`-PFOODTIME_COMMUNITY_PROTOTYPE=false`关闭。Release默认关闭原型模式并使用真实社区接口；联调环境确有需要时才显式传入`-PFOODTIME_COMMUNITY_PROTOTYPE=true`。
-
 ## 会写入数据的设备验收
 
 先按Backend的本地联调说明启动专用环境，启用所需样例并确认readiness为UP，再运行：

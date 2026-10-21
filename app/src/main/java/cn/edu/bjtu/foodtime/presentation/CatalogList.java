@@ -7,61 +7,39 @@ import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.InputMethodManager;
 import android.widget.*;
 import cn.edu.bjtu.foodtime.domain.model.CatalogSearch;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 /** Reusable name filter for the current catalog, with route-scoped draft restoration. */
 final class CatalogList {
-  @FunctionalInterface
-  interface GroupRenderer<T> {
-    void render(LinearLayout parent,List<T> items);
-  }
-
   static <T> void show(MainActivity a, LinearLayout page, String label, String placeholder,
       String unit, List<T> items, Function<T, String> name, BiConsumer<LinearLayout, T> render) {
-    showInternal(a,page,label,placeholder,unit,items,name,false,
-        (list,filtered) -> filtered.forEach(item -> render.accept(list,item)));
-  }
-
-  static <T> void showGallery(MainActivity a,LinearLayout page,String placeholder,String unit,
-      List<T> items,Function<T,String> name,GroupRenderer<T> render) {
-    showInternal(a,page,"",placeholder,unit,items,name,true,render);
-  }
-
-  private static <T> void showInternal(MainActivity a,LinearLayout page,String label,
-      String placeholder,String unit,List<T> items,Function<T,String> name,boolean gallery,
-      GroupRenderer<T> render) {
-    TextView caption=null;
-    if(!label.isBlank()) {
-      caption=Ui.text(a,label,14,Design.INK);
-      page.addView(caption);
-      Ui.gap(page,8);
-    }
+    TextView caption = Ui.text(a, label, 14, Design.INK);
+    page.addView(caption);
+    Ui.gap(page, 8);
     LinearLayout row = Ui.row(a);
     EditText search = new EditText(a);
     search.setId(View.generateViewId());
-    if(caption!=null) caption.setLabelFor(search.getId());
-    search.setContentDescription(label.isBlank()?"查找"+unit:label);
+    caption.setLabelFor(search.getId());
+    search.setContentDescription(label);
     search.setHint(placeholder);
     search.setTextSize(16);
     search.setTypeface(Design.body());
     search.setSingleLine(true);
     search.setFilters(new InputFilter[] {new InputFilter.LengthFilter(100)});
-    search.setPadding(Ui.dp(a, gallery?18:12), 0, Ui.dp(a, gallery?18:12), 0);
-    search.setBackground(Ui.shape(a, Design.PAPER, gallery?Design.BORDER:Design.INK, gallery?24:0));
+    search.setPadding(Ui.dp(a, 12), 0, Ui.dp(a, 12), 0);
+    search.setBackground(Ui.shape(a, Design.PAPER, Design.INK, 0));
     search.setTextColor(Design.INK);
     search.setHintTextColor(Design.MUTED);
     search.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
     String key = a.draftKey("search");
     search.setText(a.drafts.getString(key, ""));
-    row.addView(search, new LinearLayout.LayoutParams(0, Ui.dp(a, gallery?52:48), 1));
-    TextView clear = Ui.button(a, gallery?"清空":"清除", false, () -> {
+    row.addView(search, new LinearLayout.LayoutParams(0, Ui.dp(a, 48), 1));
+    TextView clear = Ui.button(a, "清除", false, () -> {
       search.setText("");
       search.requestFocus();
     });
-    if(gallery) clear.setBackground(Ui.ripple(a,Design.ALT,0,24));
     clear.setContentDescription("清除搜索关键词");
     LinearLayout.LayoutParams clearLayout = new LinearLayout.LayoutParams(-2, -2);
     clearLayout.leftMargin = Ui.dp(a, 8);
@@ -79,16 +57,15 @@ final class CatalogList {
       a.drafts.putString(key, query);
       clear.setEnabled(!query.isEmpty());
       clear.setAlpha(query.isEmpty() ? 0.5f : 1f);
-      if(gallery) clear.setVisibility(query.isEmpty()?View.GONE:View.VISIBLE);
       list.removeAllViews();
-      List<T> filtered=new ArrayList<>();
-      for(T item:items) if(CatalogSearch.matches(name.apply(item),query)) filtered.add(item);
-      int found=filtered.size();
-      count.setText(gallery
-          ? (query.isBlank()?"校园里藏着 "+items.size()+" 处好味道":"找到 "+found+" 处食堂")
-          : (query.isBlank()?"共 "+items.size()+" "+unit:"找到 "+found+" / "+items.size()+" "+unit));
-      if(found==0) Ui.empty(list,"没有匹配的结果","换一个关键词，或清空搜索查看全部。");
-      else render.render(list,filtered);
+      int found = 0;
+      for (T item : items) if (CatalogSearch.matches(name.apply(item), query)) {
+        found++;
+        render.accept(list, item);
+      }
+      count.setText(query.isBlank() ? "共 " + items.size() + " " + unit
+          : "找到 " + found + " / " + items.size() + " " + unit);
+      if (found == 0) Ui.empty(list, "没有匹配的结果", "换一个关键词，或清除搜索查看全部。");
     };
     Ui.observe(search, filter);
     search.setOnEditorActionListener((view, action, event) -> {
