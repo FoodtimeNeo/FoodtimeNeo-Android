@@ -1,6 +1,7 @@
 package cn.edu.bjtu.foodtime.domain.model;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public final class Models {
   public record Hall(String id, String name, String coverImageUrl, boolean active) {}
@@ -90,6 +91,43 @@ public final class Models {
   }
 
   public record Photo(String id, String dishId, String imageUrl, String userId) {}
+
+  /** Published community post returned by the Backend community feed. */
+  public record CommunityPost(
+      String id,
+      String userId,
+      String userDisplayName,
+      String content,
+      List<String> imageUrls,
+      int likeCount,
+      int commentCount,
+      int repostCount,
+      String repostOfId,
+      String repostAuthor,
+      String repostContent,
+      boolean likedByMe,
+      boolean favoritedByMe,
+      String status,
+      String reviewReason,
+      long createdAt) {
+    public CommunityPost {
+      imageUrls = imageUrls == null ? List.of() : List.copyOf(imageUrls);
+    }
+  }
+
+  /** Approved comment shown below a community post. */
+  public record CommunityComment(
+      String id,
+      String postId,
+      String userId,
+      String userDisplayName,
+      String content,
+      int likeCount,
+      String status,
+      long createdAt) {}
+
+  /** Latest state returned by a like/favorite toggle. */
+  public record CommunityAction(boolean active, int count) {}
 
   /** The server's transactionally maintained rating summary; average is null when no score is available. */
   public record RatingSummary(BigDecimal averageScore,long reviewCount) {}

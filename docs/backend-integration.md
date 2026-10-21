@@ -10,6 +10,8 @@
 | 当前资料与改密 | /users/me/profile、/users/me/password |
 | 三级目录 | /dining-halls、/dining-halls/{id}/stalls、/stalls/{id}/dishes；data为数组 |
 | 菜品详情、实时评分、评论、图册 | /dishes/{id}及/rating、/reviews、/images；评论/图册分页 |
+| 社区动态 | /community/feed、/community/posts/{id}及/comments；发帖POST /community/posts |
+| 社区互动 | POST /community/likes、/community/favorites；状态与计数以服务端响应为准 |
 | 图片文件 | POST /uploads/images；GET /media/{id} |
 | 投稿 | POST /dishes/{id}/image-submissions、/stalls/{id}/submissions、/dining-halls/{id}/submissions、/dishes/{id}/reviews |
 | 个人记录 | /users/me/reviews及/review-submissions、/dish-submissions、/stall-submissions、/image-submissions |
@@ -24,7 +26,13 @@ Cookie名为FOODTIME_SESSION。登录后重新获取CSRF；写请求带Cookie与
 
 菜品/档口投稿通过后才创建正式实体；菜品投稿价格可空，通过前必须补齐。图片直接进入dish_images的pending，通过后才进图册；2026-10-14经用户确认的V4补充审核人、时间、原因及日志图片外键，日志四类外键只能填一个。历史名称来自真实关联，不在手机端伪造失效父级。
 
-Backend完整字段与错误契约见同级仓库docs/api/README.md。本文只描述Android映射，不另行定义数据库或接口。当前开发按用户授权增加点评点赞、回复及回复点赞；其他数据库增强不在本轮范围；正式邮箱投递暂不验证。
+Backend完整字段与错误契约见同级仓库docs/api/README.md。本文只描述Android映射，不另行定义数据库或接口；社区数据、审核状态、点赞与收藏均以服务端为准。当前开发按用户授权增加点评点赞、回复及回复点赞；其他数据库增强不在本轮范围；正式邮箱投递暂不验证。
+
+## 社区接口对齐（2026-10-20）
+
+Android社区实现对齐Backend `feature/community-p3` 的契约：动态正文1–2000字、最多9个已上传图片引用，公开Feed只返回approved；评论1–500字；点赞和收藏为切换接口。Android当前发帖界面先支持单图，读取端完整支持0–9张图片。动态卡片标题由正文首句生成，不向后端虚构title字段。Backend社区分支合并并部署前，线上默认服务不会提供这些接口，联调时应使用包含P1/P2/P3迁移与接口的服务环境。
+
+后端社区版本尚未部署期间，Debug包默认启用本地原型数据，不调用上述社区接口；原型数据不写入服务器，也不冒充线上内容。Release包默认关闭原型。后端部署完成后用`-PFOODTIME_COMMUNITY_PROTOTYPE=false`构建Debug包即可恢复真实接口联调，页面与domain模型无需替换。
 
 ## 2026-10-16 服务器接入验证
 

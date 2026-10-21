@@ -17,7 +17,8 @@ public final class FoodtimeApplication extends Application implements Repository
   public void onCreate() {
     super.onCreate();
     var cookies=new CookieManager(new EncryptedCookieStore(this,BuildConfig.API_BASE_URL),CookiePolicy.ACCEPT_ORIGINAL_SERVER);
-    repository = new RemoteRepository(BuildConfig.API_BASE_URL,new HttpTransport(BuildConfig.API_BASE_URL,cookies));
+    repository = new RemoteRepository(BuildConfig.API_BASE_URL,
+        new HttpTransport(BuildConfig.API_BASE_URL,cookies),BuildConfig.COMMUNITY_PROTOTYPE_ENABLED);
   }
 
   @Override
