@@ -78,6 +78,14 @@ public final class RemoteRepository implements FoodtimeRepository {
     Validation.password(newPassword,true);
     call("PUT","users/me/password",json("oldPassword",oldPassword,"newPassword",newPassword)); clear();
   }
+  @Override public User updateProfile(String displayName,String avatarReference) {
+    String name=Validation.text(displayName,50,"昵称");
+    if(name.length()<2) throw new IllegalArgumentException("昵称至少需要2个字");
+    String avatar=avatarReference==null||avatarReference.isBlank()?null:
+        avatarReference.startsWith("file:")?upload(avatarReference):avatarReference;
+    user=person(call("PUT","users/me/profile",json("displayName",name,"avatarUrl",avatar)));
+    return user;
+  }
 
   @Override public void refresh(ContentRequest request) {
     profile(); // Restore current server role/status on every screen load.

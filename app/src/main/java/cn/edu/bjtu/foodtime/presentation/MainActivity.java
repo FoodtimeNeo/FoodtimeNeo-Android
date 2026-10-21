@@ -105,6 +105,7 @@ public class MainActivity extends Activity {
     screens.put("submit-stall", UploadScreen::stall);
     screens.put("mine-submissions", SubmissionScreen::mine);
     screens.put("profile", ProfileScreen::profile);
+    screens.put("profile-edit", ProfileScreen::edit);
     screens.put("mine-reviews", ProfileScreen::reviews);
     screens.put("password", PasswordScreen::show);
     screens.put("detail", DishScreen::detail);

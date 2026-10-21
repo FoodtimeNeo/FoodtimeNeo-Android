@@ -47,6 +47,10 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
 
   void changePassword(String oldPassword, String newPassword);
 
+  default User updateProfile(String displayName, String avatarReference) {
+    throw new UnsupportedOperationException("此数据源不支持修改个人资料");
+  }
+
   void moderate(String submissionId, String action, String reason);
   default void moderate(String submissionId,String action,String reason,BigDecimal price) {
     moderate(submissionId,action,reason);
