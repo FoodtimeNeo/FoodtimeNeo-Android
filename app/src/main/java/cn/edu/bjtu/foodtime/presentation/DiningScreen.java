@@ -13,6 +13,8 @@ final class DiningScreen {
       "热气腾腾的一站","下课顺路去尝尝","今天也要好好吃饭",
       "闻着香味慢慢逛","一餐一味，都是日常","把校园装进味蕾"
   };
+  private static final float[] STALL_RATIOS={.72f,.94f,.8f,1.02f,.76f,.9f};
+  private static final String[] STALL_NOTES={"窗口正冒着热气","下课就来这一口","今天也要吃得香","熟悉的校园味道","认真挑一顿喜欢的","一口开启好心情"};
 
   static void halls(MainActivity a, LinearLayout page, MainActivity.Route route) {
     page.setBackground(new FoodDoodleDrawable(a));
@@ -107,14 +109,58 @@ final class DiningScreen {
     Hall hall = a.repo.hall(route.id());
     if (hall == null || !hall.active()) throw new IllegalArgumentException("食堂不存在或已停用");
     a.heading(page, "01.1", hall.name(), "");
+    warmStrip(a,page,1,"烟火升起时，校园也有了家的味道");
     if (a.repo.stalls(hall.id()).isEmpty()) {
       Ui.empty(page, "暂无档口", "");
       Ui.action(page, "投稿一个新档口", true, () -> a.go("submit-stall", hall.id()));
       return;
     }
-    CatalogList.show(a, page, "搜索档口", "当前食堂的档口名称", "个档口", a.repo.stalls(hall.id()), Stall::name,
-        (list, stall) -> cover(a, list, stall.name(), stall.coverImageUrl(), () -> a.go("dishes", stall.id())));
+    CatalogList.showGallery(a,page,"找找想吃的档口","个档口",a.repo.stalls(hall.id()),Stall::name,
+        (list,stalls) -> stallGallery(a,list,stalls));
+    Ui.gap(page,8);
     Ui.action(page, "投稿一个新档口", true, () -> a.go("submit-stall", hall.id()));
+  }
+
+  private static void warmStrip(MainActivity a,LinearLayout page,int doodle,String words) {
+    LinearLayout strip=Ui.row(a);strip.setPadding(Ui.dp(a,16),Ui.dp(a,12),Ui.dp(a,16),Ui.dp(a,12));
+    strip.setBackground(Ui.shape(a,Design.KRAFT_SOFT,0,20));
+    strip.addView(Ui.foodDoodle(a,doodle,Design.GREEN),new LinearLayout.LayoutParams(Ui.dp(a,54),Ui.dp(a,42)));
+    TextView note=Ui.note(a,words);note.setTextSize(17);note.setTextColor(Design.INK);
+    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);lp.leftMargin=Ui.dp(a,12);strip.addView(note,lp);
+    page.addView(strip,new LinearLayout.LayoutParams(-1,-2));Ui.gap(page,18);
+  }
+
+  private static void stallGallery(MainActivity a,LinearLayout page,List<Stall> stalls) {
+    LinearLayout waterfall=Ui.row(a);waterfall.setGravity(Gravity.TOP);
+    LinearLayout left=Ui.col(a),right=Ui.col(a);
+    LinearLayout.LayoutParams ll=new LinearLayout.LayoutParams(0,-2,1);ll.rightMargin=Ui.dp(a,6);
+    LinearLayout.LayoutParams rl=new LinearLayout.LayoutParams(0,-2,1);rl.leftMargin=Ui.dp(a,6);
+    waterfall.addView(left,ll);waterfall.addView(right,rl);
+    float[] height={0,0};
+    for(int i=0;i<stalls.size();i++) {
+      int column=height[0]<=height[1]?0:1;float ratio=STALL_RATIOS[i%STALL_RATIOS.length];
+      stallCard(a,column==0?left:right,stalls.get(i),i,ratio);height[column]+=ratio+.62f;
+    }
+    page.addView(waterfall,new LinearLayout.LayoutParams(-1,-2));
+  }
+
+  private static void stallCard(MainActivity a,LinearLayout column,Stall stall,int index,float ratio) {
+    LinearLayout card=Ui.col(a);card.setBackground(Ui.ripple(a,index%3==1?Design.ALT:Design.PAPER,Design.BORDER,20));
+    card.setClipToOutline(true);card.setElevation(Ui.dp(a,2));
+    if(stall.coverImageUrl()!=null&&!stall.coverImageUrl().isBlank()) {
+      card.addView(Ui.ratioImage(a,Ui.thumb(stall.coverImageUrl()),stall.name(),ratio));
+    } else {
+      FrameLayout sketch=new FrameLayout(a);sketch.setBackgroundColor(index%2==0?Design.KRAFT_SOFT:Design.ALT);
+      View mark=Ui.foodDoodle(a,index+3,index%2==0?Design.RED:Design.GREEN);
+      FrameLayout.LayoutParams markLp=new FrameLayout.LayoutParams(Ui.dp(a,82),Ui.dp(a,64),Gravity.CENTER);
+      sketch.addView(mark,markLp);card.addView(sketch,new LinearLayout.LayoutParams(-1,Ui.dp(a,105+(index%3)*12)));
+    }
+    LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,14));
+    TextView name=Ui.title(a,stall.name(),19);name.setMaxLines(2);body.addView(name);Ui.gap(body,7);
+    body.addView(Ui.text(a,STALL_NOTES[index%STALL_NOTES.length],12,index%2==0?Design.MUTED:Design.GREEN));
+    card.addView(body);card.setClickable(true);card.setFocusable(true);card.setContentDescription(stall.name()+"，查看菜品");
+    card.setOnClickListener(v -> a.go("dishes",stall.id()));
+    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=Ui.dp(a,12);column.addView(card,lp);
   }
 
   static void cover(MainActivity a, LinearLayout page, String name, String image, Runnable action) {
