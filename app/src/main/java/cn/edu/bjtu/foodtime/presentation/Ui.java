@@ -135,11 +135,18 @@ public final class Ui {
     Context c = parent.getContext();
     LinearLayout card = col(c);
     card.setPadding(dp(c, 16), dp(c, 16), dp(c, 16), dp(c, 16));
-    card.setBackground(new PaperDrawable(c));
+    card.setBackground(ripple(c, Design.PAPER, Design.BORDER, 20));
+    card.setClipToOutline(true);
+    card.setElevation(dp(c, 2));
     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-    lp.bottomMargin = dp(c, 20);
+    lp.bottomMargin = dp(c, 14);
     parent.addView(card, lp);
     return card;
+  }
+
+  /** Gives every route below a top-level tab the same quiet, hand-drawn paper backdrop. */
+  public static void decorateSubpage(LinearLayout page, int seed) {
+    page.setBackground(new DoodlePaperDrawable(page.getContext(), seed));
   }
 
   public static TextView button(Context c, String label, boolean primary, Runnable action) {
@@ -178,7 +185,7 @@ public final class Ui {
     TextView v = text(c, label, 12, color);
     v.setGravity(Gravity.CENTER);
     v.setPadding(dp(c, 8), dp(c, 4), dp(c, 8), dp(c, 4));
-    v.setBackground(shape(c, Design.PAPER, color, 0));
+    v.setBackground(shape(c, Design.PAPER, color, 12));
     v.setLayoutParams(new LinearLayout.LayoutParams(-2, -2));
     return v;
   }
@@ -194,7 +201,7 @@ public final class Ui {
     input.setHintTextColor(Design.MUTED);
     input.setTypeface(Design.body());
     input.setPadding(dp(c, 12), dp(c, 12), dp(c, 12), dp(c, 12));
-    input.setBackground(shape(c, Design.PAPER, Design.INK, 0));
+    input.setBackground(shape(c, Design.PAPER, Design.BORDER, 16));
     input.setMinHeight(dp(c, 48));
     input.setInputType(password ? 129 : multiline ? 131073 : 1);
     input.setSaveEnabled(!password);
@@ -375,6 +382,57 @@ public final class Ui {
     public int getOpacity() {
       return PixelFormat.TRANSLUCENT;
     }
+  }
+
+  private static final class DoodlePaperDrawable extends Drawable {
+    private final Context context;
+    private final int seed;
+    private final Paint paint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
+    DoodlePaperDrawable(Context context, int seed) {
+      this.context=context;this.seed=Math.abs(seed);
+      paint.setStyle(Paint.Style.STROKE);paint.setStrokeCap(Paint.Cap.ROUND);
+      paint.setStrokeWidth(dp(context,1.25f));
+    }
+
+    @Override public void draw(Canvas canvas) {
+      canvas.drawColor(Design.PAPER);
+      Rect bounds=getBounds();int step=dp(context,178);
+      for(int y=step/2,index=0;y<bounds.bottom+step;y+=step,index++) {
+        boolean right=(index+seed)%2==0;
+        float x=right?bounds.right-dp(context,31):dp(context,31);
+        float size=dp(context,29);
+        paint.setColor(((index+seed)%3==0?Design.GREEN:Design.RED)&0x00ffffff|0x18000000);
+        drawMark(canvas,x,y,size,(index+seed)%4);
+      }
+    }
+
+    private void drawMark(Canvas c,float x,float y,float s,int kind) {
+      if(kind==0) {
+        c.drawArc(new RectF(x-s,y-s*.08f,x+s,y+s*.72f),0,180,false,paint);
+        c.drawLine(x-s*.82f,y+s*.3f,x+s*.82f,y+s*.3f,paint);
+        for(int i=-1;i<=1;i++) {
+          Path steam=new Path();float sx=x+i*s*.36f;steam.moveTo(sx,y-s*.25f);
+          steam.cubicTo(sx-s*.12f,y-s*.48f,sx+s*.16f,y-s*.62f,sx,y-s*.9f);c.drawPath(steam,paint);
+        }
+      } else if(kind==1) {
+        Path leaf=new Path();leaf.moveTo(x-s*.8f,y+s*.45f);leaf.cubicTo(x-s*.55f,y-s*.7f,x+s*.5f,y-s*.75f,x+s*.78f,y-s*.34f);
+        leaf.cubicTo(x+s*.55f,y+s*.48f,x-s*.1f,y+s*.78f,x-s*.8f,y+s*.45f);c.drawPath(leaf,paint);
+        c.drawLine(x-s*.65f,y+s*.36f,x+s*.58f,y-s*.3f,paint);
+      } else if(kind==2) {
+        c.drawOval(new RectF(x-s*.9f,y-s*.3f,x+s*.9f,y+s*.32f),paint);
+        c.drawCircle(x-s*.28f,y-s*.08f,s*.2f,paint);c.drawCircle(x+s*.25f,y+s*.02f,s*.28f,paint);
+        c.drawLine(x+s*.45f,y-s*.82f,x+s*.02f,y+s*.52f,paint);c.drawLine(x+s*.7f,y-s*.75f,x+s*.28f,y+s*.58f,paint);
+      } else {
+        RectF cup=new RectF(x-s*.72f,y-s*.48f,x+s*.35f,y+s*.5f);c.drawRoundRect(cup,s*.14f,s*.14f,paint);
+        c.drawArc(new RectF(x+s*.18f,y-s*.25f,x+s*.78f,y+s*.35f),-80,240,false,paint);
+        Path steam=new Path();steam.moveTo(x-s*.28f,y-s*.62f);steam.cubicTo(x-s*.45f,y-s*.82f,x-s*.05f,y-s*.92f,x-s*.2f,y-s*1.12f);c.drawPath(steam,paint);
+      }
+    }
+
+    @Override public void setAlpha(int alpha) {}
+    @Override public void setColorFilter(ColorFilter filter) {}
+    @Override public int getOpacity() {return PixelFormat.OPAQUE;}
   }
 
   private Ui() {}

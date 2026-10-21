@@ -162,7 +162,11 @@ public final class RemoteRepository implements FoodtimeRepository {
   private void fetchDishes(String id) {
     var items=list("stalls/"+id+"/dishes",j -> new Dish(text(j,"id"),id,text(j,"name"),decimal(j,"price"),"",true));
     dishes.entrySet().removeIf(e -> e.getValue().stallId().equals(id));
-    for(Dish d:items) dishes.put(d.id(),d); dishLists.put(id,items);
+    for(Dish d:items) {
+      dishes.put(d.id(),d);
+      fetchDishImages(d.id());
+    }
+    dishLists.put(id,items);
   }
   private void fetchDetail(String id) {
     JSONObject j=call("GET","dishes/"+id,null);
@@ -171,9 +175,12 @@ public final class RemoteRepository implements FoodtimeRepository {
     dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true));
     contexts.put(id,joined(j,true));
     dishReviewPages.put(id,fetchDishReviewPage(id,1));
-    photos.put(id,page("dishes/"+id+"/images",p -> new Photo(text(p,"id"),id,text(p,"imageUrl"),"")));
+    fetchDishImages(id);
     JSONObject rating=call("GET","dishes/"+id+"/rating",null);
     ratings.put(id,new RatingSummary(decimal(rating,"averageScore"),rating.optLong("reviewCount")));
+  }
+  private void fetchDishImages(String id) {
+    photos.put(id,page("dishes/"+id+"/images",p -> new Photo(text(p,"id"),id,text(p,"imageUrl"),"")));
   }
   private List<Review> reviewPage(String path) {
     return page(path,this::review);

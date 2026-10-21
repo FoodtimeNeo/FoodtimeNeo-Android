@@ -1,32 +1,66 @@
 package cn.edu.bjtu.foodtime.presentation;
 
+import android.view.*;
 import android.widget.*;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import java.util.*;
 
 final class DishScreen {
+  private static final String[] DISH_NOTES={"今天想吃这一口","热乎上桌","校园里的小满足","香气刚刚好","给忙碌加点甜","慢慢吃，别着急"};
+
   static void dishes(MainActivity a, LinearLayout page, MainActivity.Route route) {
     Stall stall = a.repo.stall(route.id());
     if (stall == null || !stall.active()) throw new IllegalArgumentException("档口不存在或已停用");
     a.heading(page, "01.2", stall.name(), "");
+    LinearLayout ribbon=Ui.row(a);ribbon.setPadding(Ui.dp(a,16),Ui.dp(a,12),Ui.dp(a,16),Ui.dp(a,12));
+    ribbon.setBackground(Ui.shape(a,Design.ALT,0,20));
+    TextView words=Ui.note(a,"好好吃饭，是一天里温柔的小事");words.setTextSize(17);words.setTextColor(Design.RED);
+    ribbon.addView(words,new LinearLayout.LayoutParams(0,-2,1));
+    ribbon.addView(Ui.foodDoodle(a,5,Design.GREEN),new LinearLayout.LayoutParams(Ui.dp(a,62),Ui.dp(a,46)));
+    page.addView(ribbon);Ui.gap(page,18);
     List<Dish> all = a.repo.dishes(stall.id());
-    if (all.isEmpty()) Ui.empty(page, "还没有菜品", "可以通过下方入口投稿一道新菜。");
-    else CatalogList.show(a, page, "搜索菜品", "当前档口的菜名", "道菜品", all, Dish::name,
-        (list, dish) -> {
-          LinearLayout row = Ui.card(list);
-          row.setOrientation(LinearLayout.HORIZONTAL);
-          row.setGravity(android.view.Gravity.CENTER_VERTICAL);
-          row.setPadding(Ui.dp(a, 16), Ui.dp(a, 12), Ui.dp(a, 16), Ui.dp(a, 12));
-          TextView n = Ui.title(a, dish.name(), 21);
-          row.addView(n, new LinearLayout.LayoutParams(0, -2, 1));
-          TextView price = Ui.text(a, "¥" + dish.price().setScale(2), 16, Design.RED);
-          row.addView(price);
-          row.setClickable(true);
-          row.setFocusable(true);
-          row.setOnClickListener(v -> a.go("detail", dish.id()));
-        });
+    if (all.isEmpty()) Ui.empty(page, "还没有菜品", "");
+    else CatalogList.showGallery(a,page,"找找今天想吃的","道菜品",all,Dish::name,
+        (list,dishes) -> dishGrid(a,list,dishes));
     Ui.gap(page, 16);
     Ui.action(page, "投稿一道新菜", true, () -> a.go("submit-dish", stall.id()));
+  }
+
+  private static void dishGrid(MainActivity a,LinearLayout page,List<Dish> dishes) {
+    LinearLayout grid=Ui.row(a);grid.setGravity(Gravity.TOP);
+    LinearLayout left=Ui.col(a),right=Ui.col(a);
+    LinearLayout.LayoutParams ll=new LinearLayout.LayoutParams(0,-2,1);ll.rightMargin=Ui.dp(a,6);
+    LinearLayout.LayoutParams rl=new LinearLayout.LayoutParams(0,-2,1);rl.leftMargin=Ui.dp(a,6);
+    grid.addView(left,ll);grid.addView(right,rl);
+    float[] height={0,0};
+    for(int i=0;i<dishes.size();i++) {
+      int column=height[0]<=height[1]?0:1;float ratio=.56f+(i%4)*.08f;
+      dishCard(a,column==0?left:right,dishes.get(i),i,ratio);height[column]+=ratio+.58f;
+    }
+    page.addView(grid,new LinearLayout.LayoutParams(-1,-2));
+  }
+
+  private static void dishCard(MainActivity a,LinearLayout column,Dish dish,int index,float ratio) {
+    LinearLayout card=Ui.col(a);card.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,20));
+    card.setClipToOutline(true);card.setElevation(Ui.dp(a,2));
+    List<Photo> photos=a.repo.photos(dish.id());
+    if(!photos.isEmpty()) card.addView(Ui.ratioImage(a,Ui.thumb(photos.get(0).imageUrl()),dish.name(),ratio));
+    else {
+      FrameLayout art=new FrameLayout(a);art.setBackgroundColor(Design.ALT);
+      TextView missing=Ui.note(a,"❎");missing.setTextSize(38);missing.setGravity(Gravity.CENTER);
+      missing.setContentDescription("暂无菜品图片");
+      art.addView(missing,new FrameLayout.LayoutParams(-1,-1));
+      card.addView(art,new LinearLayout.LayoutParams(-1,Ui.dp(a,96)));
+    }
+    LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,12),Ui.dp(a,11),Ui.dp(a,12),Ui.dp(a,13));
+    TextView name=Ui.title(a,dish.name(),18);name.setMaxLines(2);body.addView(name);Ui.gap(body,7);
+    LinearLayout meta=Ui.row(a);TextView price=Ui.title(a,"¥"+dish.price().stripTrailingZeros().toPlainString(),17);
+    price.setTextColor(Design.RED);meta.addView(price,new LinearLayout.LayoutParams(0,-2,1));
+    meta.addView(Ui.text(a,String.format("%02d",index+1),11,Design.GREEN));body.addView(meta);Ui.gap(body,7);
+    body.addView(Ui.text(a,DISH_NOTES[index%DISH_NOTES.length],11,Design.MUTED));card.addView(body);
+    card.setClickable(true);card.setFocusable(true);card.setContentDescription(dish.name()+"，查看详情");
+    card.setOnClickListener(v -> a.go("detail",dish.id()));
+    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=Ui.dp(a,12);column.addView(card,lp);
   }
 
   static void detail(MainActivity a, LinearLayout page, MainActivity.Route route) {
@@ -81,7 +115,7 @@ final class DishScreen {
       float average=summary.averageScore()==null?0:summary.averageScore().floatValue();
       scoreValue.setText(summary.averageScore()==null?"暂无评分":"★".repeat(Math.round(average))+"  "+String.format(Locale.ROOT,"%.1f / 5",average));
       scoreValue.setTextColor(summary.averageScore()==null?Design.MUTED:Design.RED);
-      scoreCount.setText(summary.reviewCount()+" 条评价 · 实时统计");
+      scoreCount.setText(summary.reviewCount()+" 条评价");
     };
     paintRating.run();
     LinearLayout action = Ui.row(a);

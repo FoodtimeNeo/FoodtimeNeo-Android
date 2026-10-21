@@ -114,14 +114,14 @@ final class AdminScreen {
   static void reviews(MainActivity a,LinearLayout page,MainActivity.Route route) {
     guard(a);a.heading(page,"","评论管理","");List<Review> all=a.repo.reviews(null);
     page.addView(Ui.text(a,"仅展示审核通过的评论；删除须填写原因，评分和评论数实时更新。",14,Design.MUTED));
-    EditText search=Ui.field(page,"按用户 ID 查询评论",false,false);
+    EditText search=Ui.field(page,"搜索作者",false,false);
     TextView count=Ui.text(a,"",14,Design.MUTED);count.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);page.addView(count);
     LinearLayout list=Ui.col(a);page.addView(list);
     Runnable filter=() -> {
       String query=search.getText().toString().strip().toLowerCase(Locale.ROOT);list.removeAllViews();int found=0;
-      for(Review review:all) if(review.userId().toLowerCase(Locale.ROOT).contains(query)) {
-        found++;LinearLayout card=Ui.card(list);card.addView(Ui.text(a,"作者："+(review.userDisplayName().isEmpty()?review.userId():review.userDisplayName()),12,Design.BLUE));Ui.gap(card,8);
-        card.addView(Ui.text(a,"评论 ID："+review.id(),12,Design.MUTED));
+      for(Review review:all) if(query.isBlank()||review.userDisplayName().toLowerCase(Locale.ROOT).contains(query)
+          ||review.userId().toLowerCase(Locale.ROOT).contains(query)) {
+        found++;LinearLayout card=Ui.card(list);card.addView(Ui.text(a,"作者："+(review.userDisplayName().isEmpty()?"未命名用户":review.userDisplayName()),12,Design.BLUE));Ui.gap(card,8);
         card.addView(Ui.text(a,SubmissionScreen.date(review.createdAt()),12,Design.MUTED));
         card.addView(Ui.text(a,a.repo.context(review.dishId()),14,Design.MUTED));
         card.addView(Ui.text(a,"★".repeat(review.rating())+" · "+review.rating()+" / 5",16,Design.RED));card.addView(Ui.text(a,review.content(),16,Design.INK));Ui.gap(card,12);
@@ -169,7 +169,6 @@ final class AdminScreen {
     guard(a);a.heading(page,"","审核日志","");List<Audit> all=a.repo.audits();if(all.isEmpty()) Ui.empty(page,"暂无审核记录","");
     for(Audit audit:all) {
       LinearLayout card=Ui.card(page);card.addView(Ui.stamp(a,audit.action().equals("approve")?"通过":"驳回",audit.action().equals("approve")?Design.GREEN:Design.RED));Ui.gap(card,12);
-      card.addView(Ui.text(a,"提交："+audit.submissionId(),12,Design.MUTED));card.addView(Ui.text(a,"管理员："+audit.moderatorId(),12,Design.MUTED));
       card.addView(Ui.text(a,SubmissionScreen.date(audit.createdAt()),12,Design.MUTED));if(!audit.reason().isBlank()) card.addView(Ui.text(a,audit.reason(),16,Design.INK));
     }
   }

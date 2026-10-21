@@ -281,6 +281,7 @@ public class MainActivity extends Activity {
     home.setContentDescription("回到食堂首页");
     bar.addView(home, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
     try {
+      if (stacks.get(tab).size() > 1) Ui.decorateSubpage(content, route().kind().hashCode());
       Screen s = screens.get(route().kind());
       if (s == null) {
         content.addView(

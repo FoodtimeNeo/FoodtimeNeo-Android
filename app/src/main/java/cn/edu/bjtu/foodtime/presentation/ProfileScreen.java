@@ -125,7 +125,6 @@ final class ProfileScreen {
     }
     for (Review r : reviews) {
       LinearLayout card = Ui.card(page);
-      card.addView(Ui.text(a, "评论ID：" + r.id(), 12, Design.MUTED));
       card.addView(Ui.text(a, SubmissionScreen.date(r.createdAt()), 12, Design.MUTED));
       Ui.gap(card, 12);
       card.addView(Ui.text(a, a.repo.context(r.dishId()), 14, Design.BLUE));

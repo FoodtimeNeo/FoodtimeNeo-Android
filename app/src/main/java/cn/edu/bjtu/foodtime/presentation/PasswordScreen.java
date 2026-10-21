@@ -4,7 +4,7 @@ import android.widget.*;
 
 final class PasswordScreen {
   static void show(MainActivity a, LinearLayout page, MainActivity.Route route) {
-    a.heading(page, "02.3", "修改密码", "修改后需重新登录");
+    a.heading(page, "03.2", "修改密码", "");
     LinearLayout card = Ui.card(page);
     EditText old = Ui.field(card, "旧密码", true, false);
     EditText next = Ui.field(card, "新密码", true, false);
