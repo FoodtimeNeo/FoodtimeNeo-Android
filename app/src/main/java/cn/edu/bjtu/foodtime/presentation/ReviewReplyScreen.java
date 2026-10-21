@@ -8,12 +8,12 @@ import java.util.UUID;
 
 final class ReviewReplyScreen {
   static void thread(MainActivity a,LinearLayout page,MainActivity.Route route) {
-    a.heading(page,"","评论回复","审核通过后公开");
+    a.heading(page,"02.2","评论回复","");
     EmbeddedReviewReplies.thread(a,page,route.id());
   }
   static void create(MainActivity a,LinearLayout page,MainActivity.Route route) {
     String[] args=route.id().split("~",-1);String root=args[0],target=args.length>1?args[1]:"";
-    a.heading(page,"","写回复","最多500字，审核通过后公开");
+    a.heading(page,"02.3","写回复","");
     if(!target.isBlank()) {
       ReviewReply selected=a.repo.reviewReplies(root).items().stream().filter(r -> r.id().equals(target)).findFirst().orElse(null);
       page.addView(Ui.text(a,selected==null?"回复已选中的回复":"回复 "+selected.userDisplayName(),14,Design.BLUE));
@@ -33,7 +33,7 @@ final class ReviewReplyScreen {
   }
   static void mine(MainActivity a,LinearLayout page,MainActivity.Route route) {
     int number=route.id().isBlank()?1:Integer.parseInt(route.id());ReplyPage replies=a.repo.myReviewReplies();
-    a.heading(page,"","我的回复","共 "+replies.total()+" 条 · 第 "+number+" 页");
+    a.heading(page,"03.3","我的回复","");
     if(replies.items().isEmpty()) Ui.empty(page,"暂无回复记录", "在菜品点评下参与讨论后，可在这里查看审核状态。");
     for(ReviewReply row:replies.items()) {
       LinearLayout card=card(a,page,row,true);remove(a,card,row);

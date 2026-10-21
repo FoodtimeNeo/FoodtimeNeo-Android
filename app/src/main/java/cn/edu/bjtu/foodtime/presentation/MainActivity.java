@@ -281,6 +281,7 @@ public class MainActivity extends Activity {
     home.setContentDescription("回到食堂首页");
     bar.addView(home, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
     try {
+      if (stacks.get(tab).size() > 1) Ui.decorateSubpage(content, route().kind().hashCode());
       Screen s = screens.get(route().kind());
       if (s == null) {
         content.addView(
@@ -362,6 +363,14 @@ public class MainActivity extends Activity {
   }
 
   public void heading(LinearLayout page, String index, String title, String note) {
+    if (!index.isBlank()) {
+      TextView marker=Ui.text(this,index,12,Design.RED);
+      marker.setLetterSpacing(.12f);
+      marker.setPadding(Ui.dp(this,10),Ui.dp(this,5),Ui.dp(this,10),Ui.dp(this,5));
+      marker.setBackground(Ui.shape(this,Design.ALT,0,14));
+      page.addView(marker,new LinearLayout.LayoutParams(-2,-2));
+      Ui.gap(page,10);
+    }
     page.addView(Ui.title(this, title, 30));
     Ui.gap(page, 8);
     if (!note.isBlank()) page.addView(Ui.note(this, note));

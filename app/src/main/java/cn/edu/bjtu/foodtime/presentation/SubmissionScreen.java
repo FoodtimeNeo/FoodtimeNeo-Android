@@ -33,8 +33,6 @@ final class SubmissionScreen {
 
   static void mine(MainActivity a, LinearLayout page, MainActivity.Route route) {
     a.heading(page, "03", "我的提交", "");
-    page.addView(Ui.text(a, "通过审核的点评会出现在“我的评论”。", 14, Design.MUTED));
-    Ui.gap(page, 16);
     List<Submission> all = a.repo.submissions(a.repo.currentUser().id());
     String statusKey = a.draftKey("submission-status");
     String typeKey = a.draftKey("submission-type");
@@ -63,13 +61,13 @@ final class SubmissionScreen {
           card(a, list, submission);
         }
       }
-      count.setText("显示 " + found + " / " + all.size() + " 条记录");
+      count.setText(found + " 条记录");
       if (found == 0) {
         if (all.isEmpty()) {
-          Ui.empty(list, "暂无投稿记录", "从食堂找到档口和菜品，即可在对应页面参与投稿。");
+          Ui.empty(list, "暂无投稿记录", "");
           Ui.action(list, "去逛食堂", true, a::home);
         } else {
-          Ui.empty(list, "没有符合筛选条件的记录", "调整类型或状态，或清除筛选查看全部。");
+          Ui.empty(list, "没有符合筛选条件的记录", "");
           Ui.action(list, "清除筛选", false, () -> {
             status.setSelection(0);
             type.setSelection(0);
