@@ -16,6 +16,8 @@ final class AdminScreen {
     long pending=a.repo.submissions(null).stream().filter(s -> s.status().equals("pending")).count();
     card.addView(Ui.title(a,pending+" 条待审核",24));Ui.gap(card,16);
     Ui.action(card,"审核投稿",true,() -> a.go("admin-audit",""));Ui.gap(card,12);
+    Ui.action(card,"社区食记审核",false,()->a.go("admin-community","posts~pending~1"));Ui.gap(card,12);
+    Ui.action(card,"社区评论与回复审核",false,()->a.go("admin-community","comments~pending~1"));Ui.gap(card,12);
     Ui.action(card,"食堂 · 档口 · 菜品",false,() -> a.go("admin-data","halls~"));Ui.gap(card,12);
     Ui.action(card,"评论管理",false,() -> a.go("admin-reviews",""));Ui.gap(card,12);
     Ui.action(card,"审核日志",false,() -> a.go("admin-logs",""));

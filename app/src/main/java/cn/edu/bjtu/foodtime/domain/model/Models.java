@@ -93,6 +93,11 @@ public final class Models {
   public record Photo(String id, String dishId, String imageUrl, String userId) {}
 
   /** Published community post returned by the Backend community feed. */
+  public record CommunityAuditPage(String type,String status,int page,long total,List<Submission> items){
+    public CommunityAuditPage{items=List.copyOf(items);}
+    public static CommunityAuditPage empty(){return new CommunityAuditPage("posts","pending",1,0,List.of());}
+  }
+  public record CommunityAuditDetail(CommunityPost post,CommunityComment comment,CommunityComment rootComment,CommunityComment replyToComment,AiAssessment ai){}
   public record CommunityPostPage(List<CommunityPost> items,long total,int page,boolean hasMore){
     public CommunityPostPage{items=List.copyOf(items);}
     public static CommunityPostPage empty(){return new CommunityPostPage(List.of(),0,0,false);}

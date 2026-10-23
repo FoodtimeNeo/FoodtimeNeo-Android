@@ -46,6 +46,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile List<User> userList=List.of();
   private volatile List<CommunityPost> communityFeed=List.of();
   private volatile CommunityPostPage ownCommunityPosts=CommunityPostPage.empty(),ownCommunityFavorites=CommunityPostPage.empty();
+  private volatile CommunityAuditPage communityAudit=CommunityAuditPage.empty();
+  private volatile CommunityAuditDetail communityAuditDetail;
   private volatile String communityCursor="";
   private volatile boolean communityHasMore;
   private final Map<String,String> communityUploads=new ConcurrentHashMap<>();
@@ -106,6 +108,21 @@ public final class RemoteRepository implements FoodtimeRepository {
       case COMMUNITY_FEED -> {
         if(communityPrototype==null) loadCommunityFeed(false);
         else syncPrototypeFeed();
+      }
+      case COMMUNITY_MODERATION -> {
+        String[] parts=request.id().split("~",-1);String type=parts[0],status=parts.length>1?parts[1]:"pending";int number=parts.length>2?Integer.parseInt(parts[2]):1;
+        JSONObject data=call("GET","admin/community/"+type+"?status="+status+"&page="+number+"&size=20",null);
+        List<Submission> rows=new ArrayList<>();JSONArray items=data.optJSONArray("items");
+        if(items!=null)for(int i=0;i<items.length();i++){
+          JSONObject item=items.optJSONObject(i);rows.add(new Submission(text(item,"id"),text(item,"type"),text(item,"targetId"),text(item,"userId"),text(item,"userDisplayName"),text(item,"name"),text(item,"content"),null,text(item,"imageUrl"),0,text(item,"status"),text(item,"reason"),time(item,"createdAt"),"",assessment(item)));
+        }
+        communityAudit=new CommunityAuditPage(type,status,number,data.optLong("total"),rows);
+      }
+      case COMMUNITY_MODERATION_DETAIL -> {
+        String[] parts=request.id().split("~",-1);JSONObject data=call("GET","admin/community/"+parts[0]+"/"+parts[1],null);
+        JSONObject comment=data.optJSONObject("comment"),root=data.optJSONObject("rootComment"),target=data.optJSONObject("replyToComment");
+        AiAssessment ai=communityAudit.items().stream().filter(item->item.id().equals(parts[1])).map(Submission::ai).findFirst().orElse(assessment(data.optJSONObject("post")));
+        communityAuditDetail=new CommunityAuditDetail(cacheCommunityPost(data.optJSONObject("post")),comment==null?null:communityComment(comment),root==null?null:communityComment(root),target==null?null:communityComment(target),ai);
       }
       case MY_COMMUNITY_POSTS -> loadCommunityCollection(false,false);
       case MY_COMMUNITY_FAVORITES -> loadCommunityCollection(true,false);
@@ -457,6 +474,10 @@ public final class RemoteRepository implements FoodtimeRepository {
         "rootCommentId",rootId.isBlank()?null:rootId,"replyToCommentId",targetId.isBlank()?null:targetId));
   }
   @Override public void deleteCommunityComment(String id){call("DELETE","community/comments/"+id,null);}
+  @Override public CommunityAuditPage communityAudit(){return communityAudit;}
+  @Override public CommunityAuditDetail communityAuditDetail(){return communityAuditDetail;}
+  @Override public void moderateCommunity(String type,String id,String action,String reason){call("POST","admin/community/"+type+"/"+id,json("action",action,"reason",reason));}
+  @Override public void removeCommunityAsAdmin(String type,String id,String reason){call("DELETE","admin/community/"+type+"/"+id,json("reason",reason));}
   private void loadCommunityCollection(boolean favorites,boolean more){
     CommunityPostPage prior=communityCollection(favorites);int number=more?prior.page()+1:1;
     JSONObject data=call("GET","users/me/community-"+(favorites?"favorites":"posts")+"?page="+number+"&size=20",null);
@@ -602,7 +623,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private void clear() {
     user=null;csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
-    communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
+    communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();communityAudit=CommunityAuditPage.empty();communityAuditDetail=null;communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
     dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();
     ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();
   }
