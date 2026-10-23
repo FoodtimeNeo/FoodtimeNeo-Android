@@ -108,15 +108,17 @@ public final class Models {
   }
 
   /** Approved comment shown below a community post. */
-  public record CommunityComment(
-      String id,
-      String postId,
-      String userId,
-      String userDisplayName,
-      String content,
-      int likeCount,
-      String status,
-      long createdAt) {}
+  public record CommunityComment(String id,String postId,String userId,String userDisplayName,String content,
+      long likeCount,String status,long createdAt,String rootCommentId,String replyToCommentId,String replyToUserId,
+      String replyToDisplayName,String userAvatarUrl,long replyCount,boolean likedByMe,boolean deleted,String reviewStage,String reviewReason) {
+    public CommunityComment(String id,String postId,String userId,String name,String content,long likes,String status,long time){
+      this(id,postId,userId,name,content,likes,status,time,"","","","","",0,false,false,"","");
+    }
+  }
+  public record CommunityCommentPage(List<CommunityComment> items,long total,boolean hasMore,String nextCursor){
+    public CommunityCommentPage{items=List.copyOf(items);}
+    public static CommunityCommentPage empty(){return new CommunityCommentPage(List.of(),0,false,"");}
+  }
 
   /** Latest state returned by a like/favorite toggle. */
   public record CommunityAction(boolean active, long count) {}

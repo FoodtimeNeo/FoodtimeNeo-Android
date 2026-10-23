@@ -32,6 +32,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private final Map<String,List<Photo>> photos=new ConcurrentHashMap<>();
   private final Map<String,CommunityPost> communityPostCache=new ConcurrentHashMap<>();
   private final Map<String,List<CommunityComment>> communityCommentCache=new ConcurrentHashMap<>();
+  private final Map<String,CommunityCommentPage> communityRoots=new ConcurrentHashMap<>(),communityReplies=new ConcurrentHashMap<>();
   private final Map<String,RatingSummary> ratings=new ConcurrentHashMap<>();
   private final Map<String,String> contexts=new ConcurrentHashMap<>();
   private final Map<String,List<AdminEntity>> catalog=new ConcurrentHashMap<>();
@@ -107,8 +108,9 @@ public final class RemoteRepository implements FoodtimeRepository {
       }
       case COMMUNITY_DETAIL -> {
         if(communityPrototype==null) {
-          cacheCommunityPost(call("GET","community/posts/"+request.id(),null));
-          communityCommentCache.put(request.id(),page("community/posts/"+request.id()+"/comments",this::communityComment));
+          CommunityPost post=cacheCommunityPost(call("GET","community/posts/"+request.id(),null));
+          if(post.status().equals("approved"))loadCommunityRoots(post.id(),false);
+          else {communityRoots.remove(post.id());communityCommentCache.remove(post.id());}
         } else {
           CommunityPost post=communityPrototype.post(request.id());
           if(post==null) throw missing("动态不存在或暂不可见");
@@ -348,8 +350,9 @@ public final class RemoteRepository implements FoodtimeRepository {
 
   private CommunityComment communityComment(JSONObject j) {
     return new CommunityComment(text(j,"id"),text(j,"postId"),text(j,"userId"),
-        text(j,"userDisplayName"),text(j,"content"),j.optInt("likeCount"),
-        text(j,"status"),time(j,"createdAt"));
+        text(j,"userDisplayName"),text(j,"content"),j.optLong("likeCount"),
+        text(j,"status"),time(j,"createdAt"),text(j,"rootCommentId"),text(j,"replyToCommentId"),text(j,"replyToUserId"),
+        text(j,"replyToDisplayName"),text(j,"userAvatarUrl"),j.optLong("replyCount"),j.optBoolean("likedByMe"),j.optBoolean("deleted"),text(j,"reviewStage"),text(j,"reviewReason"));
   }
 
   private void updateCommunityPostState(String id,Boolean liked,Long likeCount,Boolean favorited) {
@@ -424,14 +427,33 @@ public final class RemoteRepository implements FoodtimeRepository {
     for(String image:selected)uploaded.put(communityUploads.computeIfAbsent(image,this::upload));
     call("POST","community/posts",json("title",heading,"content",body,"imageUrls",uploaded,"clientRequestId",requestId));
   }
-  @Override public void submitCommunityComment(String postId,String content) {
-    String body=Validation.text(content,500,"评论");
-    if(communityPrototype!=null) {
-      communityPrototype.comment(user,postId,body);
-      communityCommentCache.put(postId,communityPrototype.comments(postId));syncPrototypeFeed();return;
-    }
-    call("POST","community/posts/"+postId+"/comments",json("content",body,"clientRequestId",UUID.randomUUID().toString()));
+  private CommunityCommentPage commentPage(String path,CommunityCommentPage prior){
+    JSONObject data=call("GET",path,null);JSONArray values=data.optJSONArray("items");
+    List<CommunityComment> items=new ArrayList<>(prior==null?List.of():prior.items());
+    if(values!=null)for(int i=0;i<values.length();i++)items.add(communityComment(values.optJSONObject(i)));
+    return new CommunityCommentPage(items,data.optLong("total"),data.optBoolean("hasMore"),text(data,"nextCursor"));
   }
+  private void loadCommunityRoots(String postId,boolean more){
+    CommunityCommentPage prior=communityRoots(postId);
+    CommunityCommentPage result=commentPage("community/posts/"+postId+"/comments/cursor?size=20"+(more?"&cursor="+prior.nextCursor():""),more?prior:null);
+    communityRoots.put(postId,result);communityCommentCache.put(postId,result.items());
+    int first=more?prior.items().size():0;
+    for(int i=first;i<result.items().size();i++){var root=result.items().get(i);if(root.status().equals("approved"))loadCommunityReplies(postId,root.id(),false);}
+  }
+  @Override public CommunityCommentPage communityRoots(String postId){return communityRoots.getOrDefault(postId,CommunityCommentPage.empty());}
+  @Override public CommunityCommentPage communityReplies(String rootId){return communityReplies.getOrDefault(rootId,CommunityCommentPage.empty());}
+  @Override public void loadMoreCommunityComments(String postId){if(communityRoots(postId).hasMore())loadCommunityRoots(postId,true);}
+  @Override public void loadCommunityReplies(String postId,String rootId,boolean more){
+    var prior=communityReplies(rootId);if(more&&!prior.hasMore())return;
+    communityReplies.put(rootId,commentPage("community/posts/"+postId+"/comments/"+rootId+"/replies?size="+(more?20:3)+(more?"&cursor="+prior.nextCursor():""),more?prior:null));
+  }
+  @Override public void submitCommunityComment(String postId,String content){submitCommunityComment(postId,content,"","",UUID.randomUUID().toString());}
+  @Override public void submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){
+    String body=Validation.text(content,500,"评论");
+    call("POST","community/posts/"+postId+"/comments",json("content",body,"clientRequestId",requestId,
+        "rootCommentId",rootId.isBlank()?null:rootId,"replyToCommentId",targetId.isBlank()?null:targetId));
+  }
+  @Override public void deleteCommunityComment(String id){call("DELETE","community/comments/"+id,null);}
   @Override public CommunityAction toggleCommunityLike(String targetType,String targetId) {
     if(!List.of("post","comment").contains(targetType)) throw new IllegalArgumentException("点赞目标不合法");
     if(communityPrototype!=null) {
@@ -565,7 +587,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private void clear() {
     user=null;csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
-    communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();communityUploads.clear();communityCursor="";communityHasMore=false;
+    communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
     dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();
     ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();
   }

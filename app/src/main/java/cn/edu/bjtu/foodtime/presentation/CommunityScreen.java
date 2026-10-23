@@ -93,16 +93,7 @@ final class CommunityScreen {
     if(post.status().equals("pending")) {
       LinearLayout notice=Ui.card(page);notice.addView(Ui.text(a,"这篇食记正在审核，通过前仅自己可见。",14,Design.RED));
     }
-    if(post.imageUrls().isEmpty()) {
-      page.addView(Ui.communityImage(a,"","这篇食记没有配图",.72f),new LinearLayout.LayoutParams(-1,-2));
-    } else {
-      for(int i=0;i<post.imageUrls().size();i++) {
-        String image=post.imageUrls().get(i);
-        page.addView(Ui.communityImage(a,image,"食记图片 "+(i+1)+" / "+post.imageUrls().size(),
-            i==0?coverRatio(post):1f),new LinearLayout.LayoutParams(-1,-2));
-        Ui.gap(page,8);
-      }
-    }
+    page.addView(new CommunityGallery(a,post.imageUrls()),new LinearLayout.LayoutParams(-1,-2));
     Ui.gap(page,12);
     LinearLayout author=Ui.row(a);
     String authorName=post.userDisplayName().isBlank()?"校园干饭人":post.userDisplayName();
@@ -127,26 +118,64 @@ final class CommunityScreen {
     actions.addView(like,actionLp);LinearLayout.LayoutParams favoriteLp=new LinearLayout.LayoutParams(0,-2,1);favoriteLp.leftMargin=Ui.dp(a,6);
     actions.addView(favorite,favoriteLp);page.addView(actions);
 
-    Ui.gap(page,28);page.addView(Ui.title(a,"同学们的回应 · "+post.commentCount(),22));Ui.gap(page,14);
-    if(a.repo.communityComments(post.id()).isEmpty()) Ui.empty(page,"还没有公开评论","来聊聊口感、排队时间或你的推荐吃法吧。");
-    else for(CommunityComment comment:a.repo.communityComments(post.id())) comment(a,page,comment);
-
-    LinearLayout composer=Ui.card(page);EditText input=Ui.field(composer,"评论内容",false,true);
-    input.setHint("说点真实、有用的校园美食体验（最多500字）");
+    if(!post.status().equals("approved"))return;
+    Ui.gap(page,28);LinearLayout threadList=Ui.card(page);threadList.addView(Ui.title(a,"同学们的回应 · "+post.commentCount(),22));Ui.gap(threadList,14);
+    var roots=a.repo.communityRoots(post.id());
+    if(roots.items().isEmpty())Ui.empty(threadList,"还没有评论","分享真实、有用的美食体验；审核后公开。");
+    for(CommunityComment root:roots.items()){
+      comment(a,threadList,root,root);
+      var replies=a.repo.communityReplies(root.id());
+      if(!replies.items().isEmpty()){
+        LinearLayout floor=Ui.col(a);floor.setPadding(Ui.dp(a,10),0,Ui.dp(a,10),0);floor.setBackground(Ui.shape(a,Design.ALT,0,8));
+        LinearLayout.LayoutParams floorLp=new LinearLayout.LayoutParams(-1,-2);floorLp.leftMargin=Ui.dp(a,42);threadList.addView(floor,floorLp);
+        for(CommunityComment reply:replies.items())comment(a,floor,reply,root);
+      }
+      if(replies.hasMore()){
+        TextView more=Ui.button(a,"展开更多回复",false,()->{});threadList.addView(more);
+        more.setOnClickListener(v->a.read("community-replies:"+root.id(),v,null,()->a.repo.loadCommunityReplies(post.id(),root.id(),true),a::redraw,()->{}));
+      }
+      Ui.gap(threadList,12);
+    }
+    if(roots.hasMore()){
+      TextView more=Ui.button(a,"加载更多评论",false,()->{});threadList.addView(more);
+      more.setOnClickListener(v->a.read("community-roots:"+post.id(),v,null,()->a.repo.loadMoreCommunityComments(post.id()),a::redraw,()->{}));
+    }
+    LinearLayout composer=Ui.card(page);
+    String rootId=a.drafts.getString(a.draftKey("replyRoot"),""),targetId=a.drafts.getString(a.draftKey("replyTarget"),"");
+    if(!rootId.isBlank()){
+      composer.addView(Ui.text(a,"回复 "+a.drafts.getString(a.draftKey("replyName"),"同学"),14,Design.RED));
+      Ui.action(composer,"取消回复",false,()->{a.drafts.remove(a.draftKey("replyRoot"));a.drafts.remove(a.draftKey("replyTarget"));a.redraw();});
+    }
+    EditText input=Ui.field(composer,"评论内容",false,true);input.setHint("分享美食体验（最多500字）");
+    input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});
     TextView error=Ui.text(a,"",13,Design.RED);composer.addView(error);
-    String key=a.draftKey("评论内容");
-    Ui.submit(composer,"提交评论",error,() -> {
-      String content=Validation.text(input.getText().toString(),500,"评论");
-      return () -> a.repo.submitCommunityComment(post.id(),content);
-    },() -> {a.drafts.remove(key);a.message("评论已提交审核");a.render();});
+    Ui.submit(composer,rootId.isBlank()?"提交评论":"提交回复",error,()->{
+      String body=Validation.text(input.getText().toString(),500,"评论"),key=a.draftKey("commentRequestId");
+      String fingerprint=rootId+"|"+targetId+"|"+body;
+      if(!fingerprint.equals(a.drafts.getString(a.draftKey("commentPayload"),""))){a.drafts.putString(key,UUID.randomUUID().toString());a.drafts.putString(a.draftKey("commentPayload"),fingerprint);}
+      String requestId=a.drafts.getString(key);
+      return ()->a.repo.submitCommunityComment(post.id(),body,rootId,targetId,requestId);
+    },()->{for(String key:List.of("评论内容","replyRoot","replyTarget","replyName","commentPayload","commentRequestId"))a.drafts.remove(a.draftKey(key));a.message("已提交审核，通过前仅自己可见");a.render();});
   }
 
-  private static void comment(MainActivity a,LinearLayout page,CommunityComment comment) {
-    LinearLayout card=Ui.card(page);LinearLayout head=Ui.row(a);
-    head.addView(Ui.title(a,comment.userDisplayName().isBlank()?"校园干饭人":comment.userDisplayName(),16),new LinearLayout.LayoutParams(0,-2,1));
-    head.addView(Ui.text(a,format(comment.createdAt()),11,Design.MUTED));card.addView(head);Ui.gap(card,8);
-    card.addView(Ui.text(a,comment.content(),15,Design.INK));
-    if(comment.likeCount()>0) {Ui.gap(card,8);card.addView(Ui.text(a,"♡ "+comment.likeCount(),12,Design.MUTED));}
+  private static void comment(MainActivity a,LinearLayout page,CommunityComment item,CommunityComment root){
+    LinearLayout line=Ui.row(a);line.setGravity(Gravity.TOP);LinearLayout avatar=Ui.col(a);
+    if(!item.userAvatarUrl().isBlank()&&!item.deleted())avatar.addView(Ui.image(a,item.userAvatarUrl(),"头像",false),new LinearLayout.LayoutParams(Ui.dp(a,32),Ui.dp(a,32)));
+    else{TextView initial=Ui.text(a,item.deleted()?"·":item.userDisplayName().isBlank()?"同":item.userDisplayName().substring(0,1),13,Design.MUTED);initial.setGravity(Gravity.CENTER);initial.setBackground(Ui.shape(a,Design.ALT,0,16));avatar.addView(initial,new LinearLayout.LayoutParams(Ui.dp(a,32),Ui.dp(a,32)));}
+    LinearLayout.LayoutParams avatarLp=new LinearLayout.LayoutParams(Ui.dp(a,32),-2);avatarLp.rightMargin=Ui.dp(a,10);line.addView(avatar,avatarLp);
+    LinearLayout body=Ui.col(a);line.addView(body,new LinearLayout.LayoutParams(0,-2,1));page.addView(line);Ui.gap(page,10);
+    body.addView(Ui.text(a,item.deleted()?"原评论已删除":item.userDisplayName(),13,Design.MUTED));Ui.gap(body,4);
+    String prefix=item.rootCommentId().isBlank()?"":"回复 "+item.replyToDisplayName()+"：";
+    body.addView(Ui.text(a,item.deleted()?"这条评论已删除，楼内回复仍可查看。":prefix+item.content(),15,item.deleted()?Design.MUTED:Design.INK));
+    body.addView(Ui.text(a,format(item.createdAt())+(item.status().equals("pending")?" · 审核中，仅自己可见":item.status().equals("rejected")?" · 未通过："+item.reviewReason():""),11,Design.MUTED));
+    LinearLayout actions=Ui.row(a);body.addView(actions);
+    if(!item.deleted()&&item.status().equals("approved")&&!root.deleted())actions.addView(Ui.button(a,"回复",false,()->{
+      a.drafts.putString(a.draftKey("replyRoot"),root.id());a.drafts.putString(a.draftKey("replyTarget"),item.id());a.drafts.putString(a.draftKey("replyName"),item.userDisplayName());a.redraw();
+    }));
+    if(!item.deleted()&&a.repo.currentUser()!=null&&item.userId().equals(a.repo.currentUser().id())){
+      TextView remove=Ui.button(a,"删除",false,()->{});actions.addView(remove);
+      remove.setOnClickListener(v->new android.app.AlertDialog.Builder(a).setTitle("删除评论").setMessage("删除后无法恢复，已通过的楼内回复会保留。").setNegativeButton("取消",null).setPositiveButton("删除",(dialog,which)->a.request(v,null,()->a.repo.deleteCommunityComment(item.id()),a::render)).show());
+    }
   }
 
   private static float coverRatio(CommunityPost post){
