@@ -33,7 +33,7 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix providers.gradleProperty('FOODTIME_DEBUG_SUFFIX').getOrElse('')
-            buildConfigField 'boolean', 'COMMUNITY_PROTOTYPE_ENABLED', communityPrototype.getOrElse('true')
+            buildConfigField 'boolean', 'COMMUNITY_PROTOTYPE_ENABLED', communityPrototype.getOrElse('false')
         }
         release {
             minifyEnabled false

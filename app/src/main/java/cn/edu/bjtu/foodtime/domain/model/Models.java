@@ -93,25 +93,17 @@ public final class Models {
   public record Photo(String id, String dishId, String imageUrl, String userId) {}
 
   /** Published community post returned by the Backend community feed. */
-  public record CommunityPost(
-      String id,
-      String userId,
-      String userDisplayName,
-      String content,
-      List<String> imageUrls,
-      int likeCount,
-      int commentCount,
-      int repostCount,
-      String repostOfId,
-      String repostAuthor,
-      String repostContent,
-      boolean likedByMe,
-      boolean favoritedByMe,
-      String status,
-      String reviewReason,
-      long createdAt) {
-    public CommunityPost {
-      imageUrls = imageUrls == null ? List.of() : List.copyOf(imageUrls);
+  public record CommunityImage(String url,int width,int height) {}
+  public record CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
+      long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
+      boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt,
+      String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage) {
+    public CommunityPost {imageUrls=imageUrls==null?List.of():List.copyOf(imageUrls);images=images==null?List.of():List.copyOf(images);}
+    public CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
+        long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
+        boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt) {
+      this(id,userId,userDisplayName,content,imageUrls,likeCount,commentCount,repostCount,repostOfId,repostAuthor,repostContent,
+          likedByMe,favoritedByMe,status,reviewReason,createdAt,CommunityText.headline(content),"",List.of(),0,"");
     }
   }
 
@@ -127,7 +119,7 @@ public final class Models {
       long createdAt) {}
 
   /** Latest state returned by a like/favorite toggle. */
-  public record CommunityAction(boolean active, int count) {}
+  public record CommunityAction(boolean active, long count) {}
 
   /** The server's transactionally maintained rating summary; average is null when no score is available. */
   public record RatingSummary(BigDecimal averageScore,long reviewCount) {}

@@ -392,6 +392,20 @@ public class MainActivity extends Activity {
     startActivityForResult(imagePickerIntent(), 101);
   }
 
+  public void pickCommunityPhotos() {
+    pickingKey=draftKey("photos");
+    android.content.Intent intent=imagePickerIntent();intent.putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE,true);
+    startActivityForResult(intent,102);
+  }
+  void discardPhoto(String path){worker.execute(()->PhotoImport.discard(this,path));}
+  private void applyCommunityPhotos(String prefix,String paths){
+    String base=prefix.substring(0,prefix.length()-"photos".length());
+    for(String path:paths.split("\n"))for(int i=0;i<9;i++){
+      String key=base+"photo:"+i+":image";
+      if(drafts.getString(key,"").isBlank()){drafts.putString(key,path);break;}
+    }
+  }
+
   static android.content.Intent imagePickerIntent() {
     android.content.Intent intent =
         new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
@@ -403,6 +417,20 @@ public class MainActivity extends Activity {
   @Override
   protected void onActivityResult(int request, int result, android.content.Intent data) {
     super.onActivityResult(request, result, data);
+    if(request==102 && result==RESULT_OK && data!=null && pickingKey!=null){
+      String prefix=pickingKey;String base=prefix.substring(0,prefix.length()-"photos".length());
+      int count=0;for(int i=0;i<9;i++)if(!drafts.getString(base+"photo:"+i+":image","").isBlank())count++;
+      java.util.List<android.net.Uri> selected=new java.util.ArrayList<>();
+      if(data.getClipData()!=null)for(int i=0;i<data.getClipData().getItemCount()&&selected.size()<9-count;i++)selected.add(data.getClipData().getItemAt(i).getUri());
+      else if(data.getData()!=null&&count<9)selected.add(data.getData());
+      if(selected.isEmpty())return;
+      startOperation(null,null,"导入社区图片",prefix,()->{
+        java.util.List<String> imported=new java.util.ArrayList<>();
+        try{for(var uri:selected)imported.add(PhotoImport.prepare(this,uri));return String.join("\n",imported);}
+        catch(RuntimeException e){for(String path:imported)PhotoImport.discard(this,path);throw e;}
+      },paths->{rememberScroll();applyCommunityPhotos(prefix,paths);renderContent();});
+      return;
+    }
     if (request == 101
         && result == RESULT_OK
         && data != null
@@ -499,7 +527,8 @@ public class MainActivity extends Activity {
     if(task.action().equals("注册")) {showAuth(false);message("注册成功，请登录");return;}
     if(repo.currentUser()==null) {signedOut();return;}
     if(task.action().equals("发布回复")) {EmbeddedReviewReplies.completeSubmission(this);message("回复已提交，审核通过后公开");}
-    if(task.imageDraft()!=null) {
+    if(task.imageDraft()!=null && task.imageDraft().endsWith(":photos")) {applyCommunityPhotos(task.imageDraft(),outcome.value());}
+    else if(task.imageDraft()!=null) {
       String previous=drafts.getString(task.imageDraft(),"");drafts.putString(task.imageDraft(),outcome.value());
       worker.execute(() -> PhotoImport.discard(this,previous));
     }

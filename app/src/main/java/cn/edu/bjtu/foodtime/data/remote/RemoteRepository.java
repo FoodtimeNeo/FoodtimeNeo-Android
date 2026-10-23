@@ -1,6 +1,7 @@
 package cn.edu.bjtu.foodtime.data.remote;
 
 import cn.edu.bjtu.foodtime.data.prototype.CommunityPrototype;
+import cn.edu.bjtu.foodtime.domain.model.CommunityText;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import cn.edu.bjtu.foodtime.domain.repository.*;
 import cn.edu.bjtu.foodtime.domain.validation.Validation;
@@ -43,6 +44,9 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile List<Audit> auditList=List.of();
   private volatile List<User> userList=List.of();
   private volatile List<CommunityPost> communityFeed=List.of();
+  private volatile String communityCursor="";
+  private volatile boolean communityHasMore;
+  private final Map<String,String> communityUploads=new ConcurrentHashMap<>();
 
   public RemoteRepository(String baseUrl,HttpTransport http) {
     this(baseUrl,http,false);
@@ -98,7 +102,7 @@ public final class RemoteRepository implements FoodtimeRepository {
       case DISHES -> { ensureStall(request.id()); fetchDishes(request.id()); }
       case DISH_DETAIL -> fetchDetail(request.id());
       case COMMUNITY_FEED -> {
-        if(communityPrototype==null) communityFeed=page("community/feed",this::cacheCommunityPost);
+        if(communityPrototype==null) loadCommunityFeed(false);
         else syncPrototypeFeed();
       }
       case COMMUNITY_DETAIL -> {
@@ -329,12 +333,16 @@ public final class RemoteRepository implements FoodtimeRepository {
     if(imageValues!=null) for(int i=0;i<imageValues.length();i++) {
       String image=imageValues.optString(i,"");if(!image.isBlank()) images.add(image);
     }
+    List<CommunityImage> details=new ArrayList<>();JSONArray detailValues=j.optJSONArray("images");
+    if(detailValues!=null)for(int i=0;i<detailValues.length();i++){
+      JSONObject item=detailValues.optJSONObject(i);if(item!=null)details.add(new CommunityImage(text(item,"url"),item.optInt("width"),item.optInt("height")));
+    }
     JSONObject repost=j.optJSONObject("repost");
     CommunityPost post=new CommunityPost(text(j,"id"),text(j,"userId"),text(j,"userDisplayName"),
-        text(j,"content"),images,j.optInt("likeCount"),j.optInt("commentCount"),j.optInt("repostCount"),
+        text(j,"content"),images,j.optLong("likeCount"),j.optLong("commentCount"),j.optInt("repostCount"),
         text(j,"repostOfId"),text(repost,"userDisplayName"),text(repost,"content"),
         j.optBoolean("likedByMe"),j.optBoolean("favoritedByMe"),text(j,"status"),
-        text(j,"reviewReason"),time(j,"createdAt"));
+        text(j,"reviewReason"),time(j,"createdAt"),text(j,"title"),text(j,"userAvatarUrl"),details,j.optLong("favoriteCount"),text(j,"reviewStage"));
     communityPostCache.put(post.id(),post);return post;
   }
 
@@ -344,13 +352,13 @@ public final class RemoteRepository implements FoodtimeRepository {
         text(j,"status"),time(j,"createdAt"));
   }
 
-  private void updateCommunityPostState(String id,Boolean liked,Integer likeCount,Boolean favorited) {
+  private void updateCommunityPostState(String id,Boolean liked,Long likeCount,Boolean favorited) {
     CommunityPost current=communityPostCache.get(id);if(current==null) return;
     CommunityPost updated=new CommunityPost(current.id(),current.userId(),current.userDisplayName(),
         current.content(),current.imageUrls(),likeCount==null?current.likeCount():likeCount,
         current.commentCount(),current.repostCount(),current.repostOfId(),current.repostAuthor(),
         current.repostContent(),liked==null?current.likedByMe():liked,
-        favorited==null?current.favoritedByMe():favorited,current.status(),current.reviewReason(),current.createdAt());
+        favorited==null?current.favoritedByMe():favorited,current.status(),current.reviewReason(),current.createdAt(),current.title(),current.userAvatarUrl(),current.images(),current.favoriteCount(),current.reviewStage());
     communityPostCache.put(id,updated);
     List<CommunityPost> feed=new ArrayList<>(communityFeed);
     for(int i=0;i<feed.size();i++) if(feed.get(i).id().equals(id)) feed.set(i,updated);
@@ -396,15 +404,25 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public void submitStall(String hall,String name,String description,String image) {
     call("POST","dining-halls/"+hall+"/submissions",json("name",name,"description",description,"coverImageUrl",upload(image)));
   }
+  private void loadCommunityFeed(boolean more) {
+    JSONObject data=call("GET","community/feed/cursor?size=20"+(more?"&cursor="+communityCursor:""),null);
+    List<CommunityPost> result=new ArrayList<>(more?communityFeed:List.of());JSONArray values=data.optJSONArray("items");
+    if(values!=null)for(int i=0;i<values.length();i++)result.add(cacheCommunityPost(values.optJSONObject(i)));
+    communityFeed=List.copyOf(result);communityCursor=text(data,"nextCursor");communityHasMore=data.optBoolean("hasMore");
+  }
+  @Override public void loadMoreCommunityPosts(){if(communityHasMore)loadCommunityFeed(true);}
+  @Override public boolean hasMoreCommunityPosts(){return communityHasMore;}
   @Override public void submitCommunityPost(String content,List<String> images) {
-    String body=Validation.text(content,2000,"动态正文");
+    submitCommunityPost(CommunityText.headline(content),content,images,UUID.randomUUID().toString());
+  }
+  @Override public void submitCommunityPost(String title,String content,List<String> images,String requestId) {
+    String heading=Validation.text(title,50,"标题"),body=Validation.text(content,2000,"动态正文");
     List<String> selected=images==null?List.of():images;
-    if(selected.size()>9) throw new IllegalArgumentException("配图最多9张");
-    if(communityPrototype!=null) {
-      communityPrototype.publish(user,body,selected);syncPrototypeFeed();return;
-    }
-    JSONArray uploaded=new JSONArray();for(String image:selected) uploaded.put(upload(image));
-    call("POST","community/posts",json("content",body,"imageUrls",uploaded));
+    if(selected.isEmpty()||selected.size()>9)throw new IllegalArgumentException("请添加1到9张图片");
+    if(communityPrototype!=null){communityPrototype.publish(user,body,selected);syncPrototypeFeed();return;}
+    JSONArray uploaded=new JSONArray();
+    for(String image:selected)uploaded.put(communityUploads.computeIfAbsent(image,this::upload));
+    call("POST","community/posts",json("title",heading,"content",body,"imageUrls",uploaded,"clientRequestId",requestId));
   }
   @Override public void submitCommunityComment(String postId,String content) {
     String body=Validation.text(content,500,"评论");
@@ -412,7 +430,7 @@ public final class RemoteRepository implements FoodtimeRepository {
       communityPrototype.comment(user,postId,body);
       communityCommentCache.put(postId,communityPrototype.comments(postId));syncPrototypeFeed();return;
     }
-    call("POST","community/posts/"+postId+"/comments",json("content",body));
+    call("POST","community/posts/"+postId+"/comments",json("content",body,"clientRequestId",UUID.randomUUID().toString()));
   }
   @Override public CommunityAction toggleCommunityLike(String targetType,String targetId) {
     if(!List.of("post","comment").contains(targetType)) throw new IllegalArgumentException("点赞目标不合法");
@@ -547,7 +565,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private void clear() {
     user=null;csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
-    communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();
+    communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();communityUploads.clear();communityCursor="";communityHasMore=false;
     dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();
     ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();
   }

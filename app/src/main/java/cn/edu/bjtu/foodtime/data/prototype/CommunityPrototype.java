@@ -68,7 +68,7 @@ public final class CommunityPrototype {
 
   public synchronized CommunityAction toggleLike(String postId) {
     CommunityPost post=required(postId);boolean active=!post.likedByMe();
-    int count=Math.max(0,post.likeCount()+(active?1:-1));
+    long count=Math.max(0,post.likeCount()+(active?1:-1));
     replace(post,new CommunityPost(post.id(),post.userId(),post.userDisplayName(),post.content(),post.imageUrls(),
         count,post.commentCount(),post.repostCount(),post.repostOfId(),post.repostAuthor(),post.repostContent(),
         active,post.favoritedByMe(),post.status(),post.reviewReason(),post.createdAt()));

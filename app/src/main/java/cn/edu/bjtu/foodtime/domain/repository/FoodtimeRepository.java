@@ -25,6 +25,9 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default void submitCommunityPost(String content, List<String> images) {
     throw new UnsupportedOperationException("此数据源不支持社区发帖");
   }
+  default void submitCommunityPost(String title,String content,List<String> images,String clientRequestId) {throw new UnsupportedOperationException();}
+  default void loadMoreCommunityPosts(){throw new UnsupportedOperationException();}
+  default boolean hasMoreCommunityPosts(){return false;}
   default void submitCommunityComment(String postId, String content) {
     throw new UnsupportedOperationException("此数据源不支持社区评论");
   }

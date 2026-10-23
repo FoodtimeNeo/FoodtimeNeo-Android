@@ -23,7 +23,7 @@ public class CommunityPrototypeTest {
     assertTrue(liked.active());
     assertEquals(first.likeCount()+1,prototype.post(first.id()).likeCount());
 
-    int comments=prototype.post(first.id()).commentCount();
+    long comments=prototype.post(first.id()).commentCount();
     prototype.comment(user,first.id(),"看起来很好吃");
     assertEquals(comments+1,prototype.post(first.id()).commentCount());
     assertEquals("看起来很好吃",prototype.comments(first.id()).get(prototype.comments(first.id()).size()-1).content());
