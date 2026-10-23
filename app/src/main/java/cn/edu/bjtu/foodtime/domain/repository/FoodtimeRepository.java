@@ -42,6 +42,10 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default void deleteCommunityPost(String id){throw new UnsupportedOperationException();}
   default CommunityAction setCommunityLike(String type,String id,boolean active){throw new UnsupportedOperationException();}
   default CommunityAction setCommunityFavorite(String id,boolean active){throw new UnsupportedOperationException();}
+  default CommunityAuditPage communityAudit(){return CommunityAuditPage.empty();}
+  default CommunityAuditDetail communityAuditDetail(){return null;}
+  default void moderateCommunity(String type,String id,String action,String reason){throw new UnsupportedOperationException();}
+  default void removeCommunityAsAdmin(String type,String id,String reason){throw new UnsupportedOperationException();}
   default CommunityAction toggleCommunityLike(String targetType, String targetId) {
     throw new UnsupportedOperationException("此数据源不支持点赞");
   }

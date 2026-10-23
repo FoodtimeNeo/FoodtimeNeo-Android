@@ -102,6 +102,8 @@ public class MainActivity extends Activity {
     screens.put("community-create", CommunityScreen::create);
     screens.put("community-mine", CommunityScreen::collection);
     screens.put("community-favorites", CommunityScreen::collection);
+    screens.put("admin-community", CommunityAdminScreen::queue);
+    screens.put("admin-community-detail", CommunityAdminScreen::detail);
     screens.put("stalls", DiningScreen::stalls);
     screens.put("dishes", DishScreen::dishes);
     screens.put("gallery", DishScreen::gallery);
@@ -152,6 +154,10 @@ public class MainActivity extends Activity {
     render();
   }
 
+  void replaceRoute(String kind,String id){
+    if(writeInFlight){message("正在提交，请稍候");return;}
+    rememberScroll();ArrayList<Route> stack=stacks.get(tab);stack.set(stack.size()-1,new Route(kind,id));render();
+  }
   public Route route() {
     ArrayList<Route> s = stacks.get(tab);
     return s.get(s.size() - 1);
@@ -250,6 +256,8 @@ public class MainActivity extends Activity {
       case "community-detail" -> ContentRequest.Query.COMMUNITY_DETAIL;
       case "community-mine" -> ContentRequest.Query.MY_COMMUNITY_POSTS;
       case "community-favorites" -> ContentRequest.Query.MY_COMMUNITY_FAVORITES;
+      case "admin-community" -> ContentRequest.Query.COMMUNITY_MODERATION;
+      case "admin-community-detail" -> ContentRequest.Query.COMMUNITY_MODERATION_DETAIL;
       case "mine-reviews" -> ContentRequest.Query.MY_REVIEWS;
       case "review-replies","reply-create" -> ContentRequest.Query.REVIEW_REPLIES;
       case "mine-review-replies" -> ContentRequest.Query.MY_REVIEW_REPLIES;
