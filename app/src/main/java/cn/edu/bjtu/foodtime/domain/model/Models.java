@@ -93,6 +93,10 @@ public final class Models {
   public record Photo(String id, String dishId, String imageUrl, String userId) {}
 
   /** Published community post returned by the Backend community feed. */
+  public record CommunityPostPage(List<CommunityPost> items,long total,int page,boolean hasMore){
+    public CommunityPostPage{items=List.copyOf(items);}
+    public static CommunityPostPage empty(){return new CommunityPostPage(List.of(),0,0,false);}
+  }
   public record CommunityImage(String url,int width,int height) {}
   public record CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
       long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
@@ -111,6 +115,7 @@ public final class Models {
   public record CommunityComment(String id,String postId,String userId,String userDisplayName,String content,
       long likeCount,String status,long createdAt,String rootCommentId,String replyToCommentId,String replyToUserId,
       String replyToDisplayName,String userAvatarUrl,long replyCount,boolean likedByMe,boolean deleted,String reviewStage,String reviewReason) {
+    public CommunityComment withLike(boolean liked,long count){return new CommunityComment(id,postId,userId,userDisplayName,content,count,status,createdAt,rootCommentId,replyToCommentId,replyToUserId,replyToDisplayName,userAvatarUrl,replyCount,liked,deleted,reviewStage,reviewReason);}
     public CommunityComment(String id,String postId,String userId,String name,String content,long likes,String status,long time){
       this(id,postId,userId,name,content,likes,status,time,"","","","","",0,false,false,"","");
     }
