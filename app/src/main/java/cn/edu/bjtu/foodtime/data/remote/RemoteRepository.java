@@ -45,6 +45,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile List<Audit> auditList=List.of();
   private volatile List<User> userList=List.of();
   private volatile List<CommunityPost> communityFeed=List.of();
+  private volatile CommunityPostPage ownCommunityPosts=CommunityPostPage.empty(),ownCommunityFavorites=CommunityPostPage.empty();
   private volatile String communityCursor="";
   private volatile boolean communityHasMore;
   private final Map<String,String> communityUploads=new ConcurrentHashMap<>();
@@ -106,6 +107,8 @@ public final class RemoteRepository implements FoodtimeRepository {
         if(communityPrototype==null) loadCommunityFeed(false);
         else syncPrototypeFeed();
       }
+      case MY_COMMUNITY_POSTS -> loadCommunityCollection(false,false);
+      case MY_COMMUNITY_FAVORITES -> loadCommunityCollection(true,false);
       case COMMUNITY_DETAIL -> {
         if(communityPrototype==null) {
           CommunityPost post=cacheCommunityPost(call("GET","community/posts/"+request.id(),null));
@@ -355,13 +358,13 @@ public final class RemoteRepository implements FoodtimeRepository {
         text(j,"replyToDisplayName"),text(j,"userAvatarUrl"),j.optLong("replyCount"),j.optBoolean("likedByMe"),j.optBoolean("deleted"),text(j,"reviewStage"),text(j,"reviewReason"));
   }
 
-  private void updateCommunityPostState(String id,Boolean liked,Long likeCount,Boolean favorited) {
+  private void updateCommunityPostState(String id,Boolean liked,Long likeCount,Boolean favorited,Long favoriteCount) {
     CommunityPost current=communityPostCache.get(id);if(current==null) return;
     CommunityPost updated=new CommunityPost(current.id(),current.userId(),current.userDisplayName(),
         current.content(),current.imageUrls(),likeCount==null?current.likeCount():likeCount,
         current.commentCount(),current.repostCount(),current.repostOfId(),current.repostAuthor(),
         current.repostContent(),liked==null?current.likedByMe():liked,
-        favorited==null?current.favoritedByMe():favorited,current.status(),current.reviewReason(),current.createdAt(),current.title(),current.userAvatarUrl(),current.images(),current.favoriteCount(),current.reviewStage());
+        favorited==null?current.favoritedByMe():favorited,current.status(),current.reviewReason(),current.createdAt(),current.title(),current.userAvatarUrl(),current.images(),favoriteCount==null?current.favoriteCount():favoriteCount,current.reviewStage());
     communityPostCache.put(id,updated);
     List<CommunityPost> feed=new ArrayList<>(communityFeed);
     for(int i=0;i<feed.size();i++) if(feed.get(i).id().equals(id)) feed.set(i,updated);
@@ -454,24 +457,36 @@ public final class RemoteRepository implements FoodtimeRepository {
         "rootCommentId",rootId.isBlank()?null:rootId,"replyToCommentId",targetId.isBlank()?null:targetId));
   }
   @Override public void deleteCommunityComment(String id){call("DELETE","community/comments/"+id,null);}
-  @Override public CommunityAction toggleCommunityLike(String targetType,String targetId) {
-    if(!List.of("post","comment").contains(targetType)) throw new IllegalArgumentException("点赞目标不合法");
-    if(communityPrototype!=null) {
-      if(!targetType.equals("post")) throw new UnsupportedOperationException("原型暂不支持评论点赞");
-      CommunityAction action=communityPrototype.toggleLike(targetId);syncPrototypeFeed();return action;
-    }
-    JSONObject result=call("POST","community/likes",json("targetType",targetType,"targetId",targetId));
-    CommunityAction action=new CommunityAction(result.optBoolean("liked"),result.optInt("likeCount"));
-    if(targetType.equals("post")) updateCommunityPostState(targetId,action.active(),action.count(),null);
-    return action;
+  private void loadCommunityCollection(boolean favorites,boolean more){
+    CommunityPostPage prior=communityCollection(favorites);int number=more?prior.page()+1:1;
+    JSONObject data=call("GET","users/me/community-"+(favorites?"favorites":"posts")+"?page="+number+"&size=20",null);
+    List<CommunityPost> items=new ArrayList<>(more?prior.items():List.of());JSONArray rows=data.optJSONArray("items");
+    if(rows!=null)for(int i=0;i<rows.length();i++)items.add(cacheCommunityPost(rows.optJSONObject(i)));
+    CommunityPostPage page=new CommunityPostPage(items,data.optLong("total"),number,number*20L<data.optLong("total"));
+    if(favorites)ownCommunityFavorites=page;else ownCommunityPosts=page;
   }
-  @Override public CommunityAction toggleCommunityFavorite(String postId) {
-    if(communityPrototype!=null) {
-      CommunityAction action=communityPrototype.toggleFavorite(postId);syncPrototypeFeed();return action;
+  @Override public CommunityPostPage communityCollection(boolean favorites){return favorites?ownCommunityFavorites:ownCommunityPosts;}
+  @Override public void loadMoreCommunityCollection(boolean favorites){if(communityCollection(favorites).hasMore())loadCommunityCollection(favorites,true);}
+  @Override public void deleteCommunityPost(String id){call("DELETE","community/posts/"+id,null);}
+  @Override public CommunityAction toggleCommunityLike(String type,String id){
+    CommunityPost post=communityPostCache.get(id);if(!type.equals("post")||post==null)throw missing("请刷新后操作");
+    return setCommunityLike(type,id,!post.likedByMe());
+  }
+  @Override public CommunityAction toggleCommunityFavorite(String id){CommunityPost post=communityPostCache.get(id);if(post==null)throw missing("请刷新后操作");return setCommunityFavorite(id,!post.favoritedByMe());}
+  @Override public CommunityAction setCommunityLike(String type,String id,boolean active){
+    if(!List.of("post","comment").contains(type))throw new IllegalArgumentException("点赞目标不合法");
+    JSONObject result=call(active?"PUT":"DELETE","community/"+(type.equals("post")?"posts/":"comments/")+id+"/like",null);
+    CommunityAction state=new CommunityAction(result.optBoolean("liked"),result.optLong("likeCount"));
+    if(type.equals("post"))updateCommunityPostState(id,state.active(),state.count(),null,null);
+    else{
+      for(var pages:List.of(communityRoots,communityReplies))pages.replaceAll((key,page)->new CommunityCommentPage(page.items().stream().map(item->item.id().equals(id)?item.withLike(state.active(),state.count()):item).collect(java.util.stream.Collectors.toList()),page.total(),page.hasMore(),page.nextCursor()));
     }
-    JSONObject result=call("POST","community/favorites",json("postId",postId));
-    CommunityAction action=new CommunityAction(result.optBoolean("favorited"),0);
-    updateCommunityPostState(postId,null,null,action.active());return action;
+    return state;
+  }
+  @Override public CommunityAction setCommunityFavorite(String id,boolean active){
+    JSONObject result=call(active?"PUT":"DELETE","community/posts/"+id+"/favorite",null);
+    CommunityAction state=new CommunityAction(result.optBoolean("favorited"),result.optLong("favoriteCount"));
+    updateCommunityPostState(id,null,null,state.active(),state.count());return state;
   }
   @Override public void deleteReview(String id) { call("DELETE","users/me/reviews/"+id,null); }
   @Override public void moderate(String id,String action,String reason) { moderate(id,action,reason,null); }
@@ -587,7 +602,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private void clear() {
     user=null;csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
-    communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
+    communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
     dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();
     ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();
   }

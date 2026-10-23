@@ -27,6 +27,7 @@ final class CommunityScreen {
     page.addView(toolbar,new LinearLayout.LayoutParams(-1,-2));
     Ui.gap(page,18);
 
+    LinearLayout personal=Ui.row(a);personal.addView(Ui.button(a,"我的食记",false,()->a.go("community-mine","")));personal.addView(Ui.button(a,"我的收藏",false,()->a.go("community-favorites","")));page.addView(personal);Ui.gap(page,12);
     List<CommunityPost> posts=a.repo.communityPosts();
     if(posts.isEmpty()) {
       Ui.empty(page,"社区还没有公开食记","发一篇真实的校园美食记录，审核通过后就会出现在这里。");
@@ -34,6 +35,24 @@ final class CommunityScreen {
       return;
     }
 
+    waterfall(a,page,posts);
+    if(a.repo.hasMoreCommunityPosts()){
+      TextView more=Ui.button(a,"加载更多食记",false,()->{});page.addView(more);
+      more.setOnClickListener(v->a.read("community-more",v,null,a.repo::loadMoreCommunityPosts,a::redraw,()->{}));
+    }
+  }
+
+  static void collection(MainActivity a,LinearLayout page,MainActivity.Route route){
+    boolean favorites=route.kind().equals("community-favorites");var result=a.repo.communityCollection(favorites);
+    a.heading(page,"02",favorites?"我的收藏":"我的食记",favorites?"收藏的公开食记都在这里。":"查看发布记录与审核进度；食记发布后不可编辑。");
+    if(result.items().isEmpty())Ui.empty(page,favorites?"还没有收藏食记":"还没有发布食记",favorites?"在食记详情点击收藏，方便下次再找。":"发布一篇校园美食记录吧。");
+    else waterfall(a,page,result.items());
+    if(result.hasMore()){
+      TextView more=Ui.button(a,"加载更多",false,()->{});page.addView(more);
+      more.setOnClickListener(v->a.read("community-collection:"+favorites,v,null,()->a.repo.loadMoreCommunityCollection(favorites),a::redraw,()->{}));
+    }
+  }
+  private static void waterfall(MainActivity a,LinearLayout page,List<CommunityPost> posts){
     LinearLayout waterfall=Ui.row(a);waterfall.setGravity(Gravity.TOP);
     LinearLayout left=Ui.col(a),right=Ui.col(a);
     LinearLayout.LayoutParams leftLp=new LinearLayout.LayoutParams(0,-2,1);leftLp.rightMargin=Ui.dp(a,5);
@@ -46,10 +65,6 @@ final class CommunityScreen {
       heights[column]+=estimatedHeight(post);
     }
     page.addView(waterfall,new LinearLayout.LayoutParams(-1,-2));
-    if(a.repo.hasMoreCommunityPosts()){
-      TextView more=Ui.button(a,"加载更多食记",false,()->{});page.addView(more);
-      more.setOnClickListener(v->a.read("community-more",v,null,a.repo::loadMoreCommunityPosts,a::redraw,()->{}));
-    }
   }
 
   private static double estimatedHeight(CommunityPost post) {
@@ -75,6 +90,7 @@ final class CommunityScreen {
     TextView title=Ui.text(a,post.title(),15,Design.INK);
     title.setTypeface(Design.title());title.setMaxLines(2);title.setEllipsize(TextUtils.TruncateAt.END);
     body.addView(title,new LinearLayout.LayoutParams(-1,-2));Ui.gap(body,8);
+    if(!post.status().equals("approved")){body.addView(Ui.text(a,post.status().equals("rejected")?"未通过："+post.reviewReason():post.reviewStage().equals("manual_pending")?"待人工审核":"AI审核中",12,Design.RED));Ui.gap(body,6);}
     LinearLayout meta=Ui.row(a);
     String author=post.userDisplayName().isBlank()?"校园干饭人":post.userDisplayName();
     TextView name=Ui.text(a,"@"+author,12,Design.MUTED);name.setSingleLine(true);name.setEllipsize(TextUtils.TruncateAt.END);
@@ -97,6 +113,7 @@ final class CommunityScreen {
     Ui.gap(page,12);
     LinearLayout author=Ui.row(a);
     String authorName=post.userDisplayName().isBlank()?"校园干饭人":post.userDisplayName();
+    if(!post.userAvatarUrl().isBlank()){View avatar=Ui.image(a,post.userAvatarUrl(),"作者头像",false);avatar.setBackground(Ui.shape(a,Design.ALT,0,20));avatar.setClipToOutline(true);LinearLayout.LayoutParams avatarLp=new LinearLayout.LayoutParams(Ui.dp(a,36),Ui.dp(a,36));avatarLp.rightMargin=Ui.dp(a,8);author.addView(avatar,avatarLp);}
     author.addView(Ui.title(a,authorName,18),new LinearLayout.LayoutParams(0,-2,1));
     author.addView(Ui.text(a,format(post.createdAt()),12,Design.MUTED));page.addView(author);
     Ui.gap(page,16);
@@ -109,11 +126,14 @@ final class CommunityScreen {
       Ui.gap(quoted,6);quoted.addView(Ui.text(a,post.repostContent(),14,Design.INK));
     }
 
+    if(post.status().equals("rejected")){Ui.gap(page,12);page.addView(Ui.text(a,"未通过审核："+post.reviewReason(),14,Design.RED));}
+    if(a.repo.currentUser()!=null&&post.userId().equals(a.repo.currentUser().id()))Ui.action(page,"删除这篇食记",false,()->Ui.confirm(a,"删除食记？","删除后无法恢复，帖子将从社区隐藏。",()->a.request(null,null,()->a.repo.deleteCommunityPost(post.id()),a::back)));
+    if(!post.status().equals("approved"))return;
     Ui.gap(page,18);LinearLayout actions=Ui.row(a);
     TextView like=Ui.button(a,(post.likedByMe()?"♥ 已赞 ":"♡ 点赞 ")+post.likeCount(),false,() -> {});
-    like.setOnClickListener(v -> a.request(v,null,() -> a.repo.toggleCommunityLike("post",post.id()),a::render));
-    TextView favorite=Ui.button(a,post.favoritedByMe()?"★ 已收藏":"☆ 收藏",false,() -> {});
-    favorite.setOnClickListener(v -> a.request(v,null,() -> a.repo.toggleCommunityFavorite(post.id()),a::render));
+    like.setOnClickListener(v -> a.request(v,null,() -> a.repo.setCommunityLike("post",post.id(),!post.likedByMe()),a::redraw));
+    TextView favorite=Ui.button(a,(post.favoritedByMe()?"★ 已收藏 ":"☆ 收藏 ")+post.favoriteCount(),false,() -> {});
+    favorite.setOnClickListener(v -> a.request(v,null,() -> a.repo.setCommunityFavorite(post.id(),!post.favoritedByMe()),a::redraw));
     LinearLayout.LayoutParams actionLp=new LinearLayout.LayoutParams(0,-2,1);actionLp.rightMargin=Ui.dp(a,6);
     actions.addView(like,actionLp);LinearLayout.LayoutParams favoriteLp=new LinearLayout.LayoutParams(0,-2,1);favoriteLp.leftMargin=Ui.dp(a,6);
     actions.addView(favorite,favoriteLp);page.addView(actions);
@@ -169,6 +189,11 @@ final class CommunityScreen {
     body.addView(Ui.text(a,item.deleted()?"这条评论已删除，楼内回复仍可查看。":prefix+item.content(),15,item.deleted()?Design.MUTED:Design.INK));
     body.addView(Ui.text(a,format(item.createdAt())+(item.status().equals("pending")?" · 审核中，仅自己可见":item.status().equals("rejected")?" · 未通过："+item.reviewReason():""),11,Design.MUTED));
     LinearLayout actions=Ui.row(a);body.addView(actions);
+    if(!item.deleted()&&item.status().equals("approved")){
+      TextView like=Ui.button(a,(item.likedByMe()?"♥ ":"♡ ")+item.likeCount(),false,()->{});actions.addView(like);
+      like.setContentDescription((item.likedByMe()?"取消点赞":"点赞")+"，当前"+item.likeCount()+"赞");
+      like.setOnClickListener(v->a.request(v,null,()->a.repo.setCommunityLike("comment",item.id(),!item.likedByMe()),a::redraw));
+    }
     if(!item.deleted()&&item.status().equals("approved")&&!root.deleted())actions.addView(Ui.button(a,"回复",false,()->{
       a.drafts.putString(a.draftKey("replyRoot"),root.id());a.drafts.putString(a.draftKey("replyTarget"),item.id());a.drafts.putString(a.draftKey("replyName"),item.userDisplayName());a.redraw();
     }));

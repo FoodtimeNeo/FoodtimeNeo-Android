@@ -100,6 +100,8 @@ public class MainActivity extends Activity {
     screens.put("community", CommunityScreen::feed);
     screens.put("community-detail", CommunityScreen::detail);
     screens.put("community-create", CommunityScreen::create);
+    screens.put("community-mine", CommunityScreen::collection);
+    screens.put("community-favorites", CommunityScreen::collection);
     screens.put("stalls", DiningScreen::stalls);
     screens.put("dishes", DishScreen::dishes);
     screens.put("gallery", DishScreen::gallery);
@@ -246,6 +248,8 @@ public class MainActivity extends Activity {
       case "detail","gallery","upload-photo","review" -> ContentRequest.Query.DISH_DETAIL;
       case "community" -> ContentRequest.Query.COMMUNITY_FEED;
       case "community-detail" -> ContentRequest.Query.COMMUNITY_DETAIL;
+      case "community-mine" -> ContentRequest.Query.MY_COMMUNITY_POSTS;
+      case "community-favorites" -> ContentRequest.Query.MY_COMMUNITY_FAVORITES;
       case "mine-reviews" -> ContentRequest.Query.MY_REVIEWS;
       case "review-replies","reply-create" -> ContentRequest.Query.REVIEW_REPLIES;
       case "mine-review-replies" -> ContentRequest.Query.MY_REVIEW_REPLIES;
@@ -526,6 +530,11 @@ public class MainActivity extends Activity {
     }
     if(task.action().equals("注册")) {showAuth(false);message("注册成功，请登录");return;}
     if(repo.currentUser()==null) {signedOut();return;}
+    if(task.origin().kind().equals("community-detail")&&Set.of("提交评论","提交回复").contains(task.action())){
+      String prefix=task.origin().kind()+":"+task.origin().id()+":";
+      for(String key:List.of("评论内容","replyRoot","replyTarget","replyName","commentPayload","commentRequestId"))drafts.remove(prefix+key);
+      message("已提交审核，通过前仅自己可见");
+    }
     if(task.action().equals("发布回复")) {EmbeddedReviewReplies.completeSubmission(this);message("回复已提交，审核通过后公开");}
     if(task.imageDraft()!=null && task.imageDraft().endsWith(":photos")) {applyCommunityPhotos(task.imageDraft(),outcome.value());}
     else if(task.imageDraft()!=null) {
