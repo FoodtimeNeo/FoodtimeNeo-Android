@@ -33,7 +33,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 `FOODTIME_API_BASE_URL` 应包含 `/api/v1/`。明文HTTP只放行指定服务器和127.0.0.1，其他服务使用HTTPS；只改构建地址不会自动扩大明文白名单。Cookie绑定服务来源，切换来源会放弃旧会话；应用不预填线上凭据。
 
-Debug构建默认启用社区原型模式，Feed、详情、点赞、收藏、评论和发帖都使用进程内样例数据及仓库内图片，不请求尚未部署的社区接口；认证及食堂等其他模块仍连接所选Backend。可用`-PFOODTIME_COMMUNITY_PROTOTYPE=false`关闭。Release默认关闭原型模式并使用真实社区接口；联调环境确有需要时才显式传入`-PFOODTIME_COMMUNITY_PROTOTYPE=true`。
+Debug和Release默认都关闭社区原型并使用真实接口。社区联调后端应包含V19–V23迁移；用FOODTIME_API_BASE_URL选择本机服务。
 
 ## 会写入数据的设备验收
 
@@ -72,3 +72,10 @@ CD通过Gradle环境变量传递签名参数，临时密钥只写入runner的临
 真实写入 runner 强制 `.completion` 独立包名后缀和 `127.0.0.1` API。本次使用 `-PFOODTIME_DEBUG_SUFFIX=.completion -PFOODTIME_API_BASE_URL=http://127.0.0.1:18080/api/v1/` 及 `adb reverse tcp:18080 tcp:18080`，仅连接独立 `foodtime_completion_lab`。它会在该环境创建专用测试菜品及评论，不要把端口反向映射到生产服务。其余三个 runner 使用进程内替身/loopback 服务，不向 Backend 写入。
 
 发布 APK 不会自动部署 Backend；默认 API 服务器必须同步部署包含 V15–V18 迁移的兼容版本。当前记录只证明本地完整版本可用，不代表生产服务已升级。
+
+
+## 社区设备验收（2026-10-23）
+
+显式选择CommunityRepositoryRunner可运行真实社区接口闭环（21项），选择CommunityUiRunner可运行原生页面闭环（12项）；后者evidenceOnly=true模式只读已存在的联调样例并验证图片翻页、全屏缩放与关闭（2项）。使用FOODTIME_TEST_RUNNER构建属性指定完整Runner类名。页面Runner只接受`.integration`独立调试包、本机`http://127.0.0.1:8080/api/v1/`和关闭原型的数据源，开始登录前即校验这些条件。
+
+通过Instrumentation运行参数userAccount、adminAccount、testPassword传入本地测试账号；接口Runner还需要superadminAccount。账号凭据由调用方提供。完整写入测试创建临时帖子并以带原因软下架结束，重复运行遵守正常上传/提交限制。当前结构、接口说明及后端验收见Backend的docs/community-delivery.md。

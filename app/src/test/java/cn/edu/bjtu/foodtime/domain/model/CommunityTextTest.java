@@ -4,6 +4,14 @@ import static org.junit.Assert.*;
 import org.junit.Test;
 
 public class CommunityTextTest {
+  @Test public void publicationTimeUsesBeijingTimeAcrossDeviceTimezones() {
+    java.util.TimeZone previous=java.util.TimeZone.getDefault();
+    try {
+      java.util.TimeZone.setDefault(java.util.TimeZone.getTimeZone("UTC"));
+      assertEquals("10月23日 15:01",CommunityText.publishedAt(java.time.Instant.parse("2026-10-23T07:01:00Z").toEpochMilli()));
+      assertEquals("",CommunityText.publishedAt(0));
+    } finally {java.util.TimeZone.setDefault(previous);}
+  }
   @Test public void headlineUsesTheFirstShortSentenceAndNormalizesWhitespace() {
     assertEquals("明湖酸汤粉太香了！", CommunityText.headline("  明湖酸汤粉太香了！  排队也很快。 "));
     assertEquals("一页校园食记", CommunityText.headline("   "));

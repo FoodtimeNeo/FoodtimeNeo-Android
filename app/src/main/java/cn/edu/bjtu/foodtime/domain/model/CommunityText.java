@@ -2,6 +2,11 @@ package cn.edu.bjtu.foodtime.domain.model;
 
 /** Pure presentation-friendly text rules shared by community screens and tests. */
 public final class CommunityText {
+  private static final java.time.format.DateTimeFormatter PUBLISHED_AT = java.time.format.DateTimeFormatter
+      .ofPattern("MM月dd日 HH:mm",java.util.Locale.CHINA).withZone(java.time.ZoneId.of("Asia/Shanghai"));
+  public static String publishedAt(long epochMillis) {
+    return epochMillis<=0?"":PUBLISHED_AT.format(java.time.Instant.ofEpochMilli(epochMillis));
+  }
   private static final float[] COVER_RATIOS = {0.82f, 1.0f, 1.18f, 1.36f};
 
   public static String headline(String content) {

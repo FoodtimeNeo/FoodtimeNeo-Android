@@ -129,3 +129,12 @@ FoodtimeLocal（API36.1、411dp竖屏）安装独立.integration调试包，专�
 累计回归修正了测试替身缺少首页图片空值处理，以及配置切换重建后测试仍等待旧 Activity 的问题；未把这些测试编排故障描述成业务崩溃修复。分页 runner 跟踪当前 Activity，并在保存截图前等待布局及画面呈现。
 
 三端汇总与截图保存在工作区 `docs/review-completion-2026-10-21.md`。本地验收不能证明所有真机/API26设备、长时间压力、真实邮件或真实 AI 提供方已验证；生产应用与 V15–V18 数据迁移仍需在服务器部署时执行。记录中的“实时”是事务更新、下一次请求可见，没有引入轮询或 WebSocket。
+
+
+## 2026-10-23 图文社区与紧凑楼中楼验收
+
+从最新dev逐项开发community-posts、community-replies、community-interactions、community-moderation，并在community-validation完成联调。架构检查、16项JVM测试、lintDebug、Debug与设备测试包构建通过。
+
+真实本机服务验收：CommunityRepositoryRunner 21项、CommunityUiRunner 12项均通过；图库只读验收2项通过。覆盖真实多图发布、去重、审核与私有可见性、楼内互相回复、单层缩进、点赞收藏、删除占位和带原因下架。截图复核修正了设备时区导致的时间差异，社区时间统一为北京时间。
+
+设备验收参数从调用方提供，不在测试源码内嵌账号密码。截图保存在测试应用私有的community-ui-evidence目录；本次真实提供方审核以独立后端自动测试及项目已有配置说明为界。
