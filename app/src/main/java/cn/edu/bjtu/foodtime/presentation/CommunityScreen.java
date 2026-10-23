@@ -8,7 +8,6 @@ import android.widget.*;
 import cn.edu.bjtu.foodtime.domain.model.CommunityText;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import cn.edu.bjtu.foodtime.domain.validation.Validation;
-import java.text.SimpleDateFormat;
 import java.util.*;
 
 /** Native two-column campus food community, backed by the Backend P3 community contract. */
@@ -241,8 +240,7 @@ final class CommunityScreen {
   }
 
   private static String format(long value) {
-    if(value<=0) return "";
-    return new SimpleDateFormat("MM月dd日 HH:mm",Locale.CHINA).format(new Date(value));
+    return CommunityText.publishedAt(value);
   }
 
   private CommunityScreen() {}
