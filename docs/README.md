@@ -3,6 +3,7 @@
 | 需要了解的内容 | 文档 |
 | --- | --- |
 | 安装、当前功能和默认服务器 | [项目 README](../README.md) |
+| 1.0.0 版本、签名与完整回归 | [1.0.0 发布验收](release-1.0.0.md) |
 | 工具链、构建参数、设备测试与发布 | [构建与测试](build-and-test.md) |
 | 本地 Backend 与ADB映射 | [本地连接](local-backend.md) |
 | 分层、导航、草稿与图片 | [架构](architecture.md) |
