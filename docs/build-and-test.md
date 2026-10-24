@@ -37,13 +37,15 @@ Debug和Release默认都关闭社区原型并使用真实接口。社区联调�
 
 ## 会写入数据的设备验收
 
-先按Backend的本地联调说明启动专用环境，启用所需样例并确认readiness为UP，再运行：
+先按Backend的本地联调说明启动专用环境，启用所需样例并确认readiness为UP。将三个本地测试账号分别放入 `FOODTIME_TEST_USER_ACCOUNT`、`FOODTIME_TEST_ADMIN_ACCOUNT`、`FOODTIME_TEST_SUPERADMIN_ACCOUNT`，共同测试密码放入 `FOODTIME_TEST_PASSWORD` 后运行：
 
 ```powershell
 .\scripts\verify.ps1 -Device -ApplicationSuffix .integration
 ```
 
 可用 `-AdbPath` 指定ADB位置、`-Serial` 指定设备。[脚本](../scripts/verify.ps1) 会构建测试包、显式覆盖为本机API、检查电脑8080readiness、建立映射、安装并运行 `RemoteUiRunner`。它不会代替你启动Backend，也不接受“默认线上地址”作为写入验收目标。
+
+也可通过 `-UserAccount`、`-AdminAccount`、`-SuperadminAccount`、`-TestPassword` 提供同名参数。Device模式只接受 `.integration` 后缀；缺少参数会在构建前停止，不再使用硬编码账号。测试需要“联调示例食堂 / 档口 / 菜品”样例，账号密码必须属于当前专用测试库。
 
 设备验收会创建、审核、删除测试内容并调整样例账号；必须使用专用本地库，不在154.9.252.201线上库运行。普通构建及JVM测试不需要执行这些写操作。历史运行结果见 [验收记录](verification.md)。
 
