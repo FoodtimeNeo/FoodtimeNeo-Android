@@ -17,6 +17,41 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default void loadDishReviews(String dishId) { refresh(new ContentRequest(ContentRequest.Query.DISH_DETAIL,dishId)); }
   default void loadMoreDishReviews(String dishId) { throw new UnsupportedOperationException(); }
   default byte[] loadImage(String reference) { throw new UnsupportedOperationException(); }
+
+  default List<CommunityPost> communityPosts() { return List.of(); }
+  default boolean communityPrototypeEnabled() { return false; }
+  default CommunityPost communityPost(String id) { return null; }
+  default List<CommunityComment> communityComments(String postId) { return List.of(); }
+  default void submitCommunityPost(String content, List<String> images) {
+    throw new UnsupportedOperationException("此数据源不支持社区发帖");
+  }
+  default void submitCommunityPost(String title,String content,List<String> images,String clientRequestId) {throw new UnsupportedOperationException();}
+  default void loadMoreCommunityPosts(){throw new UnsupportedOperationException();}
+  default boolean hasMoreCommunityPosts(){return false;}
+  default void submitCommunityComment(String postId, String content) {
+    throw new UnsupportedOperationException("此数据源不支持社区评论");
+  }
+  default CommunityCommentPage communityRoots(String postId){return CommunityCommentPage.empty();}
+  default CommunityCommentPage communityReplies(String rootId){return CommunityCommentPage.empty();}
+  default void loadMoreCommunityComments(String postId){throw new UnsupportedOperationException();}
+  default void loadCommunityReplies(String postId,String rootId,boolean more){throw new UnsupportedOperationException();}
+  default void submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){throw new UnsupportedOperationException();}
+  default void deleteCommunityComment(String id){throw new UnsupportedOperationException();}
+  default CommunityPostPage communityCollection(boolean favorites){return CommunityPostPage.empty();}
+  default void loadMoreCommunityCollection(boolean favorites){throw new UnsupportedOperationException();}
+  default void deleteCommunityPost(String id){throw new UnsupportedOperationException();}
+  default CommunityAction setCommunityLike(String type,String id,boolean active){throw new UnsupportedOperationException();}
+  default CommunityAction setCommunityFavorite(String id,boolean active){throw new UnsupportedOperationException();}
+  default CommunityAuditPage communityAudit(){return CommunityAuditPage.empty();}
+  default CommunityAuditDetail communityAuditDetail(){return null;}
+  default void moderateCommunity(String type,String id,String action,String reason){throw new UnsupportedOperationException();}
+  default void removeCommunityAsAdmin(String type,String id,String reason){throw new UnsupportedOperationException();}
+  default CommunityAction toggleCommunityLike(String targetType, String targetId) {
+    throw new UnsupportedOperationException("此数据源不支持点赞");
+  }
+  default CommunityAction toggleCommunityFavorite(String postId) {
+    throw new UnsupportedOperationException("此数据源不支持收藏");
+  }
   void submitPhoto(String dishId, String imageUrl);
 
   void submitReview(String dishId, int rating, String content);
@@ -47,6 +82,10 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   void deleteReview(String reviewId);
 
   void changePassword(String oldPassword, String newPassword);
+
+  default User updateProfile(String displayName, String avatarReference) {
+    throw new UnsupportedOperationException("此数据源不支持修改个人资料");
+  }
 
   void moderate(String submissionId, String action, String reason);
   default void moderate(String submissionId,String action,String reason,BigDecimal price) {

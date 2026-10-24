@@ -1,5 +1,7 @@
 package cn.edu.bjtu.foodtime.data.remote;
 
+import cn.edu.bjtu.foodtime.data.prototype.CommunityPrototype;
+import cn.edu.bjtu.foodtime.domain.model.CommunityText;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import cn.edu.bjtu.foodtime.domain.repository.*;
 import cn.edu.bjtu.foodtime.domain.validation.Validation;
@@ -16,6 +18,7 @@ import java.util.function.Function;
 public final class RemoteRepository implements FoodtimeRepository {
   private final HttpTransport http;
   private final URI origin;
+  private final CommunityPrototype communityPrototype;
   private volatile String csrf;
   private volatile User user;
   private volatile List<Hall> hallList=List.of();
@@ -27,6 +30,9 @@ public final class RemoteRepository implements FoodtimeRepository {
   private final Map<String,List<Review>> reviews=new ConcurrentHashMap<>();
   private final Map<String,ReviewPage> dishReviewPages=new ConcurrentHashMap<>();
   private final Map<String,List<Photo>> photos=new ConcurrentHashMap<>();
+  private final Map<String,CommunityPost> communityPostCache=new ConcurrentHashMap<>();
+  private final Map<String,List<CommunityComment>> communityCommentCache=new ConcurrentHashMap<>();
+  private final Map<String,CommunityCommentPage> communityRoots=new ConcurrentHashMap<>(),communityReplies=new ConcurrentHashMap<>();
   private final Map<String,RatingSummary> ratings=new ConcurrentHashMap<>();
   private final Map<String,String> contexts=new ConcurrentHashMap<>();
   private final Map<String,List<AdminEntity>> catalog=new ConcurrentHashMap<>();
@@ -38,9 +44,20 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile List<Submission> ownSubmissions=List.of(),queue=List.of();
   private volatile List<Audit> auditList=List.of();
   private volatile List<User> userList=List.of();
+  private volatile List<CommunityPost> communityFeed=List.of();
+  private volatile CommunityPostPage ownCommunityPosts=CommunityPostPage.empty(),ownCommunityFavorites=CommunityPostPage.empty();
+  private volatile CommunityAuditPage communityAudit=CommunityAuditPage.empty();
+  private volatile CommunityAuditDetail communityAuditDetail;
+  private volatile String communityCursor="";
+  private volatile boolean communityHasMore;
+  private final Map<String,String> communityUploads=new ConcurrentHashMap<>();
 
   public RemoteRepository(String baseUrl,HttpTransport http) {
+    this(baseUrl,http,false);
+  }
+  public RemoteRepository(String baseUrl,HttpTransport http,boolean communityPrototypeEnabled) {
     this.http=http;
+    this.communityPrototype=communityPrototypeEnabled?new CommunityPrototype():null;
     URI base=URI.create(baseUrl); origin=URI.create(base.getScheme()+"://"+base.getAuthority()+"/");
   }
   @Override public User currentUser() { return user; }
@@ -72,6 +89,14 @@ public final class RemoteRepository implements FoodtimeRepository {
     Validation.password(newPassword,true);
     call("PUT","users/me/password",json("oldPassword",oldPassword,"newPassword",newPassword)); clear();
   }
+  @Override public User updateProfile(String displayName,String avatarReference) {
+    String name=Validation.text(displayName,50,"昵称");
+    if(name.length()<2) throw new IllegalArgumentException("昵称至少需要2个字");
+    String avatar=avatarReference==null||avatarReference.isBlank()?null:
+        avatarReference.startsWith("file:")?upload(avatarReference):avatarReference;
+    user=person(call("PUT","users/me/profile",json("displayName",name,"avatarUrl",avatar)));
+    return user;
+  }
 
   @Override public void refresh(ContentRequest request) {
     profile(); // Restore current server role/status on every screen load.
@@ -80,6 +105,39 @@ public final class RemoteRepository implements FoodtimeRepository {
       case STALLS -> { fetchHalls(); fetchStalls(request.id()); }
       case DISHES -> { ensureStall(request.id()); fetchDishes(request.id()); }
       case DISH_DETAIL -> fetchDetail(request.id());
+      case COMMUNITY_FEED -> {
+        if(communityPrototype==null) loadCommunityFeed(false);
+        else syncPrototypeFeed();
+      }
+      case COMMUNITY_MODERATION -> {
+        String[] parts=request.id().split("~",-1);String type=parts[0],status=parts.length>1?parts[1]:"pending";int number=parts.length>2?Integer.parseInt(parts[2]):1;
+        JSONObject data=call("GET","admin/community/"+type+"?status="+status+"&page="+number+"&size=20",null);
+        List<Submission> rows=new ArrayList<>();JSONArray items=data.optJSONArray("items");
+        if(items!=null)for(int i=0;i<items.length();i++){
+          JSONObject item=items.optJSONObject(i);rows.add(new Submission(text(item,"id"),text(item,"type"),text(item,"targetId"),text(item,"userId"),text(item,"userDisplayName"),text(item,"name"),text(item,"content"),null,text(item,"imageUrl"),0,text(item,"status"),text(item,"reason"),time(item,"createdAt"),"",assessment(item)));
+        }
+        communityAudit=new CommunityAuditPage(type,status,number,data.optLong("total"),rows);
+      }
+      case COMMUNITY_MODERATION_DETAIL -> {
+        String[] parts=request.id().split("~",-1);JSONObject data=call("GET","admin/community/"+parts[0]+"/"+parts[1],null);
+        JSONObject comment=data.optJSONObject("comment"),root=data.optJSONObject("rootComment"),target=data.optJSONObject("replyToComment");
+        AiAssessment ai=communityAudit.items().stream().filter(item->item.id().equals(parts[1])).map(Submission::ai).findFirst().orElse(assessment(data.optJSONObject("post")));
+        communityAuditDetail=new CommunityAuditDetail(cacheCommunityPost(data.optJSONObject("post")),comment==null?null:communityComment(comment),root==null?null:communityComment(root),target==null?null:communityComment(target),ai);
+      }
+      case MY_COMMUNITY_POSTS -> loadCommunityCollection(false,false);
+      case MY_COMMUNITY_FAVORITES -> loadCommunityCollection(true,false);
+      case COMMUNITY_DETAIL -> {
+        if(communityPrototype==null) {
+          CommunityPost post=cacheCommunityPost(call("GET","community/posts/"+request.id(),null));
+          if(post.status().equals("approved"))loadCommunityRoots(post.id(),false);
+          else {communityRoots.remove(post.id());communityCommentCache.remove(post.id());}
+        } else {
+          CommunityPost post=communityPrototype.post(request.id());
+          if(post==null) throw missing("动态不存在或暂不可见");
+          communityPostCache.put(post.id(),post);
+          communityCommentCache.put(post.id(),communityPrototype.comments(post.id()));
+        }
+      }
       case MY_REVIEWS -> ownReviews=reviewPage("users/me/reviews");
       case MY_SUBMISSIONS -> fetchOwnSubmissions();
       case REVIEW_REPLIES -> {
@@ -130,7 +188,11 @@ public final class RemoteRepository implements FoodtimeRepository {
   private void fetchDishes(String id) {
     var items=list("stalls/"+id+"/dishes",j -> new Dish(text(j,"id"),id,text(j,"name"),decimal(j,"price"),"",true));
     dishes.entrySet().removeIf(e -> e.getValue().stallId().equals(id));
-    for(Dish d:items) dishes.put(d.id(),d); dishLists.put(id,items);
+    for(Dish d:items) {
+      dishes.put(d.id(),d);
+      fetchDishImages(d.id());
+    }
+    dishLists.put(id,items);
   }
   private void fetchDetail(String id) {
     JSONObject j=call("GET","dishes/"+id,null);
@@ -139,9 +201,12 @@ public final class RemoteRepository implements FoodtimeRepository {
     dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true));
     contexts.put(id,joined(j,true));
     dishReviewPages.put(id,fetchDishReviewPage(id,1));
-    photos.put(id,page("dishes/"+id+"/images",p -> new Photo(text(p,"id"),id,text(p,"imageUrl"),"")));
+    fetchDishImages(id);
     JSONObject rating=call("GET","dishes/"+id+"/rating",null);
     ratings.put(id,new RatingSummary(decimal(rating,"averageScore"),rating.optLong("reviewCount")));
+  }
+  private void fetchDishImages(String id) {
+    photos.put(id,page("dishes/"+id+"/images",p -> new Photo(text(p,"id"),id,text(p,"imageUrl"),"")));
   }
   private List<Review> reviewPage(String path) {
     return page(path,this::review);
@@ -284,6 +349,51 @@ public final class RemoteRepository implements FoodtimeRepository {
     String key=type+":"+e.id(); entities.put(key,e); parents.put(key,text(j,"parentId")); return e;
   }
 
+  private CommunityPost cacheCommunityPost(JSONObject j) {
+    List<String> images=new ArrayList<>();
+    JSONArray imageValues=j.optJSONArray("imageUrls");
+    if(imageValues!=null) for(int i=0;i<imageValues.length();i++) {
+      String image=imageValues.optString(i,"");if(!image.isBlank()) images.add(image);
+    }
+    List<CommunityImage> details=new ArrayList<>();JSONArray detailValues=j.optJSONArray("images");
+    if(detailValues!=null)for(int i=0;i<detailValues.length();i++){
+      JSONObject item=detailValues.optJSONObject(i);if(item!=null)details.add(new CommunityImage(text(item,"url"),item.optInt("width"),item.optInt("height")));
+    }
+    JSONObject repost=j.optJSONObject("repost");
+    CommunityPost post=new CommunityPost(text(j,"id"),text(j,"userId"),text(j,"userDisplayName"),
+        text(j,"content"),images,j.optLong("likeCount"),j.optLong("commentCount"),j.optInt("repostCount"),
+        text(j,"repostOfId"),text(repost,"userDisplayName"),text(repost,"content"),
+        j.optBoolean("likedByMe"),j.optBoolean("favoritedByMe"),text(j,"status"),
+        text(j,"reviewReason"),time(j,"createdAt"),text(j,"title"),text(j,"userAvatarUrl"),details,j.optLong("favoriteCount"),text(j,"reviewStage"));
+    communityPostCache.put(post.id(),post);return post;
+  }
+
+  private CommunityComment communityComment(JSONObject j) {
+    return new CommunityComment(text(j,"id"),text(j,"postId"),text(j,"userId"),
+        text(j,"userDisplayName"),text(j,"content"),j.optLong("likeCount"),
+        text(j,"status"),time(j,"createdAt"),text(j,"rootCommentId"),text(j,"replyToCommentId"),text(j,"replyToUserId"),
+        text(j,"replyToDisplayName"),text(j,"userAvatarUrl"),j.optLong("replyCount"),j.optBoolean("likedByMe"),j.optBoolean("deleted"),text(j,"reviewStage"),text(j,"reviewReason"));
+  }
+
+  private void updateCommunityPostState(String id,Boolean liked,Long likeCount,Boolean favorited,Long favoriteCount) {
+    CommunityPost current=communityPostCache.get(id);if(current==null) return;
+    CommunityPost updated=new CommunityPost(current.id(),current.userId(),current.userDisplayName(),
+        current.content(),current.imageUrls(),likeCount==null?current.likeCount():likeCount,
+        current.commentCount(),current.repostCount(),current.repostOfId(),current.repostAuthor(),
+        current.repostContent(),liked==null?current.likedByMe():liked,
+        favorited==null?current.favoritedByMe():favorited,current.status(),current.reviewReason(),current.createdAt(),current.title(),current.userAvatarUrl(),current.images(),favoriteCount==null?current.favoriteCount():favoriteCount,current.reviewStage());
+    communityPostCache.put(id,updated);
+    List<CommunityPost> feed=new ArrayList<>(communityFeed);
+    for(int i=0;i<feed.size();i++) if(feed.get(i).id().equals(id)) feed.set(i,updated);
+    communityFeed=List.copyOf(feed);
+  }
+
+  private void syncPrototypeFeed() {
+    communityFeed=communityPrototype.posts();
+    communityPostCache.clear();
+    for(CommunityPost post:communityFeed) communityPostCache.put(post.id(),post);
+  }
+
   @Override public List<Hall> halls() { return hallList; }
   @Override public Hall hall(String id) { return halls.get(id); }
   @Override public Stall stall(String id) { return stalls.get(id); }
@@ -292,6 +402,10 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public List<Dish> dishes(String id) { return dishLists.getOrDefault(id,List.of()); }
   @Override public List<Review> reviews(String id) { return id==null||id.equals("admin")?reviews.getOrDefault("admin",List.of()):dishReviews(id).items(); }
   @Override public List<Photo> photos(String id) { return photos.getOrDefault(id,List.of()); }
+  @Override public List<CommunityPost> communityPosts() { return communityFeed; }
+  @Override public boolean communityPrototypeEnabled() { return communityPrototype!=null; }
+  @Override public CommunityPost communityPost(String id) { return communityPostCache.get(id); }
+  @Override public List<CommunityComment> communityComments(String id) { return communityCommentCache.getOrDefault(id,List.of()); }
   @Override public RatingSummary rating(String id) { return ratings.getOrDefault(id,new RatingSummary(null,0)); }
   @Override public List<Review> myReviews() { return ownReviews; }
   @Override public List<Submission> submissions(String userId) { return userId==null?queue:ownSubmissions; }
@@ -312,6 +426,88 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   @Override public void submitStall(String hall,String name,String description,String image) {
     call("POST","dining-halls/"+hall+"/submissions",json("name",name,"description",description,"coverImageUrl",upload(image)));
+  }
+  private void loadCommunityFeed(boolean more) {
+    JSONObject data=call("GET","community/feed/cursor?size=20"+(more?"&cursor="+communityCursor:""),null);
+    List<CommunityPost> result=new ArrayList<>(more?communityFeed:List.of());JSONArray values=data.optJSONArray("items");
+    if(values!=null)for(int i=0;i<values.length();i++)result.add(cacheCommunityPost(values.optJSONObject(i)));
+    communityFeed=List.copyOf(result);communityCursor=text(data,"nextCursor");communityHasMore=data.optBoolean("hasMore");
+  }
+  @Override public void loadMoreCommunityPosts(){if(communityHasMore)loadCommunityFeed(true);}
+  @Override public boolean hasMoreCommunityPosts(){return communityHasMore;}
+  @Override public void submitCommunityPost(String content,List<String> images) {
+    submitCommunityPost(CommunityText.headline(content),content,images,UUID.randomUUID().toString());
+  }
+  @Override public void submitCommunityPost(String title,String content,List<String> images,String requestId) {
+    String heading=Validation.text(title,50,"标题"),body=Validation.text(content,2000,"动态正文");
+    List<String> selected=images==null?List.of():images;
+    if(selected.isEmpty()||selected.size()>9)throw new IllegalArgumentException("请添加1到9张图片");
+    if(communityPrototype!=null){communityPrototype.publish(user,body,selected);syncPrototypeFeed();return;}
+    JSONArray uploaded=new JSONArray();
+    for(String image:selected)uploaded.put(communityUploads.computeIfAbsent(image,this::upload));
+    call("POST","community/posts",json("title",heading,"content",body,"imageUrls",uploaded,"clientRequestId",requestId));
+  }
+  private CommunityCommentPage commentPage(String path,CommunityCommentPage prior){
+    JSONObject data=call("GET",path,null);JSONArray values=data.optJSONArray("items");
+    List<CommunityComment> items=new ArrayList<>(prior==null?List.of():prior.items());
+    if(values!=null)for(int i=0;i<values.length();i++)items.add(communityComment(values.optJSONObject(i)));
+    return new CommunityCommentPage(items,data.optLong("total"),data.optBoolean("hasMore"),text(data,"nextCursor"));
+  }
+  private void loadCommunityRoots(String postId,boolean more){
+    CommunityCommentPage prior=communityRoots(postId);
+    CommunityCommentPage result=commentPage("community/posts/"+postId+"/comments/cursor?size=20"+(more?"&cursor="+prior.nextCursor():""),more?prior:null);
+    communityRoots.put(postId,result);communityCommentCache.put(postId,result.items());
+    int first=more?prior.items().size():0;
+    for(int i=first;i<result.items().size();i++){var root=result.items().get(i);if(root.status().equals("approved"))loadCommunityReplies(postId,root.id(),false);}
+  }
+  @Override public CommunityCommentPage communityRoots(String postId){return communityRoots.getOrDefault(postId,CommunityCommentPage.empty());}
+  @Override public CommunityCommentPage communityReplies(String rootId){return communityReplies.getOrDefault(rootId,CommunityCommentPage.empty());}
+  @Override public void loadMoreCommunityComments(String postId){if(communityRoots(postId).hasMore())loadCommunityRoots(postId,true);}
+  @Override public void loadCommunityReplies(String postId,String rootId,boolean more){
+    var prior=communityReplies(rootId);if(more&&!prior.hasMore())return;
+    communityReplies.put(rootId,commentPage("community/posts/"+postId+"/comments/"+rootId+"/replies?size="+(more?20:3)+(more?"&cursor="+prior.nextCursor():""),more?prior:null));
+  }
+  @Override public void submitCommunityComment(String postId,String content){submitCommunityComment(postId,content,"","",UUID.randomUUID().toString());}
+  @Override public void submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){
+    String body=Validation.text(content,500,"评论");
+    call("POST","community/posts/"+postId+"/comments",json("content",body,"clientRequestId",requestId,
+        "rootCommentId",rootId.isBlank()?null:rootId,"replyToCommentId",targetId.isBlank()?null:targetId));
+  }
+  @Override public void deleteCommunityComment(String id){call("DELETE","community/comments/"+id,null);}
+  @Override public CommunityAuditPage communityAudit(){return communityAudit;}
+  @Override public CommunityAuditDetail communityAuditDetail(){return communityAuditDetail;}
+  @Override public void moderateCommunity(String type,String id,String action,String reason){call("POST","admin/community/"+type+"/"+id,json("action",action,"reason",reason));}
+  @Override public void removeCommunityAsAdmin(String type,String id,String reason){call("DELETE","admin/community/"+type+"/"+id,json("reason",reason));}
+  private void loadCommunityCollection(boolean favorites,boolean more){
+    CommunityPostPage prior=communityCollection(favorites);int number=more?prior.page()+1:1;
+    JSONObject data=call("GET","users/me/community-"+(favorites?"favorites":"posts")+"?page="+number+"&size=20",null);
+    List<CommunityPost> items=new ArrayList<>(more?prior.items():List.of());JSONArray rows=data.optJSONArray("items");
+    if(rows!=null)for(int i=0;i<rows.length();i++)items.add(cacheCommunityPost(rows.optJSONObject(i)));
+    CommunityPostPage page=new CommunityPostPage(items,data.optLong("total"),number,number*20L<data.optLong("total"));
+    if(favorites)ownCommunityFavorites=page;else ownCommunityPosts=page;
+  }
+  @Override public CommunityPostPage communityCollection(boolean favorites){return favorites?ownCommunityFavorites:ownCommunityPosts;}
+  @Override public void loadMoreCommunityCollection(boolean favorites){if(communityCollection(favorites).hasMore())loadCommunityCollection(favorites,true);}
+  @Override public void deleteCommunityPost(String id){call("DELETE","community/posts/"+id,null);}
+  @Override public CommunityAction toggleCommunityLike(String type,String id){
+    CommunityPost post=communityPostCache.get(id);if(!type.equals("post")||post==null)throw missing("请刷新后操作");
+    return setCommunityLike(type,id,!post.likedByMe());
+  }
+  @Override public CommunityAction toggleCommunityFavorite(String id){CommunityPost post=communityPostCache.get(id);if(post==null)throw missing("请刷新后操作");return setCommunityFavorite(id,!post.favoritedByMe());}
+  @Override public CommunityAction setCommunityLike(String type,String id,boolean active){
+    if(!List.of("post","comment").contains(type))throw new IllegalArgumentException("点赞目标不合法");
+    JSONObject result=call(active?"PUT":"DELETE","community/"+(type.equals("post")?"posts/":"comments/")+id+"/like",null);
+    CommunityAction state=new CommunityAction(result.optBoolean("liked"),result.optLong("likeCount"));
+    if(type.equals("post"))updateCommunityPostState(id,state.active(),state.count(),null,null);
+    else{
+      for(var pages:List.of(communityRoots,communityReplies))pages.replaceAll((key,page)->new CommunityCommentPage(page.items().stream().map(item->item.id().equals(id)?item.withLike(state.active(),state.count()):item).collect(java.util.stream.Collectors.toList()),page.total(),page.hasMore(),page.nextCursor()));
+    }
+    return state;
+  }
+  @Override public CommunityAction setCommunityFavorite(String id,boolean active){
+    JSONObject result=call(active?"PUT":"DELETE","community/posts/"+id+"/favorite",null);
+    CommunityAction state=new CommunityAction(result.optBoolean("favorited"),result.optLong("favoriteCount"));
+    updateCommunityPostState(id,null,null,state.active(),state.count());return state;
   }
   @Override public void deleteReview(String id) { call("DELETE","users/me/reviews/"+id,null); }
   @Override public void moderate(String id,String action,String reason) { moderate(id,action,reason,null); }
@@ -427,6 +623,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   private void clear() {
     user=null;csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
-    dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();
+    communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();communityAudit=CommunityAuditPage.empty();communityAuditDetail=null;communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
+    dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();
+    ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();
   }
 }

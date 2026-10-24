@@ -54,7 +54,7 @@ final class DishReviewSection {
   }
   private void card(Review r) {
     LinearLayout card=Ui.card(list),head=Ui.row(a);card.addView(head);
-    TextView author=Ui.text(a,r.userDisplayName().isEmpty()?r.userId():r.userDisplayName(),16,Design.INK);
+    TextView author=Ui.text(a,r.userDisplayName().isEmpty()?"校园干饭人":r.userDisplayName(),16,Design.INK);
     author.setTypeface(Design.body(),android.graphics.Typeface.BOLD);head.addView(author,new LinearLayout.LayoutParams(0,-2,1));
     head.addView(Ui.stamp(a,r.rating()+" / 5",Design.RED));Ui.gap(card,5);
     card.addView(Ui.text(a,r.content(),16,Design.INK));Ui.gap(card,8);

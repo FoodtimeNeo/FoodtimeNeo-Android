@@ -3,6 +3,7 @@ plugins {
 }
 
 def releaseStorePath = providers.gradleProperty('FOODTIME_RELEASE_STORE_FILE').orNull
+def communityPrototype = providers.gradleProperty('FOODTIME_COMMUNITY_PROTOTYPE')
 
 android {
     namespace 'cn.edu.bjtu.foodtime'
@@ -12,8 +13,8 @@ android {
         applicationId 'cn.edu.bjtu.foodtime'
         minSdk 26
         targetSdk 36
-        versionCode 2
-        versionName '0.1.1'
+        versionCode 3
+        versionName '1.0.0'
         buildConfigField 'String', 'API_BASE_URL', '"' + providers.gradleProperty('FOODTIME_API_BASE_URL').getOrElse('http://154.9.252.201/api/v1/').replace('"', '\\"') + '"'
         testInstrumentationRunner providers.gradleProperty('FOODTIME_TEST_RUNNER').getOrElse('cn.edu.bjtu.foodtime.presentation.RemoteUiRunner')
     }
@@ -32,9 +33,11 @@ android {
     buildTypes {
         debug {
             applicationIdSuffix providers.gradleProperty('FOODTIME_DEBUG_SUFFIX').getOrElse('')
+            buildConfigField 'boolean', 'COMMUNITY_PROTOTYPE_ENABLED', communityPrototype.getOrElse('false')
         }
         release {
             minifyEnabled false
+            buildConfigField 'boolean', 'COMMUNITY_PROTOTYPE_ENABLED', communityPrototype.getOrElse('false')
             if (releaseStorePath) {
                 signingConfig signingConfigs.release
             }

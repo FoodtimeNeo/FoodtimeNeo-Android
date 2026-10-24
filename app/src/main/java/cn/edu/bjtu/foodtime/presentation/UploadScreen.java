@@ -15,8 +15,6 @@ final class UploadScreen {
     Ui.gap(card, 16);
     Ui.action(card, image.isBlank() ? "从相册选择" : "更换图片", false, () -> a.pickImage(key));
     Ui.gap(card, 16);
-    card.addView(Ui.text(a, "审核通过后进入图册", 14, Design.MUTED));
-    Ui.gap(card, 16);
     TextView error=Ui.text(a,"",14,Design.RED);card.addView(error);
     Ui.submit(card,"提交图片",error,() -> () -> a.repo.submitPhoto(dish.id(),image),
         () -> {a.clearDraft(route);a.message("图片已提交");a.back();});
@@ -52,8 +50,6 @@ final class UploadScreen {
     error.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);
     card.addView(error);
     Ui.gap(card, 8);
-    card.addView(Ui.text(a, "审核通过后公开", 14, Design.MUTED));
-    Ui.gap(card, 16);
     Ui.submit(card,"提交投稿",error,() -> {
       String title=Validation.text(name.getText().toString(),isStall?100:120,"名称"),body=description.getText().toString();
       String amount=price==null?"":price.getText().toString();java.math.BigDecimal value=amount.isBlank()?null:Validation.price(amount);

@@ -1,6 +1,7 @@
 package cn.edu.bjtu.foodtime.domain.model;
 
 import java.math.BigDecimal;
+import java.util.List;
 
 public final class Models {
   public record Hall(String id, String name, String coverImageUrl, boolean active) {}
@@ -90,6 +91,47 @@ public final class Models {
   }
 
   public record Photo(String id, String dishId, String imageUrl, String userId) {}
+
+  /** Published community post returned by the Backend community feed. */
+  public record CommunityAuditPage(String type,String status,int page,long total,List<Submission> items){
+    public CommunityAuditPage{items=List.copyOf(items);}
+    public static CommunityAuditPage empty(){return new CommunityAuditPage("posts","pending",1,0,List.of());}
+  }
+  public record CommunityAuditDetail(CommunityPost post,CommunityComment comment,CommunityComment rootComment,CommunityComment replyToComment,AiAssessment ai){}
+  public record CommunityPostPage(List<CommunityPost> items,long total,int page,boolean hasMore){
+    public CommunityPostPage{items=List.copyOf(items);}
+    public static CommunityPostPage empty(){return new CommunityPostPage(List.of(),0,0,false);}
+  }
+  public record CommunityImage(String url,int width,int height) {}
+  public record CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
+      long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
+      boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt,
+      String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage) {
+    public CommunityPost {imageUrls=imageUrls==null?List.of():List.copyOf(imageUrls);images=images==null?List.of():List.copyOf(images);}
+    public CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
+        long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
+        boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt) {
+      this(id,userId,userDisplayName,content,imageUrls,likeCount,commentCount,repostCount,repostOfId,repostAuthor,repostContent,
+          likedByMe,favoritedByMe,status,reviewReason,createdAt,CommunityText.headline(content),"",List.of(),0,"");
+    }
+  }
+
+  /** Approved comment shown below a community post. */
+  public record CommunityComment(String id,String postId,String userId,String userDisplayName,String content,
+      long likeCount,String status,long createdAt,String rootCommentId,String replyToCommentId,String replyToUserId,
+      String replyToDisplayName,String userAvatarUrl,long replyCount,boolean likedByMe,boolean deleted,String reviewStage,String reviewReason) {
+    public CommunityComment withLike(boolean liked,long count){return new CommunityComment(id,postId,userId,userDisplayName,content,count,status,createdAt,rootCommentId,replyToCommentId,replyToUserId,replyToDisplayName,userAvatarUrl,replyCount,liked,deleted,reviewStage,reviewReason);}
+    public CommunityComment(String id,String postId,String userId,String name,String content,long likes,String status,long time){
+      this(id,postId,userId,name,content,likes,status,time,"","","","","",0,false,false,"","");
+    }
+  }
+  public record CommunityCommentPage(List<CommunityComment> items,long total,boolean hasMore,String nextCursor){
+    public CommunityCommentPage{items=List.copyOf(items);}
+    public static CommunityCommentPage empty(){return new CommunityCommentPage(List.of(),0,false,"");}
+  }
+
+  /** Latest state returned by a like/favorite toggle. */
+  public record CommunityAction(boolean active, long count) {}
 
   /** The server's transactionally maintained rating summary; average is null when no score is available. */
   public record RatingSummary(BigDecimal averageScore,long reviewCount) {}

@@ -49,8 +49,6 @@ final class ReviewScreen {
     error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
     card.addView(error);
     Ui.gap(card, 8);
-    card.addView(Ui.text(a, "审核通过后公开", 14, Design.MUTED));
-    Ui.gap(card, 16);
     Ui.submit(card,"提交评价",error,() -> {
       int score=rating[0];String content=text.getText().toString();
       if(score<1||content.isBlank()) throw new IllegalArgumentException("请选择评分并填写评价");

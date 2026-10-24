@@ -40,12 +40,8 @@ final class EmbeddedReviewReplies {
       public void onTextChanged(CharSequence s,int st,int before,int count) {if(s.length()>0) progress.setVisibility(View.GONE);}
       public void afterTextChanged(android.text.Editable s) {}
     });
-    panel=Ui.col(a);panel.setBackgroundColor(Design.ALT);
-    panel.setPadding(Ui.dp(a,12),0,Ui.dp(a,8),Ui.dp(a,12));
-    // Quiet left rule separates a nested floor from the primary paper card.
-    android.graphics.drawable.LayerDrawable background=new android.graphics.drawable.LayerDrawable(new android.graphics.drawable.Drawable[]{
-        Ui.shape(a,Design.BORDER,0,0),Ui.shape(a,Design.ALT,0,0)});
-    background.setLayerInset(1,Ui.dp(a,2),0,0,0);panel.setBackground(background);
+    panel=Ui.col(a);panel.setPadding(Ui.dp(a,14),Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,12));
+    panel.setBackground(Ui.shape(a,Design.ALT,Design.BORDER,16));
     LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.leftMargin=Ui.dp(a,8);lp.topMargin=Ui.dp(a,8);card.addView(panel,lp);
     paint();
     if(expanded()&&(!a.repo.hasLoadedReviewReplies(root)||needsReload)) panel.post(() -> load(toggle,false));
@@ -124,7 +120,7 @@ final class EmbeddedReviewReplies {
       TextView prompt=ReviewActions.button(a,a.drafts.getString(key+"body","").isBlank()?"写下你的回复…":"继续编辑回复…",
           () -> edit(a.drafts.getString(key+"target",""),a.drafts.getString(key+"target-name","")));
       prompt.setGravity(android.view.Gravity.START|android.view.Gravity.CENTER_VERTICAL);
-      prompt.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,0));panel.addView(prompt,new LinearLayout.LayoutParams(-1,-2));return;
+      prompt.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,16));panel.addView(prompt,new LinearLayout.LayoutParams(-1,-2));return;
     }
     LinearLayout form=Ui.col(a);panel.addView(form);Ui.gap(form,8);
     String target=a.drafts.getString(key+"target",""),name=a.drafts.getString(key+"target-name","");
@@ -133,10 +129,10 @@ final class EmbeddedReviewReplies {
     EditText input=new EditText(a);input.setTag(key+"input");input.setId(View.generateViewId());label.setLabelFor(input.getId());
     input.setTextSize(16);input.setTextColor(Design.INK);input.setTypeface(Design.body());input.setGravity(android.view.Gravity.TOP);
     input.setInputType(131073);input.setMinLines(3);input.setPadding(Ui.dp(a,12),Ui.dp(a,8),Ui.dp(a,12),Ui.dp(a,8));
-    input.setBackground(Ui.shape(a,Design.PAPER,Design.MUTED,0));input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});
+    input.setBackground(Ui.shape(a,Design.PAPER,Design.BORDER,16));input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});
     input.setText(a.drafts.getString(key+"body",""));form.addView(input,new LinearLayout.LayoutParams(-1,-2));
-    TextView hint=Ui.text(a,input.length()+"/500 · 审核通过后公开",12,Design.MUTED);form.addView(hint);
-    Ui.observe(input,() -> {a.drafts.putString(key+"body",input.getText().toString());hint.setText(input.length()+"/500 · 审核通过后公开");});
+    TextView hint=Ui.text(a,input.length()+" / 500",12,Design.MUTED);form.addView(hint);
+    Ui.observe(input,() -> {a.drafts.putString(key+"body",input.getText().toString());hint.setText(input.length()+" / 500");});
     TextView failure=Ui.text(a,"",14,Design.RED);failure.setVisibility(View.GONE);Ui.observeError(failure);
     failure.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);form.addView(failure);
     ReviewActionRow actions=new ReviewActionRow(a);form.addView(actions);

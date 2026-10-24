@@ -50,7 +50,7 @@ public class MainActivity extends Activity {
     repo = ((RepositoryProvider) getApplication()).repository();
     worker = ((RepositoryProvider) getApplication()).workExecutor();
     registerScreens();
-    for (String key : List.of("dining", "profile", "admin"))
+    for (String key : List.of("dining", "community", "profile", "admin"))
       stacks.put(key, new ArrayList<>(List.of(new Route(key, ""))));
     if (state != null) {
       pendingOperation=state.getLong("pendingOperation",0);
@@ -97,6 +97,13 @@ public class MainActivity extends Activity {
 
   void registerScreens() {
     screens.put("dining", DiningScreen::halls);
+    screens.put("community", CommunityScreen::feed);
+    screens.put("community-detail", CommunityScreen::detail);
+    screens.put("community-create", CommunityScreen::create);
+    screens.put("community-mine", CommunityScreen::collection);
+    screens.put("community-favorites", CommunityScreen::collection);
+    screens.put("admin-community", CommunityAdminScreen::queue);
+    screens.put("admin-community-detail", CommunityAdminScreen::detail);
     screens.put("stalls", DiningScreen::stalls);
     screens.put("dishes", DishScreen::dishes);
     screens.put("gallery", DishScreen::gallery);
@@ -105,6 +112,7 @@ public class MainActivity extends Activity {
     screens.put("submit-stall", UploadScreen::stall);
     screens.put("mine-submissions", SubmissionScreen::mine);
     screens.put("profile", ProfileScreen::profile);
+    screens.put("profile-edit", ProfileScreen::edit);
     screens.put("mine-reviews", ProfileScreen::reviews);
     screens.put("password", PasswordScreen::show);
     screens.put("detail", DishScreen::detail);
@@ -146,6 +154,10 @@ public class MainActivity extends Activity {
     render();
   }
 
+  void replaceRoute(String kind,String id){
+    if(writeInFlight){message("正在提交，请稍候");return;}
+    rememberScroll();ArrayList<Route> stack=stacks.get(tab);stack.set(stack.size()-1,new Route(kind,id));render();
+  }
   public Route route() {
     ArrayList<Route> s = stacks.get(tab);
     return s.get(s.size() - 1);
@@ -240,6 +252,12 @@ public class MainActivity extends Activity {
       case "stalls","submit-stall" -> ContentRequest.Query.STALLS;
       case "dishes","submit-dish" -> ContentRequest.Query.DISHES;
       case "detail","gallery","upload-photo","review" -> ContentRequest.Query.DISH_DETAIL;
+      case "community" -> ContentRequest.Query.COMMUNITY_FEED;
+      case "community-detail" -> ContentRequest.Query.COMMUNITY_DETAIL;
+      case "community-mine" -> ContentRequest.Query.MY_COMMUNITY_POSTS;
+      case "community-favorites" -> ContentRequest.Query.MY_COMMUNITY_FAVORITES;
+      case "admin-community" -> ContentRequest.Query.COMMUNITY_MODERATION;
+      case "admin-community-detail" -> ContentRequest.Query.COMMUNITY_MODERATION_DETAIL;
       case "mine-reviews" -> ContentRequest.Query.MY_REVIEWS;
       case "review-replies","reply-create" -> ContentRequest.Query.REVIEW_REPLIES;
       case "mine-review-replies" -> ContentRequest.Query.MY_REVIEW_REPLIES;
@@ -275,11 +293,12 @@ public class MainActivity extends Activity {
     home.setContentDescription("回到食堂首页");
     bar.addView(home, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
     try {
+      if (stacks.get(tab).size() > 1) Ui.decorateSubpage(content, route().kind().hashCode());
       Screen s = screens.get(route().kind());
       if (s == null) {
         content.addView(
             Ui.title(
-                this, tab.equals("profile") ? "我的" : tab.equals("admin") ? "管理" : "食堂", 30));
+                this, tab.equals("profile") ? "我的" : tab.equals("admin") ? "管理" : tab.equals("community") ? "社区" : "食堂", 30));
       } else s.show(this, content, route());
     } catch (RuntimeException e) {
       Ui.empty(content, "页面加载失败", e.getMessage() == null ? "请重试" : e.getMessage());
@@ -337,6 +356,7 @@ public class MainActivity extends Activity {
       LinearLayout nav = Ui.row(this);
       nav.setBackground(Ui.shape(this, Design.PAPER, Design.BORDER, 0));
       addTab(nav, "食堂", "dining");
+      addTab(nav, "社区", "community");
       if (repo.currentUser().isAdmin()) addTab(nav, "管理", "admin");
       addTab(nav, "我的", "profile");
       root.addView(nav, new LinearLayout.LayoutParams(-1, -2));
@@ -384,6 +404,20 @@ public class MainActivity extends Activity {
     startActivityForResult(imagePickerIntent(), 101);
   }
 
+  public void pickCommunityPhotos() {
+    pickingKey=draftKey("photos");
+    android.content.Intent intent=imagePickerIntent();intent.putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE,true);
+    startActivityForResult(intent,102);
+  }
+  void discardPhoto(String path){worker.execute(()->PhotoImport.discard(this,path));}
+  private void applyCommunityPhotos(String prefix,String paths){
+    String base=prefix.substring(0,prefix.length()-"photos".length());
+    for(String path:paths.split("\n"))for(int i=0;i<9;i++){
+      String key=base+"photo:"+i+":image";
+      if(drafts.getString(key,"").isBlank()){drafts.putString(key,path);break;}
+    }
+  }
+
   static android.content.Intent imagePickerIntent() {
     android.content.Intent intent =
         new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
@@ -395,6 +429,20 @@ public class MainActivity extends Activity {
   @Override
   protected void onActivityResult(int request, int result, android.content.Intent data) {
     super.onActivityResult(request, result, data);
+    if(request==102 && result==RESULT_OK && data!=null && pickingKey!=null){
+      String prefix=pickingKey;String base=prefix.substring(0,prefix.length()-"photos".length());
+      int count=0;for(int i=0;i<9;i++)if(!drafts.getString(base+"photo:"+i+":image","").isBlank())count++;
+      java.util.List<android.net.Uri> selected=new java.util.ArrayList<>();
+      if(data.getClipData()!=null)for(int i=0;i<data.getClipData().getItemCount()&&selected.size()<9-count;i++)selected.add(data.getClipData().getItemAt(i).getUri());
+      else if(data.getData()!=null&&count<9)selected.add(data.getData());
+      if(selected.isEmpty())return;
+      startOperation(null,null,"导入社区图片",prefix,()->{
+        java.util.List<String> imported=new java.util.ArrayList<>();
+        try{for(var uri:selected)imported.add(PhotoImport.prepare(this,uri));return String.join("\n",imported);}
+        catch(RuntimeException e){for(String path:imported)PhotoImport.discard(this,path);throw e;}
+      },paths->{rememberScroll();applyCommunityPhotos(prefix,paths);renderContent();});
+      return;
+    }
     if (request == 101
         && result == RESULT_OK
         && data != null
@@ -490,12 +538,18 @@ public class MainActivity extends Activity {
     }
     if(task.action().equals("注册")) {showAuth(false);message("注册成功，请登录");return;}
     if(repo.currentUser()==null) {signedOut();return;}
+    if(task.origin().kind().equals("community-detail")&&Set.of("提交评论","提交回复").contains(task.action())){
+      String prefix=task.origin().kind()+":"+task.origin().id()+":";
+      for(String key:List.of("评论内容","replyRoot","replyTarget","replyName","commentPayload","commentRequestId"))drafts.remove(prefix+key);
+      message("已提交审核，通过前仅自己可见");
+    }
     if(task.action().equals("发布回复")) {EmbeddedReviewReplies.completeSubmission(this);message("回复已提交，审核通过后公开");}
-    if(task.imageDraft()!=null) {
+    if(task.imageDraft()!=null && task.imageDraft().endsWith(":photos")) {applyCommunityPhotos(task.imageDraft(),outcome.value());}
+    else if(task.imageDraft()!=null) {
       String previous=drafts.getString(task.imageDraft(),"");drafts.putString(task.imageDraft(),outcome.value());
       worker.execute(() -> PhotoImport.discard(this,previous));
     }
-    else if(Set.of("review","upload-photo","submit-dish","submit-stall","admin-new","admin-edit").contains(task.origin().kind())) {
+    else if(Set.of("review","upload-photo","submit-dish","submit-stall","community-create","admin-new","admin-edit").contains(task.origin().kind())) {
       clearDraft(task.origin());if(route().equals(task.origin())&&stacks.get(tab).size()>1) stacks.get(tab).remove(stacks.get(tab).size()-1);
     }
     openApp();

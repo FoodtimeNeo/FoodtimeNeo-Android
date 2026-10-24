@@ -33,15 +33,19 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 `FOODTIME_API_BASE_URL` 应包含 `/api/v1/`。明文HTTP只放行指定服务器和127.0.0.1，其他服务使用HTTPS；只改构建地址不会自动扩大明文白名单。Cookie绑定服务来源，切换来源会放弃旧会话；应用不预填线上凭据。
 
+Debug和Release默认都关闭社区原型并使用真实接口。社区联调后端应包含V19–V23迁移；用FOODTIME_API_BASE_URL选择本机服务。
+
 ## 会写入数据的设备验收
 
-先按Backend的本地联调说明启动专用环境，启用所需样例并确认readiness为UP，再运行：
+先按Backend的本地联调说明启动专用环境，启用所需样例并确认readiness为UP。将三个本地测试账号分别放入 `FOODTIME_TEST_USER_ACCOUNT`、`FOODTIME_TEST_ADMIN_ACCOUNT`、`FOODTIME_TEST_SUPERADMIN_ACCOUNT`，共同测试密码放入 `FOODTIME_TEST_PASSWORD` 后运行：
 
 ```powershell
 .\scripts\verify.ps1 -Device -ApplicationSuffix .integration
 ```
 
 可用 `-AdbPath` 指定ADB位置、`-Serial` 指定设备。[脚本](../scripts/verify.ps1) 会构建测试包、显式覆盖为本机API、检查电脑8080readiness、建立映射、安装并运行 `RemoteUiRunner`。它不会代替你启动Backend，也不接受“默认线上地址”作为写入验收目标。
+
+也可通过 `-UserAccount`、`-AdminAccount`、`-SuperadminAccount`、`-TestPassword` 提供同名参数。Device模式只接受 `.integration` 后缀；缺少参数会在构建前停止，不再使用硬编码账号。测试需要“联调示例食堂 / 档口 / 菜品”样例，账号密码必须属于当前专用测试库。
 
 设备验收会创建、审核、删除测试内容并调整样例账号；必须使用专用本地库，不在154.9.252.201线上库运行。普通构建及JVM测试不需要执行这些写操作。历史运行结果见 [验收记录](verification.md)。
 
@@ -70,3 +74,10 @@ CD通过Gradle环境变量传递签名参数，临时密钥只写入runner的临
 真实写入 runner 强制 `.completion` 独立包名后缀和 `127.0.0.1` API。本次使用 `-PFOODTIME_DEBUG_SUFFIX=.completion -PFOODTIME_API_BASE_URL=http://127.0.0.1:18080/api/v1/` 及 `adb reverse tcp:18080 tcp:18080`，仅连接独立 `foodtime_completion_lab`。它会在该环境创建专用测试菜品及评论，不要把端口反向映射到生产服务。其余三个 runner 使用进程内替身/loopback 服务，不向 Backend 写入。
 
 发布 APK 不会自动部署 Backend；默认 API 服务器必须同步部署包含 V15–V18 迁移的兼容版本。当前记录只证明本地完整版本可用，不代表生产服务已升级。
+
+
+## 社区设备验收（2026-10-23）
+
+显式选择CommunityRepositoryRunner可运行真实社区接口闭环（21项），选择CommunityUiRunner可运行原生页面闭环（12项）；后者evidenceOnly=true模式只读已存在的联调样例并验证图片翻页、全屏缩放与关闭（2项）。使用FOODTIME_TEST_RUNNER构建属性指定完整Runner类名。页面Runner只接受`.integration`独立调试包、本机`http://127.0.0.1:8080/api/v1/`和关闭原型的数据源，开始登录前即校验这些条件。
+
+通过Instrumentation运行参数userAccount、adminAccount、testPassword传入本地测试账号；接口Runner还需要superadminAccount。账号凭据由调用方提供。完整写入测试创建临时帖子并以带原因软下架结束，重复运行遵守正常上传/提交限制。当前结构、接口说明及后端验收见Backend的docs/community-delivery.md。

@@ -12,7 +12,7 @@ final class AiAssessmentView {
       parent.addView(Ui.text(a,"AI 分诊：暂无结论",14,Design.MUTED));return;
     }
     LinearLayout box=Ui.col(a);box.setPadding(Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,12));
-    box.setBackground(Ui.shape(a,Design.ALT,Design.BORDER,0));parent.addView(box);
+    box.setBackground(Ui.shape(a,Design.ALT,Design.BORDER,16));parent.addView(box);
     String level=switch(assessment.riskLevel()) {case "LOW" -> "低风险";case "MEDIUM" -> "需复核";case "HIGH" -> "高风险";default -> "未知风险";};
     String confidence=assessment.confidence()==null?"":" · 置信度 "+assessment.confidence().movePointRight(2).setScale(0,RoundingMode.HALF_UP).toPlainString()+"%";
     int color=switch(assessment.riskLevel()) {case "LOW" -> Design.GREEN;case "HIGH" -> Design.RED;default -> Design.BLUE;};
