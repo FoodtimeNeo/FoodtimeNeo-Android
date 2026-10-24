@@ -1,5 +1,7 @@
 # FoodtimeNeo Android · 北交干饭吧
 
+当前版本 **1.0.0**（versionCode 3）；签名、历史合并和本轮回归见 [1.0.0 发布验收](docs/release-1.0.0.md)。
+
 原生 Java 17 / Android View 应用，默认访问真实 Backend。视觉沿用所给 Web 风格的纸张底色、墨棕描边、实色阴影与中文字体。
 
 完整入口见 [文档导航](docs/README.md)；构建参数、专用设备验收和Release说明见 [构建与测试](docs/build-and-test.md)。
