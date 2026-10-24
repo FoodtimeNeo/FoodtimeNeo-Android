@@ -21,6 +21,7 @@ RemoteUiRunner 更新为当前个人页栏目、实时评分标签和按本轮�
 - `verifyArchitecture testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest` 通过，16项JVM测试全部通过。
 - `lintRelease assembleRelease` 使用原证书构建成功；Lint无错误，保留原有2项 DefaultLocale 警告。
 - 正式 RemoteUiRunner：19项真实原生页面检查通过，包含三种角色、会话、点评审核、图片投稿、目录增删改、用户状态及改密恢复。
+- `scripts/verify.ps1 -Device` 已同步传入运行时账号，并固定选择RemoteUiRunner；通过该正式入口重跑19项检查通过，与上一项重叠，不另计覆盖。
 - CommunityUiRunner：12项原生社区页面检查通过。
 - CommunityRepositoryRunner：21项设备真实HTTP检查通过；明确使用 `1@bjtu.edu.cn`、`2@bjtu.edu.cn`、`3@bjtu.edu.cn` 三种服务端身份。
 
