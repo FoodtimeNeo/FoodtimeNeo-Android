@@ -4,6 +4,8 @@ plugins {
 
 def releaseStorePath = providers.gradleProperty('FOODTIME_RELEASE_STORE_FILE').orNull
 def communityPrototype = providers.gradleProperty('FOODTIME_COMMUNITY_PROTOTYPE')
+// 默认地址仅供 debug 联调；release 若仍是 http 非回环，verifyReleaseBaseUrl 会直接失败。
+def apiBaseUrl = providers.gradleProperty('FOODTIME_API_BASE_URL').getOrElse('http://154.9.252.201/api/v1/')
 
 android {
     namespace 'cn.edu.bjtu.foodtime'
@@ -15,7 +17,7 @@ android {
         targetSdk 36
         versionCode 3
         versionName '1.0.0'
-        buildConfigField 'String', 'API_BASE_URL', '"' + providers.gradleProperty('FOODTIME_API_BASE_URL').getOrElse('http://154.9.252.201/api/v1/').replace('"', '\\"') + '"'
+        buildConfigField 'String', 'API_BASE_URL', '"' + apiBaseUrl.replace('"', '\\"') + '"'
         testInstrumentationRunner providers.gradleProperty('FOODTIME_TEST_RUNNER').getOrElse('cn.edu.bjtu.foodtime.presentation.RemoteUiRunner')
     }
 
@@ -113,4 +115,22 @@ def verifyArchitecture = tasks.register('verifyArchitecture') {
 
 tasks.matching { it.name == 'check' || it.name == 'preBuild' }.configureEach {
     dependsOn verifyArchitecture
+}
+
+// P0 门禁：release 包的 API 地址必须是 https（回环联调地址除外），否则上线即明文传输会话。
+def verifyReleaseBaseUrl = tasks.register('verifyReleaseBaseUrl') {
+    group = 'verification'
+    description = 'Fails release builds whose API base URL is cleartext.'
+    doLast {
+        def uri = new URI(apiBaseUrl.endsWith('/') ? apiBaseUrl : apiBaseUrl + '/')
+        def loopback = ['localhost', '127.0.0.1', '::1', '10.0.2.2'].contains(uri.host?.toLowerCase())
+        if (uri.scheme == 'http' && !loopback) {
+            throw new GradleException("Release API base URL must use https, got: ${apiBaseUrl} "
+                + '(override with -PFOODTIME_API_BASE_URL=https://<domain>/api/v1/ once the server serves TLS)')
+        }
+    }
+}
+
+tasks.matching { it.name == 'assembleRelease' }.configureEach {
+    dependsOn verifyReleaseBaseUrl
 }

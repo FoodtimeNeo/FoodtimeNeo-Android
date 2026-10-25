@@ -1,10 +1,16 @@
 package cn.edu.bjtu.foodtime.data.remote;
 
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
+
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import java.net.CookieManager;
+import java.net.CookiePolicy;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
-import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Locale;
@@ -13,7 +19,6 @@ import java.util.concurrent.Executors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import static org.junit.Assert.*;
 
 public class HttpTransportTest {
   private ServerSocket server;
@@ -74,5 +79,46 @@ public class HttpTransportTest {
   @Test(expected = IllegalArgumentException.class)
   public void absoluteUrlsCannotSendSessionCookiesToAnotherOrigin() throws Exception {
     client.request("GET", "http://example.test/steal", null, null);
+  }
+
+  private static CookieManager cookies() {
+    return new CookieManager(null, CookiePolicy.ACCEPT_ORIGINAL_SERVER);
+  }
+
+  /** P0 门禁：非 debug 下公网 http 必须 fail-closed，回环联调不受影响。 */
+  @Test
+  public void httpsIsAlwaysAllowed() {
+    new HttpTransport("https://example.com/api/v1/", cookies());
+  }
+
+  @Test
+  public void cleartextPublicIpIsRejectedByDefault() {
+    assertThrows(IllegalArgumentException.class,
+        () -> new HttpTransport("http://154.9.252.201/api/v1/", cookies()));
+  }
+
+  @Test
+  public void loopbackCleartextIsAllowedForLocalDev() {
+    new HttpTransport("http://127.0.0.1:8080/api/v1/", cookies());
+    new HttpTransport("http://localhost:8080/api/v1/", cookies());
+    new HttpTransport("http://10.0.2.2:8080/api/v1/", cookies());
+  }
+
+  @Test
+  public void debugFlagExplicitlyAllowsLanCleartext() {
+    new HttpTransport("http://154.9.252.201/api/v1/", cookies(), true);
+  }
+
+  @Test
+  public void nonHttpSchemeIsRejected() {
+    assertThrows(IllegalArgumentException.class,
+        () -> new HttpTransport("ftp://154.9.252.201/api/v1/", cookies(), true));
+  }
+
+  @Test
+  public void loopbackDetection() {
+    assertTrue(HttpTransport.isLoopback("localhost"));
+    assertTrue(HttpTransport.isLoopback("127.0.0.1"));
+    assertTrue(HttpTransport.isLoopback("10.0.2.2"));
   }
 }

@@ -27,15 +27,32 @@ public final class HttpTransport {
   private final CookieManager cookies;
 
   public HttpTransport(String baseUrl) {
-    this(baseUrl, new CookieManager(null, CookiePolicy.ACCEPT_ORIGINAL_SERVER));
+    this(baseUrl, new CookieManager(null, CookiePolicy.ACCEPT_ORIGINAL_SERVER), false);
   }
 
   public HttpTransport(String baseUrl, CookieManager cookies) {
+    this(baseUrl, cookies, false);
+  }
+
+  /**
+   * allowLanCleartext 只允许 debug 构建传入 true（联调用 http 回环/内网地址）。
+   * release 下 http 非回环地址直接拒绝，避免会话 Cookie 明文传输。
+   */
+  public HttpTransport(String baseUrl, CookieManager cookies, boolean allowLanCleartext) {
     base = URI.create(baseUrl.endsWith("/") ? baseUrl : baseUrl + "/");
     if (base.getHost() == null || !(base.getScheme().equals("http") || base.getScheme().equals("https"))) {
       throw new IllegalArgumentException("Invalid API base URL");
     }
+    if (base.getScheme().equals("http") && !allowLanCleartext && !isLoopback(base.getHost())) {
+      throw new IllegalArgumentException("Cleartext API URL is not allowed in this build");
+    }
     this.cookies = cookies;
+  }
+
+  /** 回环地址：本机联调走 http 不受影响，公网 IP 走 http 一律拒绝。 */
+  static boolean isLoopback(String host) {
+    return host.equalsIgnoreCase("localhost") || host.equals("127.0.0.1") || host.equals("::1")
+        || host.equals("10.0.2.2");
   }
 
   public synchronized Response request(String method, String path, String json, String csrf)

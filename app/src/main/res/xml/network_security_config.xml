@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- release 默认 fail-closed：禁止一切明文流量。联调例外只放在 debug 源集。 -->
 <network-security-config>
     <base-config cleartextTrafficPermitted="false" />
-    <domain-config cleartextTrafficPermitted="true">
-        <domain includeSubdomains="false">127.0.0.1</domain>
-        <domain includeSubdomains="false">154.9.252.201</domain>
-    </domain-config>
 </network-security-config>
