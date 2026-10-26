@@ -18,6 +18,8 @@ import java.util.function.Function;
 public final class RemoteRepository implements FoodtimeRepository {
   private final HttpTransport http;
   private final URI origin;
+  private ImageDiskCache imageCache;
+  private final java.util.concurrent.atomic.AtomicLong imageEpoch=new java.util.concurrent.atomic.AtomicLong();
   private final CommunityPrototype communityPrototype;
   private volatile String csrf;
   private volatile User user;
@@ -67,6 +69,10 @@ public final class RemoteRepository implements FoodtimeRepository {
     URI base=URI.create(baseUrl); origin=URI.create(base.getScheme()+"://"+base.getAuthority()+"/");
   }
   @Override public User currentUser() { return user; }
+  public RemoteRepository withImageCache(File directory) { imageCache=new ImageDiskCache(directory,200L*1024*1024);return this; }
+  @Override public String imageIdentity() {var actor=user;return origin+":"+(actor==null?"guest":actor.id()+":"+actor.role())+":"+http.sessionKey()+":"+imageEpoch.get();}
+  @Override public long imageCacheBytes() {return imageCache==null?0:imageCache.size();}
+  @Override public void clearImageCache() {imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(false);}
   @Override public void restoreSession() {
     try { profile(); }
     catch(RepositoryException e) { if(e.status()!=401) throw e; }
@@ -659,18 +665,52 @@ public final class RemoteRepository implements FoodtimeRepository {
     } catch(IOException e) { throw unavailable(); }
   }
   @Override public byte[] loadImage(String reference) {
+    return loadImageResource(reference).bytes();
+  }
+  @Override public ImageResource loadImageResource(String reference) {
+    String identity=imageIdentity();long epoch=imageEpoch.get();
     URI uri=origin.resolve(reference);
     boolean sameOrigin=origin.getScheme().equals(uri.getScheme())&&origin.getAuthority().equals(uri.getAuthority());
     if(!sameOrigin&&!"https".equals(uri.getScheme())) throw new IllegalArgumentException("图片地址不合法");
+    if(uri.getUserInfo()!=null||uri.getFragment()!=null)throw new IllegalArgumentException("图片地址不合法");
+    String publicKey="p-"+ImageDiskCache.hash(uri.toString()),privateKey="s-"+ImageDiskCache.hash(identity+":"+uri);
+    ImageDiskCache.Entry cached=imageCache==null?null:imageCache.get(publicKey);
+    if(cached!=null&&cached.freshUntil()>System.currentTimeMillis())return new ImageResource(cached.bytes(),true,cached.freshUntil(),cached.etag());
+    if(cached==null&&imageCache!=null)cached=imageCache.get(privateKey);
     try {
       // Legacy external HTTPS images receive no application cookies or authentication headers.
       HttpTransport loader=sameOrigin?http:new HttpTransport(uri.getScheme()+"://"+uri.getAuthority()+"/",
           new java.net.CookieManager(null,java.net.CookiePolicy.ACCEPT_NONE));
-      var response=loader.bytes(uri.toString());
-      if(response.status()!=200) throw new RepositoryException(response.status(),"IMAGE_UNAVAILABLE","图片暂不可用",0);
-      return response.body();
+      var response=loader.bytes(uri.toString(),cached==null||cached.etag().isBlank()?Map.of():Map.of("If-None-Match",cached.etag()));
+      if(epoch!=imageEpoch.get()||!identity.equals(imageIdentity())||Thread.currentThread().isInterrupted())throw unavailable();
+      String policy=header(response,"Cache-Control").toLowerCase(Locale.ROOT),type=header(response,"Content-Type"),etag=header(response,"ETag");
+      if(response.status()!=200&&response.status()!=304) {
+        if(imageCache!=null){imageCache.remove(publicKey);imageCache.remove(privateKey);}
+        if(response.status()==401)clear();
+        throw new RepositoryException(response.status(),"IMAGE_UNAVAILABLE","图片暂不可用",0);
+      }
+      byte[] bytes=response.status()==304&&cached!=null?cached.bytes():response.body();
+      if(response.status()==304&&cached==null)throw unavailable();
+      if(type.isBlank()&&cached!=null)type=cached.contentType();
+      if(!type.toLowerCase(Locale.ROOT).startsWith("image/")||bytes.length==0)throw unavailable();
+      if(etag.isBlank()&&cached!=null)etag=cached.etag();
+      boolean reusable=!policy.contains("no-store")&&(policy.contains("private")||policy.contains("public"));
+      long until=0;
+      if(reusable&&policy.contains("public")&&!policy.contains("no-cache")) {
+        var match=java.util.regex.Pattern.compile("(?:^|[,\\s])max-age=(\\d+)").matcher(policy);
+        if(match.find())try {long age=Long.parseLong(header(response,"Age").isBlank()?"0":header(response,"Age"));until=System.currentTimeMillis()+Math.max(0,Math.min(31536000L,Long.parseLong(match.group(1)))-age)*1000;}catch(NumberFormatException ignored){}
+      }
+      synchronized(imageEpoch) {
+        if(epoch!=imageEpoch.get()||!identity.equals(imageIdentity())||Thread.currentThread().isInterrupted())throw unavailable();
+        if(imageCache!=null) {
+          imageCache.remove(publicKey);imageCache.remove(privateKey);
+          if(reusable)imageCache.put(until>0?publicKey:privateKey,new ImageDiskCache.Entry(bytes,etag,type,until));
+        }
+      }
+      return new ImageResource(bytes,reusable,until,etag.isBlank()?ImageDiskCache.contentHash(bytes):etag);
     } catch(IOException e) { throw unavailable(); }
   }
+  private static String header(HttpTransport.BinaryResponse response,String name) {var values=response.headers().get(name);return values==null||values.isEmpty()?"":values.get(0);}
   private JSONObject call(String method,String path,JSONObject body) {
     try { return interpret(http.request(method,path,body==null?null:body.toString(),method.equals("GET")?null:token())); }
     catch(IOException e) { throw unavailable(); }
@@ -732,6 +772,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private RepositoryException missing(String message) { return new RepositoryException(404,"NOT_FOUND",message,0); }
   private RepositoryException unavailable() { return new RepositoryException(0,"NETWORK_UNAVAILABLE","连接失败，请检查服务后重试",0); }
   private void clear() {
+    synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(true);}
     user=null;csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
     communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();communityAudit=CommunityAuditPage.empty();communityAuditDetail=null;communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;

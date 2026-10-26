@@ -627,12 +627,14 @@ public class MainActivity extends Activity {
   }
   @Override protected void onResume() {
     super.onResume();stateSaved=false;
+    Ui.resumeImages();
     if(deferredCompletion!=null) {Runnable callback=deferredCompletion;deferredCompletion=null;callback.run();}
     List<Runnable> callbacks=new ArrayList<>(deferredReads);deferredReads.clear();
     inboxPoll.removeCallbacks(inboxPollTask);
     if(repo!=null&&repo.currentUser()!=null) inboxPoll.postDelayed(inboxPollTask,60_000);
     for(Runnable callback:callbacks) callback.run();
   }
-  @Override protected void onPause() { super.onPause();inboxPoll.removeCallbacks(inboxPollTask); }
+  @Override protected void onPause() { super.onPause();Ui.pauseImages();inboxPoll.removeCallbacks(inboxPollTask); }
+  @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)Ui.clearImages();}
   @Override protected void onDestroy() {++generation;deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }
