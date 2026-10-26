@@ -82,7 +82,7 @@ final class ProfileScreen {
       TextView cacheError=Ui.text(a,"",12,Design.RED);panel.addView(cacheError);
       long[] usage={0};
       a.read("image-cache-size",null,cacheError,()->usage[0]=a.repo.imageCacheBytes(),()->cache.setText(String.format(java.util.Locale.CHINA,"图片缓存 %.1f MiB",usage[0]/1048576.0)),()->{});
-      roundedAction(a,panel,"清理图片缓存",false,()->a.request(null,cacheError,a.repo::clearImageCache,()->{Ui.clearImages();cache.setText("图片缓存 0 MiB");a.message("图片缓存已清理");}));
+      roundedAction(a,panel,"清理图片缓存",false,()->a.request(null,cacheError,a.repo::clearImageCache,()->{Ui.clearImages();Ui.resumeImages();cache.setText("图片缓存 0 MiB");a.message("图片缓存已清理");}));
     } else roundedAction(a,panel,action,true,() -> Ui.confirm(a,"退出登录？","",a::logout));
   }
 

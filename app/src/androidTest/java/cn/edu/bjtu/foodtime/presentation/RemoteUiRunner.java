@@ -56,7 +56,7 @@ public class RemoteUiRunner extends Instrumentation {
     }
     throw new AssertionError("Missing dialog action "+value);
   }
-  private void loaded(String kind) throws Exception {await(() -> activity.route().kind().equals(kind)&&text("加载中…")==null,"page "+kind);}
+  private void loaded(String kind) throws Exception {await(() -> activity.route().kind().equals(kind)&&!activity.isPageLoading()&&text("加载中…")==null,"page "+kind);}
   private void login(String email) throws Exception {
     login(email,testPassword);
   }

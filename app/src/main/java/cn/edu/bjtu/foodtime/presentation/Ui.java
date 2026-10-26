@@ -297,7 +297,7 @@ public final class Ui {
     return frame;
   }
 
-  public static void confirm(Activity a, String title, String body, Runnable run) {
+  public static AlertDialog confirm(Activity a, String title, String body, Runnable run) {
     AlertDialog dialog =
         new AlertDialog.Builder(a)
             .setTitle(title)
@@ -312,6 +312,7 @@ public final class Ui {
           dialog.getButton(-2).setTextColor(Design.MUTED);
         });
     dialog.show();
+    return dialog;
   }
 
   private static final class PaperDrawable extends Drawable {
