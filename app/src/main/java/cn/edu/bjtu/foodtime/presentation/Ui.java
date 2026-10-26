@@ -14,12 +14,9 @@ import java.util.function.Supplier;
 
 /** Small native View toolkit; no WebView, no blurred elevation or default Material colours. */
 public final class Ui {
-  private static final ExecutorService IMAGES=Executors.newFixedThreadPool(2);
-  private static final android.util.LruCache<String,Bitmap> IMAGE_CACHE=new android.util.LruCache<>(12*1024*1024) {
-    @Override protected int sizeOf(String key,Bitmap value) {return value.getByteCount();}
-  };
-  private static int imageGeneration;
-  public static void clearImages() {imageGeneration++;IMAGE_CACHE.evictAll();}
+  public static void clearImages() {ImageLoader.clear();}
+  public static void pauseImages() {ImageLoader.pause();}
+  public static void resumeImages() {ImageLoader.resume();}
   public static int dp(Context c, float n) {
     return Math.round(n * c.getResources().getDisplayMetrics().density);
   }
@@ -254,7 +251,7 @@ public final class Ui {
   /** Thumbnail variant for list display; local files and full-size remote images pass through. */
   public static String thumb(String path) {
     if (path == null || path.isBlank() || !path.startsWith("/api/")) return path;
-    return path.contains("?") ? path + "&size=thumb" : path + "?size=thumb";
+    return path.split("\\?",2)[0]+"?size=thumb";
   }
 
   /** Feed cover that starts at a stable ratio, then adopts the decoded image's real ratio. */
@@ -290,41 +287,11 @@ public final class Ui {
     placeholder.setPadding(dp(c,16),0,dp(c,16),0);
     frame.addView(image,new FrameLayout.LayoutParams(-1,-1));frame.addView(placeholder,new FrameLayout.LayoutParams(-1,-1));
     if(path!=null&&!path.isBlank() && c instanceof MainActivity a) {
-      var user=a.repo.currentUser();String identity=user==null?"anonymous":user.id()+":"+user.role();
-      String key=identity+":"+path;int ticket=imageGeneration;
-      boolean remoteFull=(path.startsWith("/api/")||path.startsWith("http:")||path.startsWith("https:"))
-          && !path.contains("size=thumb");
-      boolean cacheable=!remoteFull;
-      Bitmap cached=cacheable?IMAGE_CACHE.get(key):null;
-      if(cached!=null) {
-        if(adaptive&&cached.getWidth()>0) heightRatio[0]=Math.max(.72f,Math.min(1.45f,(float)cached.getHeight()/cached.getWidth()));
-        image.setImageBitmap(cached);placeholder.setVisibility(View.GONE);
-      }
-      else IMAGES.execute(() -> {
-        Bitmap bitmap=null;
-        try {
-          byte[] bytes;
-          if(path.startsWith("/api/")||path.startsWith("http:" )||path.startsWith("https:")) bytes=a.repo.loadImage(path);
-          else try(InputStream in=path.startsWith("asset:")?c.getAssets().open("images/"+path.substring(6)):c.getContentResolver().openInputStream(Uri.parse(path));var out=new ByteArrayOutputStream()) {
-            byte[] buffer=new byte[8192];int count;
-            while(in!=null&&(count=in.read(buffer))!=-1) {if(out.size()+count>20*1024*1024) throw new IOException();out.write(buffer,0,count);}
-            bytes=out.toByteArray();
-          }
-          BitmapFactory.Options options=new BitmapFactory.Options();options.inJustDecodeBounds=true;
-          BitmapFactory.decodeByteArray(bytes,0,bytes.length,options);options.inSampleSize=1;
-          while(Math.max(options.outWidth,options.outHeight)/options.inSampleSize>1600) options.inSampleSize*=2;
-          options.inJustDecodeBounds=false;bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.length,options);
-        } catch(Exception ignored) { }
-        Bitmap loaded=bitmap;
-        a.runOnUiThread(() -> {
-          if(a.isDestroyed()||ticket!=imageGeneration||loaded==null) return;
-          if(cacheable) IMAGE_CACHE.put(key,loaded);if(!frame.isAttachedToWindow()) return;
-          if(adaptive&&loaded.getWidth()>0) {
-            heightRatio[0]=Math.max(.72f,Math.min(1.45f,(float)loaded.getHeight()/loaded.getWidth()));
-            frame.requestLayout();
-          }
-          image.setImageBitmap(loaded);placeholder.setVisibility(View.GONE);
-        });
+      ImageLoader.bind(a,frame,image,placeholder,path,loaded -> {
+        if(adaptive&&loaded.getWidth()>0) {
+          heightRatio[0]=Math.max(.72f,Math.min(1.45f,(float)loaded.getHeight()/loaded.getWidth()));
+          frame.requestLayout();
+        }
       });
     }
     return frame;
