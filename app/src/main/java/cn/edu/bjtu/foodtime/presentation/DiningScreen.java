@@ -14,7 +14,6 @@ final class DiningScreen {
       "闻着香味慢慢逛","一餐一味，都是日常","把校园装进味蕾"
   };
   private static final float[] STALL_RATIOS={.72f,.94f,.8f,1.02f,.76f,.9f};
-  private static final String[] STALL_NOTES={"窗口正冒着热气","下课就来这一口","今天也要吃得香","熟悉的校园味道","认真挑一顿喜欢的","一口开启好心情"};
 
   static void halls(MainActivity a, LinearLayout page, MainActivity.Route route) {
     page.setBackground(new FoodDoodleDrawable(a));
@@ -109,25 +108,15 @@ final class DiningScreen {
     Hall hall = a.repo.hall(route.id());
     if (hall == null || !hall.active()) throw new IllegalArgumentException("食堂不存在或已停用");
     a.heading(page, "01.1", hall.name(), "");
-    warmStrip(a,page,1,"烟火升起时，校园也有了家的味道");
     if (a.repo.stalls(hall.id()).isEmpty()) {
       Ui.empty(page, "暂无档口", "");
       Ui.action(page, "投稿一个新档口", true, () -> a.go("submit-stall", hall.id()));
       return;
     }
-    CatalogList.showGallery(a,page,"找找想吃的档口","个档口",a.repo.stalls(hall.id()),Stall::name,
+    CatalogList.showGallery(a,page,"搜索档口","个档口",a.repo.stalls(hall.id()),Stall::name,
         (list,stalls) -> stallGallery(a,list,stalls));
     Ui.gap(page,8);
     Ui.action(page, "投稿一个新档口", true, () -> a.go("submit-stall", hall.id()));
-  }
-
-  private static void warmStrip(MainActivity a,LinearLayout page,int doodle,String words) {
-    LinearLayout strip=Ui.row(a);strip.setPadding(Ui.dp(a,16),Ui.dp(a,12),Ui.dp(a,16),Ui.dp(a,12));
-    strip.setBackground(Ui.shape(a,Design.KRAFT_SOFT,0,20));
-    strip.addView(Ui.foodDoodle(a,doodle,Design.GREEN),new LinearLayout.LayoutParams(Ui.dp(a,54),Ui.dp(a,42)));
-    TextView note=Ui.note(a,words);note.setTextSize(17);note.setTextColor(Design.INK);
-    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);lp.leftMargin=Ui.dp(a,12);strip.addView(note,lp);
-    page.addView(strip,new LinearLayout.LayoutParams(-1,-2));Ui.gap(page,18);
   }
 
   private static void stallGallery(MainActivity a,LinearLayout page,List<Stall> stalls) {
@@ -157,7 +146,6 @@ final class DiningScreen {
     }
     LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,14));
     TextView name=Ui.title(a,stall.name(),19);name.setMaxLines(2);body.addView(name);Ui.gap(body,7);
-    body.addView(Ui.text(a,STALL_NOTES[index%STALL_NOTES.length],12,index%2==0?Design.MUTED:Design.GREEN));
     card.addView(body);card.setClickable(true);card.setFocusable(true);card.setContentDescription(stall.name()+"，查看菜品");
     card.setOnClickListener(v -> a.go("dishes",stall.id()));
     LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=Ui.dp(a,12);column.addView(card,lp);

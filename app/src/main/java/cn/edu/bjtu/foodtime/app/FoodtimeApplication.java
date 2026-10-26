@@ -12,6 +12,7 @@ import cn.edu.bjtu.foodtime.domain.repository.RepositoryProvider;
 public final class FoodtimeApplication extends Application implements RepositoryProvider {
   private FoodtimeRepository repository;
   private final ExecutorService worker=Executors.newSingleThreadExecutor();
+  private final ExecutorService background=Executors.newSingleThreadExecutor();
 
   @Override
   public void onCreate() {
@@ -27,4 +28,5 @@ public final class FoodtimeApplication extends Application implements Repository
     return repository;
   }
   @Override public Executor workExecutor() { return worker; }
+  @Override public Executor backgroundExecutor() { return background; }
 }

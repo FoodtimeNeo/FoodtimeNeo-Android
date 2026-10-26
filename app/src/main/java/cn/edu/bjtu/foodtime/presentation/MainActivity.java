@@ -32,6 +32,16 @@ public class MainActivity extends Activity {
   final Bundle scrollPositions = new Bundle();
   String pickingKey;
   private Executor worker;
+  private Executor inboxWorker;
+  private java.util.concurrent.FutureTask<Void> navigationRead;
+  private final android.os.Handler navigationHandler=new android.os.Handler(android.os.Looper.getMainLooper());
+  private boolean navigationLoading,contentReady,foreground,resumeNavigation,pageFailed;
+  private LinearLayout refreshBanner;
+  private String displayedActor="";
+  private int navigationEpoch,inboxEpoch;
+  private boolean inboxInFlight,inboxDialogShowing;
+  private android.app.AlertDialog inboxDialog;
+  private final Deque<String> pendingNotices=new ArrayDeque<>();
   private int generation;
   private boolean writeInFlight;
   private String displayedLocation="";
@@ -49,13 +59,17 @@ public class MainActivity extends Activity {
   private final Runnable inboxPollTask=new Runnable() {
     @Override public void run() {
       inboxPoll.removeCallbacks(this);
-      if(repo==null||repo.currentUser()==null) return;
-      worker.execute(() -> {
+      if(!foreground||repo==null||repo.currentUser()==null||inboxInFlight) return;
+      inboxInFlight=true;int ticket=inboxEpoch;String actor=actor();
+      inboxWorker.execute(() -> {
         NoticeFeed feed=null;RuntimeException failure=null;
         try { feed=repo.noticeFeed(0,20); } catch(RuntimeException e) { failure=e; }
         NoticeFeed result=feed;RuntimeException error=failure;
         runOnUiThread(() -> {
+          inboxInFlight=false;
           if(isDestroyed()) return;
+          if(foreground&&repo.currentUser()==null) {clearNavigation();showAuth(false);message("请重新登录");return;}
+          if(!foreground||ticket!=inboxEpoch||!actor.equals(actor())) {if(foreground&&repo.currentUser()!=null)inboxPoll.postDelayed(this,60_000);return;}
           if(repo.currentUser()==null) { clearNavigation();showAuth(false);message("请重新登录");return; }
           if(error==null&&result!=null) {
             List<String> fresh=new ArrayList<>();
@@ -63,14 +77,8 @@ public class MainActivity extends Activity {
             inboxSeen.addAll(fresh);
             boolean first=!inboxBaseline;inboxBaseline=true;
             if(!first&&!fresh.isEmpty()) {
-              Notice current=null;
-              for(Notice item:result.items()) if(fresh.contains(item.id())) { current=item;break; }
-              if(current!=null) {
-                String title=current.title();
-                String note=fresh.size()>1?title+"等"+fresh.size()+"条新公告":title;
-                Ui.confirm(MainActivity.this,"收到新公告",note,() -> go("inbox",""));
-              }
-              if(route().kind().equals("inbox")) render();
+              for(Notice item:result.items())if(fresh.contains(item.id()))pendingNotices.addLast(item.title());
+              drainNotices();
             }
           }
           inboxPoll.postDelayed(this,60_000);
@@ -79,6 +87,14 @@ public class MainActivity extends Activity {
     }
   };
   void noteInboxSeen(java.util.Collection<String> ids) { inboxSeen.addAll(ids); }
+  private String actor(){var user=repo==null?null:repo.currentUser();return user==null?"":user.id()+":"+user.role();}
+  private void drainNotices() {
+    if(!foreground||!contentReady||pageFailed||navigationLoading||stateSaved||writeInFlight||inboxDialogShowing||!hasWindowFocus()||pendingNotices.isEmpty()||repo.currentUser()==null)return;
+    inboxDialogShowing=true;
+    inboxDialog=Ui.confirm(this,"收到新公告",pendingNotices.removeFirst(),()->go("inbox",""));
+    inboxDialog.setOnDismissListener(dialog->{inboxDialog=null;inboxDialogShowing=false;inboxPoll.post(this::drainNotices);});
+  }
+  @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(focused)drainNotices();}
   private record ReadListener(int generation,View trigger,TextView error,Runnable success,Runnable finished) {}
 
   @Override
@@ -87,6 +103,7 @@ public class MainActivity extends Activity {
     Design.init(this);
     repo = ((RepositoryProvider) getApplication()).repository();
     worker = ((RepositoryProvider) getApplication()).workExecutor();
+    inboxWorker = ((RepositoryProvider) getApplication()).backgroundExecutor();
     registerScreens();
     for (String key : List.of("dining", "community", "profile", "admin"))
       stacks.put(key, new ArrayList<>(List.of(new Route(key, ""))));
@@ -172,6 +189,7 @@ public class MainActivity extends Activity {
   public void showAuth(boolean register) {
     if(writeInFlight) {message("正在提交，请稍候");return;}
     authRegistration=register;
+    cancelNavigation();contentReady=false;
     ++generation;
     shell(false);
     AuthScreen.show(this, content, register);
@@ -183,6 +201,7 @@ public class MainActivity extends Activity {
       return;
     }
     if (tab.equals("admin") && !repo.currentUser().isAdmin()) tab = "dining";
+    inboxPoll.removeCallbacks(inboxPollTask);if(foreground&&!inboxInFlight)inboxPoll.post(inboxPollTask);
     render();
   }
 
@@ -269,21 +288,53 @@ public class MainActivity extends Activity {
       return;
     }
     if(displayedLocation.equals(location())) rememberScroll();
+    cancelNavigation();
+    pageFailed=false;
     int ticket=++generation;
+    int epoch=navigationEpoch;
+    String actor=actor();
+    Route target=route();boolean catalog=LoadingScreen.catalog(target);
+    boolean retain=catalog&&contentReady&&displayedLocation.equals(location())&&displayedActor.equals(actor);
     ContentRequest query=query(route());
-    shell(true);content.addView(Ui.text(this,"加载中…",16,Design.MUTED));
-    worker.execute(() -> {
+    navigationLoading=true;
+    LinearLayout body;
+    if(retain) {body=Ui.col(this);refreshBanner=body;content.addView(body,0);TextView refresh=Ui.text(this,"更新中",12,Design.MUTED);body.addView(refresh);}
+    else {
+      contentReady=false;shell(true);buildHeader();
+      body=catalog?LoadingScreen.begin(this,content,target):content;
+      if(!catalog)body.addView(Ui.text(this,"加载中…",16,Design.MUTED));
+      else navigationHandler.postDelayed(()->{if(ticket==generation&&epoch==navigationEpoch&&navigationLoading)LoadingScreen.skeleton(this,body,target.kind().equals("dishes"));},180);
+    }
+    navigationHandler.postDelayed(()->{
+      if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
+      TextView slow=Ui.text(this,"加载较慢，请稍候",12,Design.MUTED);slow.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);body.addView(slow,0);
+    },3000);
+    navigationHandler.postDelayed(()->{
+      if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
+      cancelNavigation();contentReady=retain;pageFailed=true;
+      if(retain){refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body);}
+      else if(catalog)LoadingScreen.failure(this,body);
+      else {content.removeAllViews();Ui.empty(content,"加载失败","");Ui.action(content,"重试",true,this::render);}
+    },15000);
+    navigationRead=new java.util.concurrent.FutureTask<>(() -> {
       RuntimeException error=null;try {repo.refresh(query);}catch(RuntimeException e){error=e;}
       RuntimeException failure=error;
       runOnUiThread(() -> {
-        if(isDestroyed()||ticket!=generation) return;
+        if(isDestroyed()||ticket!=generation||epoch!=navigationEpoch||!foreground) return;
+        cancelNavigation();
         if(repo.currentUser()==null) {clearNavigation();showAuth(false);message("请重新登录");return;}
+        if(!actor.equals(actor())){Ui.clearImages();displayedActor="";}
         if(tab.equals("admin")&&!repo.currentUser().isAdmin()) {tab="dining";render();return;}
-        if(failure!=null) {content.removeAllViews();Ui.empty(content,"加载失败",safeMessage(failure));Ui.action(content,"重试",true,this::render);return;}
+        if(failure!=null) {contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body);}else if(retain){content.removeAllViews();LoadingScreen.failure(this,LoadingScreen.begin(this,content,target));}else if(catalog)LoadingScreen.failure(this,body);else {content.removeAllViews();Ui.empty(content,"加载失败",safeMessage(failure));Ui.action(content,"重试",true,this::render);}return;}
         renderContent();
+        if(catalog&&!retain&&android.animation.ValueAnimator.areAnimatorsEnabled()){content.setAlpha(.5f);content.animate().alpha(1).setDuration(150).start();}
       });
+      return null;
     });
+    worker.execute(navigationRead);
   }
+  private void cancelNavigation(){navigationEpoch++;navigationHandler.removeCallbacksAndMessages(null);if(navigationRead!=null){navigationRead.cancel(true);navigationRead=null;}navigationLoading=false;if(refreshBanner!=null&&refreshBanner.getParent() instanceof android.view.ViewGroup parent)parent.removeView(refreshBanner);refreshBanner=null;}
+  boolean isPageLoading(){return navigationLoading;}
 
   private ContentRequest query(Route route) {
     ContentRequest.Query q=switch(route.kind()) {
@@ -318,6 +369,21 @@ public class MainActivity extends Activity {
   private void renderContent() {
     shell(true);
     displayedLocation=location();
+    displayedActor=actor();contentReady=true;buildHeader();
+    try {
+      if (stacks.get(tab).size() > 1&&!LoadingScreen.catalog(route())) Ui.decorateSubpage(content, route().kind().hashCode());
+      Screen s = screens.get(route().kind());
+      if (s == null) content.addView(Ui.title(this, tab.equals("profile") ? "我的" : tab.equals("admin") ? "管理" : tab.equals("community") ? "社区" : "食堂", 30));
+      else s.show(this, content, route());
+    } catch (RuntimeException e) {
+      contentReady=false;Ui.empty(content, "页面加载失败", e.getMessage() == null ? "请重试" : e.getMessage());
+      Ui.action(content, "重新加载", true, this::render);
+    }
+    int offset = scrollPositions.getInt(location(), 0);
+    scroll.post(() -> scroll.scrollTo(0, offset));
+    inboxPoll.post(this::drainNotices);
+  }
+  private void buildHeader() {
     LinearLayout bar = Ui.row(this);
     header.addView(bar, new LinearLayout.LayoutParams(-1, -2));
     TextView back = Ui.button(this, "←", false, this::back);
@@ -332,20 +398,6 @@ public class MainActivity extends Activity {
     TextView home = Ui.button(this, "⌂", false, this::home);
     home.setContentDescription("回到食堂首页");
     bar.addView(home, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
-    try {
-      if (stacks.get(tab).size() > 1) Ui.decorateSubpage(content, route().kind().hashCode());
-      Screen s = screens.get(route().kind());
-      if (s == null) {
-        content.addView(
-            Ui.title(
-                this, tab.equals("profile") ? "我的" : tab.equals("admin") ? "管理" : tab.equals("community") ? "社区" : "食堂", 30));
-      } else s.show(this, content, route());
-    } catch (RuntimeException e) {
-      Ui.empty(content, "页面加载失败", e.getMessage() == null ? "请重试" : e.getMessage());
-      Ui.action(content, "重新加载", true, this::render);
-    }
-    int offset = scrollPositions.getInt(location(), 0);
-    scroll.post(() -> scroll.scrollTo(0, offset));
   }
 
   private void shell(boolean navigation) {
@@ -611,6 +663,7 @@ public class MainActivity extends Activity {
   }
   public void signedOut() {clearNavigation();showAuth(false);}
   private void clearNavigation() {
+    cancelNavigation();contentReady=false;displayedActor="";inboxEpoch++;pendingNotices.clear();if(inboxDialog!=null)inboxDialog.dismiss();
     inboxPoll.removeCallbacks(inboxPollTask);inboxSeen.clear();inboxBaseline=false;
     for(String key:drafts.keySet()) if(key.endsWith(":image")) {
       String photo=drafts.getString(key,"");worker.execute(() -> PhotoImport.discard(this,photo));
@@ -626,15 +679,17 @@ public class MainActivity extends Activity {
     Ui.clearImages();
   }
   @Override protected void onResume() {
-    super.onResume();stateSaved=false;
+    super.onResume();stateSaved=false;foreground=true;
     Ui.resumeImages();
     if(deferredCompletion!=null) {Runnable callback=deferredCompletion;deferredCompletion=null;callback.run();}
     List<Runnable> callbacks=new ArrayList<>(deferredReads);deferredReads.clear();
     inboxPoll.removeCallbacks(inboxPollTask);
     if(repo!=null&&repo.currentUser()!=null) inboxPoll.postDelayed(inboxPollTask,60_000);
     for(Runnable callback:callbacks) callback.run();
+    if(resumeNavigation&&repo!=null&&repo.currentUser()!=null){resumeNavigation=false;render();}
+    inboxPoll.post(this::drainNotices);
   }
-  @Override protected void onPause() { super.onPause();Ui.pauseImages();inboxPoll.removeCallbacks(inboxPollTask); }
+  @Override protected void onPause() { super.onPause();foreground=false;inboxEpoch++;resumeNavigation=navigationLoading;cancelNavigation();Ui.pauseImages();inboxPoll.removeCallbacks(inboxPollTask); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)Ui.clearImages();}
-  @Override protected void onDestroy() {++generation;deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override protected void onDestroy() {++generation;cancelNavigation();inboxPoll.removeCallbacksAndMessages(null);if(inboxDialog!=null)inboxDialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }

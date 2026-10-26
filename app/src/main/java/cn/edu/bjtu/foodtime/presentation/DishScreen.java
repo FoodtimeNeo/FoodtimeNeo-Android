@@ -6,21 +6,14 @@ import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import java.util.*;
 
 final class DishScreen {
-  private static final String[] DISH_NOTES={"今天想吃这一口","热乎上桌","校园里的小满足","香气刚刚好","给忙碌加点甜","慢慢吃，别着急"};
 
   static void dishes(MainActivity a, LinearLayout page, MainActivity.Route route) {
     Stall stall = a.repo.stall(route.id());
     if (stall == null || !stall.active()) throw new IllegalArgumentException("档口不存在或已停用");
     a.heading(page, "01.2", stall.name(), "");
-    LinearLayout ribbon=Ui.row(a);ribbon.setPadding(Ui.dp(a,16),Ui.dp(a,12),Ui.dp(a,16),Ui.dp(a,12));
-    ribbon.setBackground(Ui.shape(a,Design.ALT,0,20));
-    TextView words=Ui.note(a,"好好吃饭，是一天里温柔的小事");words.setTextSize(17);words.setTextColor(Design.RED);
-    ribbon.addView(words,new LinearLayout.LayoutParams(0,-2,1));
-    ribbon.addView(Ui.foodDoodle(a,5,Design.GREEN),new LinearLayout.LayoutParams(Ui.dp(a,62),Ui.dp(a,46)));
-    page.addView(ribbon);Ui.gap(page,18);
     List<Dish> all = a.repo.dishes(stall.id());
     if (all.isEmpty()) Ui.empty(page, "还没有菜品", "");
-    else CatalogList.showGallery(a,page,"找找今天想吃的","道菜品",all,Dish::name,
+    else CatalogList.showGallery(a,page,"搜索菜品","道菜品",all,Dish::name,
         (list,dishes) -> dishGrid(a,list,dishes));
     Ui.gap(page, 16);
     Ui.action(page, "投稿一道新菜", true, () -> a.go("submit-dish", stall.id()));
@@ -56,8 +49,7 @@ final class DishScreen {
     TextView name=Ui.title(a,dish.name(),18);name.setMaxLines(2);body.addView(name);Ui.gap(body,7);
     LinearLayout meta=Ui.row(a);TextView price=Ui.title(a,"¥"+dish.price().stripTrailingZeros().toPlainString(),17);
     price.setTextColor(Design.RED);meta.addView(price,new LinearLayout.LayoutParams(0,-2,1));
-    meta.addView(Ui.text(a,String.format("%02d",index+1),11,Design.GREEN));body.addView(meta);Ui.gap(body,7);
-    body.addView(Ui.text(a,DISH_NOTES[index%DISH_NOTES.length],11,Design.MUTED));card.addView(body);
+    body.addView(meta);card.addView(body);
     card.setClickable(true);card.setFocusable(true);card.setContentDescription(dish.name()+"，查看详情");
     card.setOnClickListener(v -> a.go("detail",dish.id()));
     LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=Ui.dp(a,12);column.addView(card,lp);

@@ -89,14 +89,15 @@ final class ImageLoader {
       int ticket=++generation[0];
       release[0]=subscribe(a,path,bound,bitmap->{
         if(a.isDestroyed()||ticket!=generation[0]||!frame.isAttachedToWindow())return;
-        if(bitmap==null){failed[0]=true;placeholder.setText("图片加载失败，点此重试");placeholder.setVisibility(View.VISIBLE);return;}
-        completed[0]=true;image.setImageBitmap(bitmap);placeholder.setVisibility(View.GONE);display.accept(bitmap);
+        if(bitmap==null){failed[0]=true;placeholder.setText("图片加载失败，点此重试");placeholder.setClickable(true);placeholder.setFocusable(true);placeholder.setVisibility(View.VISIBLE);return;}
+        completed[0]=true;image.setImageBitmap(bitmap);placeholder.setClickable(false);placeholder.setFocusable(false);placeholder.setVisibility(View.GONE);display.accept(bitmap);
       });
     };
-    placeholder.setOnClickListener(v->{if(!failed[0])return;failed[0]=false;completed[0]=false;if(release[0]!=null)release[0].run();release[0]=null;check.run();});
+    placeholder.setOnClickListener(v->{if(!failed[0])return;failed[0]=false;completed[0]=false;placeholder.setClickable(false);placeholder.setFocusable(false);if(release[0]!=null)release[0].run();release[0]=null;check.run();});
+    placeholder.setClickable(false);placeholder.setFocusable(false);
     ViewTreeObserver.OnScrollChangedListener scroll=check::run;
     ViewTreeObserver.OnGlobalLayoutListener layout=check::run;
-    Runnable reset=()->{generation[0]++;if(release[0]!=null)release[0].run();release[0]=null;completed[0]=false;failed[0]=false;image.setImageDrawable(null);placeholder.setVisibility(View.VISIBLE);};
+    Runnable reset=()->{generation[0]++;if(release[0]!=null)release[0].run();release[0]=null;completed[0]=false;failed[0]=false;placeholder.setClickable(false);placeholder.setFocusable(false);image.setImageDrawable(null);placeholder.setVisibility(View.VISIBLE);};
     frame.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener(){
       @Override public void onViewAttachedToWindow(View v){BINDINGS.put(frame,new Runnable[]{reset,check});frame.getViewTreeObserver().addOnScrollChangedListener(scroll);frame.getViewTreeObserver().addOnGlobalLayoutListener(layout);frame.post(check);}
       @Override public void onViewDetachedFromWindow(View v){BINDINGS.remove(frame);if(frame.getViewTreeObserver().isAlive()){frame.getViewTreeObserver().removeOnScrollChangedListener(scroll);frame.getViewTreeObserver().removeOnGlobalLayoutListener(layout);}reset.run();}

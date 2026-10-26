@@ -4,4 +4,5 @@ package cn.edu.bjtu.foodtime.domain.repository;
 public interface RepositoryProvider {
   FoodtimeRepository repository();
   java.util.concurrent.Executor workExecutor();
+  default java.util.concurrent.Executor backgroundExecutor() {return workExecutor();}
 }
