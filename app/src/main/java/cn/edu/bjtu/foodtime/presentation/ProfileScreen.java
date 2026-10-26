@@ -69,6 +69,9 @@ final class ProfileScreen {
       roundedAction(a,panel,"查看我的回复",false,() -> a.go("mine-review-replies","1"));
       roundedAction(a,panel,"我的社区食记",false,()->a.go("community-mine",""));
       roundedAction(a,panel,"我的社区收藏",false,()->a.go("community-favorites",""));
+      Ui.gap(panel,10);
+      long inboxUnread=a.repo.unreadCount();
+      roundedAction(a,panel,inboxUnread>0?"通知信箱 · "+inboxUnread+"条未读":"通知信箱",false,()->a.go("inbox",""));
     }
     else if(selected==1) roundedAction(a,panel,action,false,() -> a.go("mine-submissions",""));
     else if(selected==2) {
