@@ -130,6 +130,31 @@ public final class Models {
     public static CommunityCommentPage empty(){return new CommunityCommentPage(List.of(),0,false,"");}
   }
 
+  /** Announcement broadcast to all users; seq is a polling cursor only, never an identity. */
+  public record Notice(String id, String title, String body, long publishedAt) {}
+
+  /** Paged announcements, newest first. */
+  public record NoticePage(List<Notice> items, long total, boolean hasMore) {
+    public NoticePage { items = List.copyOf(items); }
+    public static NoticePage empty() { return new NoticePage(List.of(), 0, false); }
+  }
+
+  /** Incremental announcement feed in publish order, plus the unread badge count. */
+  public record NoticeFeed(List<Notice> items, long unreadCount) {
+    public NoticeFeed { items = List.copyOf(items); }
+    public static NoticeFeed empty() { return new NoticeFeed(List.of(), 0); }
+  }
+
+  /** Personal inbox message. */
+  public record Message(String id, String title, String body, String category,
+      String refType, String refId, boolean isRead, long createdAt) {}
+
+  /** Paged inbox messages, newest first. */
+  public record MessagePage(List<Message> items, long total, boolean hasMore) {
+    public MessagePage { items = List.copyOf(items); }
+    public static MessagePage empty() { return new MessagePage(List.of(), 0, false); }
+  }
+
   /** Latest state returned by a like/favorite toggle. */
   public record CommunityAction(boolean active, long count) {}
 

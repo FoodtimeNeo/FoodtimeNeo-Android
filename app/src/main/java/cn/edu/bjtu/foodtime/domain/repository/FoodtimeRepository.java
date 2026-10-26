@@ -52,6 +52,19 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default CommunityAction toggleCommunityFavorite(String postId) {
     throw new UnsupportedOperationException("此数据源不支持收藏");
   }
+  /** Announcement inbox, newest first. Refreshed by ContentRequest NOTICES on a worker. */
+  default NoticePage notices() { return NoticePage.empty(); }
+  default void loadMoreNotices() { throw new UnsupportedOperationException(); }
+  /** Personal system messages, newest first. Refreshed by ContentRequest MESSAGES on a worker. */
+  default MessagePage messages() { return MessagePage.empty(); }
+  default void loadMoreMessages() { throw new UnsupportedOperationException(); }
+  /** Combined unread badge: unread announcements plus unread personal messages. */
+  default long unreadCount() { return 0; }
+  /** Incremental announcement feed for background polling; does not reset page caches. */
+  default NoticeFeed noticeFeed(long sinceSeq, int limit) { return NoticeFeed.empty(); }
+  default void markNoticeRead(String id) {}
+  default void readMessage(String id) {}
+  default void readAllMessages() {}
   void submitPhoto(String dishId, String imageUrl);
 
   void submitReview(String dishId, int rating, String content);

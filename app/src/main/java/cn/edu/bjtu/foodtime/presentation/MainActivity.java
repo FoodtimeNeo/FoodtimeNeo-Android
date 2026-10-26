@@ -8,6 +8,8 @@ import cn.edu.bjtu.foodtime.domain.repository.FoodtimeRepository;
 import cn.edu.bjtu.foodtime.domain.repository.RepositoryProvider;
 import cn.edu.bjtu.foodtime.domain.repository.ContentRequest;
 import cn.edu.bjtu.foodtime.domain.repository.RepositoryException;
+import cn.edu.bjtu.foodtime.domain.model.Models.Notice;
+import cn.edu.bjtu.foodtime.domain.model.Models.NoticeFeed;
 import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.function.*;
@@ -41,6 +43,42 @@ public class MainActivity extends Activity {
   private Runnable deferredCompletion;
   private final Map<String,List<ReadListener>> reads=new HashMap<>();
   private final List<Runnable> deferredReads=new ArrayList<>();
+  private final android.os.Handler inboxPoll=new android.os.Handler(android.os.Looper.getMainLooper());
+  private final java.util.Set<String> inboxSeen=new java.util.HashSet<>();
+  private boolean inboxBaseline;
+  private final Runnable inboxPollTask=new Runnable() {
+    @Override public void run() {
+      inboxPoll.removeCallbacks(this);
+      if(repo==null||repo.currentUser()==null) return;
+      worker.execute(() -> {
+        NoticeFeed feed=null;RuntimeException failure=null;
+        try { feed=repo.noticeFeed(0,20); } catch(RuntimeException e) { failure=e; }
+        NoticeFeed result=feed;RuntimeException error=failure;
+        runOnUiThread(() -> {
+          if(isDestroyed()) return;
+          if(repo.currentUser()==null) { clearNavigation();showAuth(false);message("请重新登录");return; }
+          if(error==null&&result!=null) {
+            List<String> fresh=new ArrayList<>();
+            for(Notice item:result.items()) if(!inboxSeen.contains(item.id())) fresh.add(item.id());
+            inboxSeen.addAll(fresh);
+            boolean first=!inboxBaseline;inboxBaseline=true;
+            if(!first&&!fresh.isEmpty()) {
+              Notice current=null;
+              for(Notice item:result.items()) if(fresh.contains(item.id())) { current=item;break; }
+              if(current!=null) {
+                String title=current.title();
+                String note=fresh.size()>1?title+"等"+fresh.size()+"条新公告":title;
+                Ui.confirm(MainActivity.this,"收到新公告",note,() -> go("inbox",""));
+              }
+              if(route().kind().equals("inbox")) render();
+            }
+          }
+          inboxPoll.postDelayed(this,60_000);
+        });
+      });
+    }
+  };
+  void noteInboxSeen(java.util.Collection<String> ids) { inboxSeen.addAll(ids); }
   private record ReadListener(int generation,View trigger,TextView error,Runnable success,Runnable finished) {}
 
   @Override
@@ -101,6 +139,7 @@ public class MainActivity extends Activity {
     screens.put("community-detail", CommunityScreen::detail);
     screens.put("community-create", CommunityScreen::create);
     screens.put("community-mine", CommunityScreen::collection);
+    screens.put("inbox", InboxScreen::inbox);
     screens.put("community-favorites", CommunityScreen::collection);
     screens.put("admin-community", CommunityAdminScreen::queue);
     screens.put("admin-community-detail", CommunityAdminScreen::detail);
@@ -256,6 +295,7 @@ public class MainActivity extends Activity {
       case "community-detail" -> ContentRequest.Query.COMMUNITY_DETAIL;
       case "community-mine" -> ContentRequest.Query.MY_COMMUNITY_POSTS;
       case "community-favorites" -> ContentRequest.Query.MY_COMMUNITY_FAVORITES;
+      case "inbox" -> ContentRequest.Query.NOTICES;
       case "admin-community" -> ContentRequest.Query.COMMUNITY_MODERATION;
       case "admin-community-detail" -> ContentRequest.Query.COMMUNITY_MODERATION_DETAIL;
       case "mine-reviews" -> ContentRequest.Query.MY_REVIEWS;
@@ -571,6 +611,7 @@ public class MainActivity extends Activity {
   }
   public void signedOut() {clearNavigation();showAuth(false);}
   private void clearNavigation() {
+    inboxPoll.removeCallbacks(inboxPollTask);inboxSeen.clear();inboxBaseline=false;
     for(String key:drafts.keySet()) if(key.endsWith(":image")) {
       String photo=drafts.getString(key,"");worker.execute(() -> PhotoImport.discard(this,photo));
     }
@@ -588,7 +629,10 @@ public class MainActivity extends Activity {
     super.onResume();stateSaved=false;
     if(deferredCompletion!=null) {Runnable callback=deferredCompletion;deferredCompletion=null;callback.run();}
     List<Runnable> callbacks=new ArrayList<>(deferredReads);deferredReads.clear();
+    inboxPoll.removeCallbacks(inboxPollTask);
+    if(repo!=null&&repo.currentUser()!=null) inboxPoll.postDelayed(inboxPollTask,60_000);
     for(Runnable callback:callbacks) callback.run();
   }
+  @Override protected void onPause() { super.onPause();inboxPoll.removeCallbacks(inboxPollTask); }
   @Override protected void onDestroy() {++generation;deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }
