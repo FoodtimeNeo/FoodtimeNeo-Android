@@ -1,5 +1,13 @@
 # 验收记录
 
+## 2026-10-29 IP HTTPS 连接复验
+
+默认 API 已从 `http://154.9.252.201/api/v1/` 改为 `https://154.9.252.201/api/v1/`。服务器原来的 HTTP IP 入口返回跳转域名的 301；客户端禁止自动跳转，因此收到 HTML 而非 API JSON。现已部署匹配 IP 的可信证书与独立 HTTPS API 入口，HTTP 只跳到同一 IP 的 HTTPS 地址。旧安装包仍需更新；协议变化会使旧来源会话失效，用户需重新登录。
+
+本轮架构检查、JVM 单元测试、Lint、Debug APK 和测试 APK 构建通过。API 36.1 模拟器运行独立 `.ipcheck` 包的 `IpConnectionRunner`，验证 Android TLS、真实 ping JSON、Android Keystore 加密 Cookie 存储、Secure/HttpOnly Cookie 以及匿名会话复用通过。仅发送 GET，无账号登录或业务写入；不将匿名会话检查等同于完整登录验收。
+
+服务器 Nginx 配置检查、IP 公网 TLS 校验、域名入口回归及 IP 证书续期 dry-run（含 Nginx reload hook）通过。已启用每天两次的独立续期 timer。原始部署脚本、Nginx 配置与 APK 位于联合工作区 `qa/ip-connection-20261029/`。
+
 ## 2026-10-21 AI审核信息对齐
 
 feature/moderation-ai-details补齐投稿审核及正式评论管理的服务端AI字段与只读展示。架构、11项JVM测试、lintDebug和构建通过；扩展DishReviewPagingRunner后共21项原生HTTP/UI检查通过，新增验证中文风险、置信度95%及0%、标签、上海时间、NULL结论、保留人工决策和普通页面隔离。测试使用模拟器内部受控HTTP服务，不向线上或真实本地内容写入。

@@ -14,7 +14,7 @@
 
 ## 地址与独立联调包
 
-默认地址为 `http://154.9.252.201/api/v1/`，无需ADB映射。已有同包名但签名不同的应用时，使用独立后缀，避免卸载原应用的数据：
+默认地址为 `https://154.9.252.201/api/v1/`，无需ADB映射。已有同包名但签名不同的应用时，使用独立后缀，避免卸载原应用的数据：
 
 ```powershell
 .\gradlew.bat assembleDebug '-PFOODTIME_DEBUG_SUFFIX=.integration' --no-configuration-cache
@@ -34,6 +34,19 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 `FOODTIME_API_BASE_URL` 应包含 `/api/v1/`。明文HTTP只放行指定服务器和127.0.0.1，其他服务使用HTTPS；只改构建地址不会自动扩大明文白名单。Cookie绑定服务来源，切换来源会放弃旧会话；应用不预填线上凭据。
 
 Debug和Release默认都关闭社区原型并使用真实接口。社区联调后端应包含V19–V23迁移；用FOODTIME_API_BASE_URL选择本机服务。
+
+### IP HTTPS 连接检查
+
+线上 HTTP IP 入口会重定向，客户端不会自动跟随；使用 HTTPS IP 地址及匹配该 IP 的可信证书。2026-10-29 起默认地址由 HTTP 改为 HTTPS，已有安装包需要更新；来源变化后需重新登录。
+
+以下检查只发送 GET，请求 ping 和匿名 CSRF 会话，不使用账号或修改业务数据。独立 `.ipcheck` 包及 Cookie 存储用于验证 Android TLS、JSON、Secure Cookie 和会话复用：
+
+```powershell
+.\gradlew.bat assembleDebug assembleDebugAndroidTest '-PFOODTIME_DEBUG_SUFFIX=.ipcheck' '-PFOODTIME_TEST_RUNNER=cn.edu.bjtu.foodtime.data.remote.IpConnectionRunner' --no-configuration-cache
+adb install -r app/build/outputs/apk/debug/app-debug.apk
+adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
+adb shell am instrument -w cn.edu.bjtu.foodtime.ipcheck.test/cn.edu.bjtu.foodtime.data.remote.IpConnectionRunner
+```
 
 ## 会写入数据的设备验收
 
