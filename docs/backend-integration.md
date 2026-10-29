@@ -2,7 +2,7 @@
 
 默认应用已连接真实Backend，前缀为/api/v1。响应为code/message/data/timestamp/requestId；UUID作为ID，金额按BigDecimal处理。
 
-当前默认服务为 `http://154.9.252.201/api/v1/`，直接通过设备网络访问。仍可用 `FOODTIME_API_BASE_URL` 构建属性切回专用本地服务；Cookie按来源绑定，切换地址会清除不匹配的旧会话。应用不保存账号密码，也不预填线上账号。明文连接只为该指定IP和本机地址放行。
+当前默认服务为 `https://154.9.252.201/api/v1/`，通过 IP 专用证书直接连接，不依赖域名跳转。仍可用 `FOODTIME_API_BASE_URL` 构建属性切回专用本地服务；Cookie按来源绑定，切换地址会清除不匹配的旧会话。应用不保存账号密码，也不预填线上账号。线上会话使用 Secure Cookie，必须通过 HTTPS 访问。
 
 | 行为 | 接口 |
 | --- | --- |
