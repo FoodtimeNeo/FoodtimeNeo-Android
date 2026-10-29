@@ -69,11 +69,20 @@ final class ProfileScreen {
       roundedAction(a,panel,"查看我的回复",false,() -> a.go("mine-review-replies","1"));
       roundedAction(a,panel,"我的社区食记",false,()->a.go("community-mine",""));
       roundedAction(a,panel,"我的社区收藏",false,()->a.go("community-favorites",""));
+      Ui.gap(panel,10);
+      long inboxUnread=a.repo.unreadCount();
+      roundedAction(a,panel,inboxUnread>0?"通知信箱 · "+inboxUnread+"条未读":"通知信箱",false,()->a.go("inbox",""));
     }
     else if(selected==1) roundedAction(a,panel,action,false,() -> a.go("mine-submissions",""));
     else if(selected==2) {
       roundedAction(a,panel,action,false,() -> a.go("profile-edit",""));Ui.gap(panel,10);
       roundedAction(a,panel,"修改密码",false,() -> a.go("password",""));
+      Ui.gap(panel,10);
+      TextView cache=Ui.text(a,"图片缓存",14,Design.MUTED);panel.addView(cache);
+      TextView cacheError=Ui.text(a,"",12,Design.RED);panel.addView(cacheError);
+      long[] usage={0};
+      a.read("image-cache-size",null,cacheError,()->usage[0]=a.repo.imageCacheBytes(),()->cache.setText(String.format(java.util.Locale.CHINA,"图片缓存 %.1f MiB",usage[0]/1048576.0)),()->{});
+      roundedAction(a,panel,"清理图片缓存",false,()->a.request(null,cacheError,a.repo::clearImageCache,()->{Ui.clearImages();Ui.resumeImages();cache.setText("图片缓存 0 MiB");a.message("图片缓存已清理");}));
     } else roundedAction(a,panel,action,true,() -> Ui.confirm(a,"退出登录？","",a::logout));
   }
 

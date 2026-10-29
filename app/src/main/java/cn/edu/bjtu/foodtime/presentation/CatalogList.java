@@ -85,7 +85,7 @@ final class CatalogList {
       for(T item:items) if(CatalogSearch.matches(name.apply(item),query)) filtered.add(item);
       int found=filtered.size();
       count.setText(gallery
-          ? (query.isBlank()?"慢慢逛，共 "+items.size()+" "+unit:"找到 "+found+" "+unit)
+          ? (query.isBlank()?(LoadingScreen.catalog(a.route())?"共 ":"慢慢逛，共 ")+items.size()+" "+unit:"找到 "+found+" "+unit)
           : (query.isBlank()?"共 "+items.size()+" "+unit:"找到 "+found+" / "+items.size()+" "+unit));
       if(found==0) Ui.empty(list,"没有找到","");
       else render.render(list,filtered);

@@ -12,13 +12,15 @@ import cn.edu.bjtu.foodtime.domain.repository.RepositoryProvider;
 public final class FoodtimeApplication extends Application implements RepositoryProvider {
   private FoodtimeRepository repository;
   private final ExecutorService worker=Executors.newSingleThreadExecutor();
+  private final ExecutorService background=Executors.newSingleThreadExecutor();
 
   @Override
   public void onCreate() {
     super.onCreate();
     var cookies=new CookieManager(new EncryptedCookieStore(this,BuildConfig.API_BASE_URL),CookiePolicy.ACCEPT_ORIGINAL_SERVER);
     repository = new RemoteRepository(BuildConfig.API_BASE_URL,
-        new HttpTransport(BuildConfig.API_BASE_URL,cookies),BuildConfig.COMMUNITY_PROTOTYPE_ENABLED);
+        new HttpTransport(BuildConfig.API_BASE_URL,cookies),BuildConfig.COMMUNITY_PROTOTYPE_ENABLED)
+        .withImageCache(new java.io.File(getCacheDir(),"media-v2"));
   }
 
   @Override
@@ -26,4 +28,5 @@ public final class FoodtimeApplication extends Application implements Repository
     return repository;
   }
   @Override public Executor workExecutor() { return worker; }
+  @Override public Executor backgroundExecutor() { return background; }
 }

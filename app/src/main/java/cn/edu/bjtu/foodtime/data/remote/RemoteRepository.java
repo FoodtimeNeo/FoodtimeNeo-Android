@@ -18,6 +18,8 @@ import java.util.function.Function;
 public final class RemoteRepository implements FoodtimeRepository {
   private final HttpTransport http;
   private final URI origin;
+  private ImageDiskCache imageCache;
+  private final java.util.concurrent.atomic.AtomicLong imageEpoch=new java.util.concurrent.atomic.AtomicLong();
   private final CommunityPrototype communityPrototype;
   private volatile String csrf;
   private volatile User user;
@@ -49,6 +51,12 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile CommunityAuditPage communityAudit=CommunityAuditPage.empty();
   private volatile CommunityAuditDetail communityAuditDetail;
   private volatile String communityCursor="";
+  private volatile NoticePage noticePage=NoticePage.empty();
+  private volatile int noticeNumber=1;
+  private volatile MessagePage messagePage=MessagePage.empty();
+  private volatile int messageNumber=1;
+  private volatile long noticeUnread=0,messageUnread=0;
+  private volatile NoticeFeed lastFeed=NoticeFeed.empty();
   private volatile boolean communityHasMore;
   private final Map<String,String> communityUploads=new ConcurrentHashMap<>();
 
@@ -61,6 +69,10 @@ public final class RemoteRepository implements FoodtimeRepository {
     URI base=URI.create(baseUrl); origin=URI.create(base.getScheme()+"://"+base.getAuthority()+"/");
   }
   @Override public User currentUser() { return user; }
+  public RemoteRepository withImageCache(File directory) { imageCache=new ImageDiskCache(directory,200L*1024*1024);return this; }
+  @Override public String imageIdentity() {var actor=user;return origin+":"+(actor==null?"guest":actor.id()+":"+actor.role())+":"+http.sessionKey()+":"+imageEpoch.get();}
+  @Override public long imageCacheBytes() {return imageCache==null?0:imageCache.size();}
+  @Override public void clearImageCache() {imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(false);}
   @Override public void restoreSession() {
     try { profile(); }
     catch(RepositoryException e) { if(e.status()!=401) throw e; }
@@ -166,6 +178,15 @@ public final class RemoteRepository implements FoodtimeRepository {
       case ADMIN_REVIEWS -> reviews.put("admin",reviewPage("admin/reviews"));
       case ADMIN_USERS -> userList=page("admin/users",this::person);
       case AUDITS -> auditList=page("admin/moderation/logs",j -> new Audit(text(j,"id"),text(j,"submissionId"),text(j,"moderatorId"),text(j,"action"),text(j,"reason"),time(j,"createdAt")));
+      case NOTICE_FEED -> {
+        NoticeFeed polled=getNoticeFeed(0,20); lastFeed=polled; noticeUnread=polled.unreadCount();
+      }
+      case NOTICES -> {
+        // The inbox screen shows both tabs, so one refresh warms notices, messages and the badge.
+        loadNoticePage(1); loadMessagePage(1);
+        noticeUnread=getNoticeFeed(0,1).unreadCount(); messageUnread=getUnreadCount();
+      }
+      case MESSAGES -> { loadMessagePage(1); messageUnread=getUnreadCount(); }
       case PROFILE -> { }
     }
   }
@@ -509,6 +530,102 @@ public final class RemoteRepository implements FoodtimeRepository {
     CommunityAction state=new CommunityAction(result.optBoolean("favorited"),result.optLong("favoriteCount"));
     updateCommunityPostState(id,null,null,state.active(),state.count());return state;
   }
+  public NoticeFeed getNoticeFeed(long sinceSeq,int limit) {
+    JSONObject data=call("GET","users/me/notices/feed?since_seq="+sinceSeq+"&limit="+limit,null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null) throw new RepositoryException(502,"INVALID_RESPONSE","公告列表响应异常",0);
+    List<Notice> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++) items.add(notice(rows.optJSONObject(i)));
+    return new NoticeFeed(items,data.optLong("unreadCount"));
+  }
+  public NoticePage getNotices(int page,int size) {
+    JSONObject data=call("GET","users/me/notices?page="+page+"&size="+size,null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null) throw new RepositoryException(502,"INVALID_RESPONSE","公告列表响应异常",0);
+    List<Notice> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++) items.add(notice(rows.optJSONObject(i)));
+    long total=data.optLong("total");
+    return new NoticePage(items,total,page*(long)size<total);
+  }
+  @Override public NoticePage notices() { return noticePage; }
+  @Override public void loadMoreNotices() { if(noticePage.hasMore()) loadNoticePage(noticeNumber+1); }
+  private void loadNoticePage(int number) {
+    NoticePage page=getNotices(number,20);
+    if(number<=1) noticePage=page;
+    else {
+      List<Notice> merged=new ArrayList<>(noticePage.items());
+      Set<String> seen=new HashSet<>();
+      for(Notice item:merged) seen.add(item.id());
+      for(Notice item:page.items()) if(seen.add(item.id())) merged.add(item);
+      noticePage=new NoticePage(merged,page.total(),page.hasMore());
+    }
+    noticeNumber=number;
+  }
+  @Override public void markNoticeRead(String id) {
+    call("POST","users/me/notices/"+id+"/read",null);
+    if(noticeUnread>0) noticeUnread--;
+  }
+  @Override public MessagePage messages() { return messagePage; }
+  @Override public void loadMoreMessages() { if(messagePage.hasMore()) loadMessagePage(messageNumber+1); }
+  private void loadMessagePage(int number) {
+    MessagePage page=getMessages(number,20);
+    if(number<=1) messagePage=page;
+    else {
+      List<Message> merged=new ArrayList<>(messagePage.items());
+      Set<String> seen=new HashSet<>();
+      for(Message item:merged) seen.add(item.id());
+      for(Message item:page.items()) if(seen.add(item.id())) merged.add(item);
+      messagePage=new MessagePage(merged,page.total(),page.hasMore());
+    }
+    messageNumber=number;
+  }
+  @Override public long unreadCount() { return noticeUnread+messageUnread; }
+  @Override public NoticeFeed noticeFeed(long sinceSeq,int limit) {
+    NoticeFeed feed=getNoticeFeed(sinceSeq,limit); lastFeed=feed; noticeUnread=feed.unreadCount(); return feed;
+  }
+  public MessagePage getMessages(int page,int size) {
+    JSONObject data=call("GET","users/me/messages?page="+page+"&size="+size,null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null) throw new RepositoryException(502,"INVALID_RESPONSE","消息列表响应异常",0);
+    List<Message> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++) items.add(message(rows.optJSONObject(i)));
+    long total=data.optLong("total");
+    return new MessagePage(items,total,page*(long)size<total);
+  }
+  public long getUnreadCount() {
+    return call("GET","users/me/messages/unread-count",null).optLong("unreadCount");
+  }
+  @Override public void readMessage(String id) { call("POST","users/me/messages/"+id+"/read",null); markMessageRead(id); }
+  private void markMessageRead(String id) {
+    List<Message> items=new ArrayList<>();
+    boolean changed=false;
+    for(Message item:messagePage.items()) {
+      if(item.id().equals(id)&&!item.isRead()) { items.add(withRead(item)); changed=true; }
+      else items.add(item);
+    }
+    if(changed) {
+      messagePage=new MessagePage(items,messagePage.total(),messagePage.hasMore());
+      if(messageUnread>0) messageUnread--;
+    }
+  }
+  private static Message withRead(Message item) {
+    return item.isRead()?item:new Message(item.id(),item.title(),item.body(),item.category(),
+        item.refType(),item.refId(),true,item.createdAt());
+  }
+  @Override public void readAllMessages() {
+    call("POST","users/me/messages/read-all",null);
+    List<Message> items=new ArrayList<>();
+    for(Message item:messagePage.items()) items.add(withRead(item));
+    messagePage=new MessagePage(items,messagePage.total(),messagePage.hasMore());
+    messageUnread=0;
+  }
+  private Notice notice(JSONObject j) {
+    return new Notice(text(j,"id"),text(j,"title"),text(j,"body"),time(j,"publishedAt"));
+  }
+  private Message message(JSONObject j) {
+    return new Message(text(j,"id"),text(j,"title"),text(j,"body"),text(j,"category"),
+        text(j,"refType"),text(j,"refId"),j.optBoolean("isRead"),time(j,"createdAt"));
+  }
   @Override public void deleteReview(String id) { call("DELETE","users/me/reviews/"+id,null); }
   @Override public void moderate(String id,String action,String reason) { moderate(id,action,reason,null); }
   @Override public void moderate(String id,String action,String reason,BigDecimal price) {
@@ -548,18 +665,52 @@ public final class RemoteRepository implements FoodtimeRepository {
     } catch(IOException e) { throw unavailable(); }
   }
   @Override public byte[] loadImage(String reference) {
+    return loadImageResource(reference).bytes();
+  }
+  @Override public ImageResource loadImageResource(String reference) {
+    String identity=imageIdentity();long epoch=imageEpoch.get();
     URI uri=origin.resolve(reference);
     boolean sameOrigin=origin.getScheme().equals(uri.getScheme())&&origin.getAuthority().equals(uri.getAuthority());
     if(!sameOrigin&&!"https".equals(uri.getScheme())) throw new IllegalArgumentException("图片地址不合法");
+    if(uri.getUserInfo()!=null||uri.getFragment()!=null)throw new IllegalArgumentException("图片地址不合法");
+    String publicKey="p-"+ImageDiskCache.hash(uri.toString()),privateKey="s-"+ImageDiskCache.hash(identity+":"+uri);
+    ImageDiskCache.Entry cached=imageCache==null?null:imageCache.get(publicKey);
+    if(cached!=null&&cached.freshUntil()>System.currentTimeMillis())return new ImageResource(cached.bytes(),true,cached.freshUntil(),cached.etag());
+    if(cached==null&&imageCache!=null)cached=imageCache.get(privateKey);
     try {
       // Legacy external HTTPS images receive no application cookies or authentication headers.
       HttpTransport loader=sameOrigin?http:new HttpTransport(uri.getScheme()+"://"+uri.getAuthority()+"/",
           new java.net.CookieManager(null,java.net.CookiePolicy.ACCEPT_NONE));
-      var response=loader.bytes(uri.toString());
-      if(response.status()!=200) throw new RepositoryException(response.status(),"IMAGE_UNAVAILABLE","图片暂不可用",0);
-      return response.body();
+      var response=loader.bytes(uri.toString(),cached==null||cached.etag().isBlank()?Map.of():Map.of("If-None-Match",cached.etag()));
+      if(epoch!=imageEpoch.get()||!identity.equals(imageIdentity())||Thread.currentThread().isInterrupted())throw unavailable();
+      String policy=header(response,"Cache-Control").toLowerCase(Locale.ROOT),type=header(response,"Content-Type"),etag=header(response,"ETag");
+      if(response.status()!=200&&response.status()!=304) {
+        if(imageCache!=null){imageCache.remove(publicKey);imageCache.remove(privateKey);}
+        if(response.status()==401)clear();
+        throw new RepositoryException(response.status(),"IMAGE_UNAVAILABLE","图片暂不可用",0);
+      }
+      byte[] bytes=response.status()==304&&cached!=null?cached.bytes():response.body();
+      if(response.status()==304&&cached==null)throw unavailable();
+      if(type.isBlank()&&cached!=null)type=cached.contentType();
+      if(!type.toLowerCase(Locale.ROOT).startsWith("image/")||bytes.length==0)throw unavailable();
+      if(etag.isBlank()&&cached!=null)etag=cached.etag();
+      boolean reusable=!policy.contains("no-store")&&(policy.contains("private")||policy.contains("public"));
+      long until=0;
+      if(reusable&&policy.contains("public")&&!policy.contains("no-cache")) {
+        var match=java.util.regex.Pattern.compile("(?:^|[,\\s])max-age=(\\d+)").matcher(policy);
+        if(match.find())try {long age=Long.parseLong(header(response,"Age").isBlank()?"0":header(response,"Age"));until=System.currentTimeMillis()+Math.max(0,Math.min(31536000L,Long.parseLong(match.group(1)))-age)*1000;}catch(NumberFormatException ignored){}
+      }
+      synchronized(imageEpoch) {
+        if(epoch!=imageEpoch.get()||!identity.equals(imageIdentity())||Thread.currentThread().isInterrupted())throw unavailable();
+        if(imageCache!=null) {
+          imageCache.remove(publicKey);imageCache.remove(privateKey);
+          if(reusable)imageCache.put(until>0?publicKey:privateKey,new ImageDiskCache.Entry(bytes,etag,type,until));
+        }
+      }
+      return new ImageResource(bytes,reusable,until,etag.isBlank()?ImageDiskCache.contentHash(bytes):etag);
     } catch(IOException e) { throw unavailable(); }
   }
+  private static String header(HttpTransport.BinaryResponse response,String name) {var values=response.headers().get(name);return values==null||values.isEmpty()?"":values.get(0);}
   private JSONObject call(String method,String path,JSONObject body) {
     try { return interpret(http.request(method,path,body==null?null:body.toString(),method.equals("GET")?null:token())); }
     catch(IOException e) { throw unavailable(); }
@@ -621,10 +772,13 @@ public final class RemoteRepository implements FoodtimeRepository {
   private RepositoryException missing(String message) { return new RepositoryException(404,"NOT_FOUND",message,0); }
   private RepositoryException unavailable() { return new RepositoryException(0,"NETWORK_UNAVAILABLE","连接失败，请检查服务后重试",0); }
   private void clear() {
+    synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(true);}
     user=null;csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
     communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();communityAudit=CommunityAuditPage.empty();communityAuditDetail=null;communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
     dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();
     ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();
+    noticePage=NoticePage.empty();noticeNumber=1;messagePage=MessagePage.empty();messageNumber=1;
+    noticeUnread=0;messageUnread=0;lastFeed=NoticeFeed.empty();
   }
 }
