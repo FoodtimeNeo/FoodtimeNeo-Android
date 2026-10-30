@@ -183,6 +183,7 @@ public class MainActivity extends Activity {
     screens.put("admin-edit", AdminScreen::edit);
     screens.put("admin-reviews", AdminScreen::reviews);
     screens.put("admin-users", AdminScreen::users);
+    screens.put("admin-dashboard", AdminDashboardScreen::show);
     screens.put("admin-logs", AdminScreen::logs);
   }
 
@@ -357,6 +358,7 @@ public class MainActivity extends Activity {
       case "admin-edit" -> ContentRequest.Query.CATALOG_ITEM;
       case "admin-reviews" -> ContentRequest.Query.ADMIN_REVIEWS;
       case "admin-users" -> ContentRequest.Query.ADMIN_USERS;
+      case "admin-dashboard" -> ContentRequest.Query.ADMIN_DASHBOARD;
       case "admin-logs" -> ContentRequest.Query.AUDITS;
       default -> ContentRequest.Query.PROFILE;
     };
