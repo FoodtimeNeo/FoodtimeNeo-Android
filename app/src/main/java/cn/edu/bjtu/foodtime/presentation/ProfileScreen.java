@@ -11,7 +11,7 @@ final class ProfileScreen {
   static void profile(MainActivity a, LinearLayout page, MainActivity.Route route) {
     User user = a.repo.currentUser();
     page.setBackground(new ProfileDoodleDrawable(a));
-    a.heading(page, "03", "我的手账", "把喜欢的味道、写下的点评，都收进这一页。");
+    profileHeader(a,page);
     LinearLayout identity = Ui.col(a);
     identity.setPadding(Ui.dp(a,18),Ui.dp(a,18),Ui.dp(a,18),Ui.dp(a,18));
     identity.setBackground(Ui.shape(a,Design.ALT,0,24));
@@ -36,7 +36,7 @@ final class ProfileScreen {
     tabs.setBackground(Ui.shape(a,Design.KRAFT_SOFT,0,24));
     LinearLayout panel=Ui.col(a);panel.setPadding(Ui.dp(a,18),Ui.dp(a,20),Ui.dp(a,18),Ui.dp(a,20));
     panel.setBackground(Ui.shape(a,Design.PAPER,Design.BORDER,22));
-    String[] labels={"评论","提交","账号","退出"};TextView[] tabViews=new TextView[labels.length];int[] selected={0};
+    String[] labels={"评论","社区","提交","账号","退出"};TextView[] tabViews=new TextView[labels.length];int[] selected={0};
     Runnable[] refresh=new Runnable[1];
     refresh[0]=() -> {
       for(int i=0;i<tabViews.length;i++) {
@@ -57,24 +57,46 @@ final class ProfileScreen {
     doodles.addView(Ui.foodDoodle(a,8,0x55c9341e),new LinearLayout.LayoutParams(Ui.dp(a,74),Ui.dp(a,58)));page.addView(doodles);
   }
 
+  private static void profileHeader(MainActivity a,LinearLayout page) {
+    LinearLayout header=Ui.row(a);header.setGravity(Gravity.TOP);
+    LinearLayout copy=Ui.col(a);copy.addView(Ui.title(a,"我的手账",30));Ui.gap(copy,8);
+    copy.addView(Ui.note(a,"把喜欢的味道、写下的点评，都收进这一页。"));
+    header.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
+    long unread=a.repo.unreadCount();
+    FrameLayout inbox=new FrameLayout(a);inbox.setClickable(true);inbox.setFocusable(true);
+    inbox.setClipChildren(false);inbox.setClipToPadding(false);
+    inbox.setBackground(Ui.ripple(a,Design.ALT,0,24));
+    inbox.setContentDescription(unread>0?"通知信箱，"+unread+"条未读":"通知信箱");
+    TextView bell=Ui.text(a,"🔔",23,Design.INK);bell.setGravity(Gravity.CENTER);
+    inbox.addView(bell,new FrameLayout.LayoutParams(-1,-1));
+    if(unread>0) {
+      TextView badge=Ui.text(a,unread>99?"99+":String.valueOf(unread),10,Design.ON_RED);badge.setGravity(Gravity.CENTER);badge.setTypeface(Design.body(),android.graphics.Typeface.BOLD);
+      badge.setBackground(Ui.shape(a,Design.RED,0,999));badge.setMinWidth(Ui.dp(a,20));badge.setMinHeight(Ui.dp(a,20));
+      FrameLayout.LayoutParams badgeLp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.END);badgeLp.topMargin=-Ui.dp(a,3);badgeLp.rightMargin=-Ui.dp(a,3);inbox.addView(badge,badgeLp);
+    }
+    inbox.setOnClickListener(v->a.go("inbox",""));
+    LinearLayout.LayoutParams inboxLp=new LinearLayout.LayoutParams(Ui.dp(a,48),Ui.dp(a,48));inboxLp.leftMargin=Ui.dp(a,12);header.addView(inbox,inboxLp);
+    page.addView(header,new LinearLayout.LayoutParams(-1,-2));Ui.gap(page,24);
+  }
+
   private static void renderPanel(MainActivity a,LinearLayout panel,User user,int selected) {
     panel.removeAllViews();String title;String action;
-    if(selected==0) {title="我写下的味道";action="查看我的评论";}
-    else if(selected==1) {title="我的投稿";action="查看审核记录";}
-    else if(selected==2) {title="账号管理";action="编辑头像与名称";}
+    if(selected==0) {title="评论与回复";action="查看我的评论";}
+    else if(selected==1) {title="我的社区";action="我的食记";}
+    else if(selected==2) {title="我的投稿";action="查看审核记录";}
+    else if(selected==3) {title="账号管理";action="编辑头像与名称";}
     else {title="退出账号";action="退出登录";}
     panel.addView(Ui.title(a,title,22));Ui.gap(panel,16);
     if(selected==0) {
       roundedAction(a,panel,action,false,() -> a.go("mine-reviews",""));Ui.gap(panel,10);
       roundedAction(a,panel,"查看我的回复",false,() -> a.go("mine-review-replies","1"));
-      roundedAction(a,panel,"我的社区食记",false,()->a.go("community-mine",""));
-      roundedAction(a,panel,"我的社区收藏",false,()->a.go("community-favorites",""));
-      Ui.gap(panel,10);
-      long inboxUnread=a.repo.unreadCount();
-      roundedAction(a,panel,inboxUnread>0?"通知信箱 · "+inboxUnread+"条未读":"通知信箱",false,()->a.go("inbox",""));
     }
-    else if(selected==1) roundedAction(a,panel,action,false,() -> a.go("mine-submissions",""));
-    else if(selected==2) {
+    else if(selected==1) {
+      roundedAction(a,panel,action,false,()->a.go("community-mine",""));Ui.gap(panel,10);
+      roundedAction(a,panel,"我的收藏",false,()->a.go("community-favorites",""));
+    }
+    else if(selected==2) roundedAction(a,panel,action,false,() -> a.go("mine-submissions",""));
+    else if(selected==3) {
       roundedAction(a,panel,action,false,() -> a.go("profile-edit",""));Ui.gap(panel,10);
       roundedAction(a,panel,"修改密码",false,() -> a.go("password",""));
       Ui.gap(panel,10);
