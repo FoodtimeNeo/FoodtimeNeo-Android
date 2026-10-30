@@ -301,9 +301,8 @@ public class MainActivity extends Activity {
     if(retain) {body=Ui.col(this);refreshBanner=body;content.addView(body,0);TextView refresh=Ui.text(this,"更新中",12,Design.MUTED);body.addView(refresh);}
     else {
       contentReady=false;shell(true);buildHeader();
-      body=catalog?LoadingScreen.begin(this,content,target):content;
-      if(!catalog)body.addView(Ui.text(this,"加载中…",16,Design.MUTED));
-      else navigationHandler.postDelayed(()->{if(ticket==generation&&epoch==navigationEpoch&&navigationLoading)LoadingScreen.skeleton(this,body,target.kind().equals("dishes"));},180);
+      body=catalog?LoadingScreen.begin(this,content,target):LoadingScreen.general(this,content,target);
+      if(catalog)navigationHandler.postDelayed(()->{if(ticket==generation&&epoch==navigationEpoch&&navigationLoading)LoadingScreen.skeleton(this,body,target.kind().equals("dishes"));},180);
     }
     navigationHandler.postDelayed(()->{
       if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
@@ -314,7 +313,7 @@ public class MainActivity extends Activity {
       cancelNavigation();contentReady=retain;pageFailed=true;
       if(retain){refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body);}
       else if(catalog)LoadingScreen.failure(this,body);
-      else {content.removeAllViews();Ui.empty(content,"加载失败","");Ui.action(content,"重试",true,this::render);}
+      else LoadingScreen.failure(this,body);
     },15000);
     navigationRead=new java.util.concurrent.FutureTask<>(() -> {
       RuntimeException error=null;try {repo.refresh(query);}catch(RuntimeException e){error=e;}
@@ -325,7 +324,7 @@ public class MainActivity extends Activity {
         if(repo.currentUser()==null) {clearNavigation();showAuth(false);message("请重新登录");return;}
         if(!actor.equals(actor())){Ui.clearImages();displayedActor="";}
         if(tab.equals("admin")&&!repo.currentUser().isAdmin()) {tab="dining";render();return;}
-        if(failure!=null) {contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body);}else if(retain){content.removeAllViews();LoadingScreen.failure(this,LoadingScreen.begin(this,content,target));}else if(catalog)LoadingScreen.failure(this,body);else {content.removeAllViews();Ui.empty(content,"加载失败",safeMessage(failure));Ui.action(content,"重试",true,this::render);}return;}
+        if(failure!=null) {contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body);}else if(retain){content.removeAllViews();LoadingScreen.failure(this,LoadingScreen.begin(this,content,target));}else LoadingScreen.failure(this,body);return;}
         renderContent();
         if(catalog&&!retain&&android.animation.ValueAnimator.areAnimatorsEnabled()){content.setAlpha(.5f);content.animate().alpha(1).setDuration(150).start();}
       });
