@@ -210,10 +210,9 @@ public final class RemoteRepository implements FoodtimeRepository {
   private void fetchDishes(String id) {
     var items=list("stalls/"+id+"/dishes",j -> new Dish(text(j,"id"),id,text(j,"name"),decimal(j,"price"),"",true));
     dishes.entrySet().removeIf(e -> e.getValue().stallId().equals(id));
-    for(Dish d:items) {
-      dishes.put(d.id(),d);
-      fetchDishImages(d.id());
-    }
+    // The stall page only needs the catalog rows. Loading every dish gallery here turns one
+    // navigation into an N+1 request burst, so media stays lazy until DISH_DETAIL is opened.
+    for(Dish d:items) dishes.put(d.id(),d);
     dishLists.put(id,items);
   }
   private void fetchDetail(String id) {
