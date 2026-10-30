@@ -57,6 +57,13 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
     throw new UnsupportedOperationException("此数据源不支持收藏");
   }
   /** Announcement inbox, newest first. Refreshed by ContentRequest NOTICES on a worker. */
+  record AdminNotice(String id,String title,String content) {}
+  record AdminNoticePage(List<AdminNotice> items,long total) {}
+  default AdminNoticePage adminNotices(int page,String query) { throw new UnsupportedOperationException(); }
+  default AdminNotice adminNotice(String id) { throw new UnsupportedOperationException(); }
+  default String noticeSetting() { throw new UnsupportedOperationException(); }
+  default void setNoticeSetting(String id) { throw new UnsupportedOperationException(); }
+  default AdminNotice saveNotice(String id,String content) { throw new UnsupportedOperationException(); }
   default NoticePage notices() { return NoticePage.empty(); }
   default void loadMoreNotices() { throw new UnsupportedOperationException(); }
   /** Personal system messages, newest first. Refreshed by ContentRequest MESSAGES on a worker. */

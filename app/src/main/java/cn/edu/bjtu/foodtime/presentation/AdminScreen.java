@@ -21,7 +21,7 @@ final class AdminScreen {
     Ui.action(card,"食堂 · 档口 · 菜品",false,() -> a.go("admin-data","halls~"));Ui.gap(card,12);
     Ui.action(card,"评论管理",false,() -> a.go("admin-reviews",""));Ui.gap(card,12);
     Ui.action(card,"审核日志",false,() -> a.go("admin-logs",""));
-    if(a.repo.currentUser().role().equals("superadmin")) {Ui.gap(card,12);Ui.action(card,"用户管理",false,() -> a.go("admin-users",""));}
+    if(a.repo.currentUser().role().equals("superadmin")) {Ui.gap(card,12);Ui.action(card,"公告管理",false,() -> a.go("admin-notices",""));Ui.gap(card,12);Ui.action(card,"用户管理",false,() -> a.go("admin-users",""));}
   }
   static void audit(MainActivity a,LinearLayout page,MainActivity.Route route) {
     guard(a);a.heading(page,"","审核投稿","");
