@@ -105,8 +105,10 @@ public class MainActivity extends Activity {
     worker = ((RepositoryProvider) getApplication()).workExecutor();
     inboxWorker = ((RepositoryProvider) getApplication()).backgroundExecutor();
     registerScreens();
-    for (String key : List.of("dining", "community", "profile", "admin"))
-      stacks.put(key, new ArrayList<>(List.of(new Route(key, ""))));
+    for (String key : List.of("dining", "community", "profile", "admin", "dashboard")) {
+      String root = key.equals("dashboard") ? "admin-dashboard" : key;
+      stacks.put(key, new ArrayList<>(List.of(new Route(root, ""))));
+    }
     if (state != null) {
       pendingOperation=state.getLong("pendingOperation",0);
       authRegistration=state.getBoolean("authRegistration",false);
@@ -202,6 +204,7 @@ public class MainActivity extends Activity {
       return;
     }
     if (tab.equals("admin") && !repo.currentUser().isAdmin()) tab = "dining";
+    if (tab.equals("dashboard") && !repo.currentUser().role().equals("superadmin")) tab = "dining";
     inboxPoll.removeCallbacks(inboxPollTask);if(foreground&&!inboxInFlight)inboxPoll.post(inboxPollTask);
     render();
   }
@@ -325,6 +328,7 @@ public class MainActivity extends Activity {
         if(repo.currentUser()==null) {clearNavigation();showAuth(false);message("请重新登录");return;}
         if(!actor.equals(actor())){Ui.clearImages();displayedActor="";}
         if(tab.equals("admin")&&!repo.currentUser().isAdmin()) {tab="dining";render();return;}
+        if(tab.equals("dashboard")&&!repo.currentUser().role().equals("superadmin")) {tab="dining";render();return;}
         if(failure!=null) {contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body);}else if(retain){content.removeAllViews();LoadingScreen.failure(this,LoadingScreen.begin(this,content,target));}else LoadingScreen.failure(this,body);return;}
         renderContent();
         if(catalog&&!retain&&android.animation.ValueAnimator.areAnimatorsEnabled()){content.setAlpha(.5f);content.animate().alpha(1).setDuration(150).start();}
@@ -374,7 +378,7 @@ public class MainActivity extends Activity {
     try {
       if (stacks.get(tab).size() > 1&&!LoadingScreen.catalog(route())) Ui.decorateSubpage(content, route().kind().hashCode());
       Screen s = screens.get(route().kind());
-      if (s == null) content.addView(Ui.title(this, tab.equals("profile") ? "我的" : tab.equals("admin") ? "管理" : tab.equals("community") ? "社区" : "食堂", 30));
+      if (s == null) content.addView(Ui.title(this, tab.equals("profile") ? "我的" : tab.equals("dashboard") ? "数据" : tab.equals("admin") ? "管理" : tab.equals("community") ? "社区" : "食堂", 30));
       else s.show(this, content, route());
     } catch (RuntimeException e) {
       contentReady=false;Ui.empty(content, "页面加载失败", e.getMessage() == null ? "请重试" : e.getMessage());
@@ -451,6 +455,7 @@ public class MainActivity extends Activity {
       addTab(nav, "食堂", "dining");
       addTab(nav, "社区", "community");
       if (repo.currentUser().isAdmin()) addTab(nav, "管理", "admin");
+      if (repo.currentUser().role().equals("superadmin")) addTab(nav, "数据", "dashboard");
       addTab(nav, "我的", "profile");
       root.addView(nav, new LinearLayout.LayoutParams(-1, -2));
     }
@@ -673,7 +678,7 @@ public class MainActivity extends Activity {
     scrollPositions.clear();
     for (String key : stacks.keySet()) {
       stacks.get(key).clear();
-      stacks.get(key).add(new Route(key, ""));
+      stacks.get(key).add(new Route(key.equals("dashboard") ? "admin-dashboard" : key, ""));
     }
     tab = "dining";
     displayedLocation="";
