@@ -53,14 +53,13 @@ final class AdminDashboardScreen {
 
   private static void trend(MainActivity a,LinearLayout page,AdminDashboard data) {
     LinearLayout section=Ui.col(a);section.setPadding(Ui.dp(a,18),Ui.dp(a,18),Ui.dp(a,18),Ui.dp(a,16));section.setBackground(Ui.shape(a,Design.PAPER,Design.BORDER,24));
-    LinearLayout heading=Ui.row(a);heading.addView(Ui.title(a,"近 7 日趋势",22),new LinearLayout.LayoutParams(0,-2,1));
-    heading.addView(Ui.stamp(a,data.preview()?"预览":"实时",data.preview()?Design.BLUE:Design.GREEN));section.addView(heading);Ui.gap(section,14);
+    section.addView(Ui.title(a,"近 7 日趋势",22));Ui.gap(section,14);
     TrendChart chart=new TrendChart(a,data.trend());
     LinearLayout tabs=Ui.row(a);tabs.setPadding(Ui.dp(a,3),Ui.dp(a,3),Ui.dp(a,3),Ui.dp(a,3));tabs.setBackground(Ui.shape(a,Design.KRAFT_SOFT,0,20));
     String[] labels={"新增用户","评论互动","社区食记"};TextView[] buttons=new TextView[3];int[] chosen={0};
     Runnable refresh=()->{for(int i=0;i<3;i++){boolean active=i==chosen[0];buttons[i].setTextColor(active?Design.ON_RED:Design.INK);buttons[i].setBackground(Ui.ripple(a,active?Design.RED:Color.TRANSPARENT,0,18));}chart.setMetric(chosen[0]);};
     for(int i=0;i<3;i++){int index=i;TextView button=Ui.text(a,labels[i],13,Design.INK);button.setGravity(Gravity.CENTER);button.setMinHeight(Ui.dp(a,40));button.setClickable(true);button.setFocusable(true);button.setOnClickListener(v->{chosen[0]=index;refresh.run();});buttons[i]=button;tabs.addView(button,new LinearLayout.LayoutParams(0,-2,1));}
-    section.addView(tabs);Ui.gap(section,14);section.addView(chart,new LinearLayout.LayoutParams(-1,Ui.dp(a,210)));refresh.run();page.addView(section);
+    section.addView(tabs);Ui.gap(section,14);section.addView(chart,new LinearLayout.LayoutParams(-1,Ui.dp(a,230)));refresh.run();page.addView(section);
   }
 
   private static void activityTable(MainActivity a,LinearLayout page,AdminDashboard data) {
@@ -70,7 +69,6 @@ final class AdminDashboardScreen {
     table.addView(row(a,"内容","今日新增","累计",true));divider(a,table);
     table.addView(row(a,"注册用户",format(today.newUsers()),format(data.registeredUsers()),false));divider(a,table);
     table.addView(row(a,"评论",format(today.newReviews()),format(data.reviews()),false));divider(a,table);
-    table.addView(row(a,"回复",format(today.newReplies()),format(data.replies()),false));divider(a,table);
     table.addView(row(a,"社区食记",format(today.newPosts()),format(data.posts()),false));
     page.addView(table);
   }
@@ -91,15 +89,22 @@ final class AdminDashboardScreen {
     TrendChart(MainActivity a,List<DashboardPoint> points){super(a);this.points=points;paint.setTypeface(Design.body());setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);}
     void setMetric(int value){metric=value;setContentDescription(new String[]{"近七日新增用户趋势","近七日评论与回复趋势","近七日社区食记趋势"}[value]);invalidate();}
     long value(DashboardPoint point){return metric==0?point.newUsers():metric==1?point.newReviews()+point.newReplies():point.newPosts();}
-    @Override protected void onDraw(Canvas canvas){super.onDraw(canvas);if(points.isEmpty())return;float left=Ui.dp(getContext(),8),right=getWidth()-Ui.dp(getContext(),8),top=Ui.dp(getContext(),18),bottom=getHeight()-Ui.dp(getContext(),28);
-      paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(Ui.dp(getContext(),1));paint.setColor(0x33d5ccbc);for(int i=0;i<4;i++){float y=top+(bottom-top)*i/3f;canvas.drawLine(left,y,right,y,paint);}
-      long max=1;for(DashboardPoint point:points)max=Math.max(max,value(point));Path path=new Path();
-      for(int i=0;i<points.size();i++){float x=left+(right-left)*i/Math.max(1,points.size()-1);float y=bottom-(bottom-top)*value(points.get(i))/max;if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}
+    @Override protected void onDraw(Canvas canvas){super.onDraw(canvas);if(points.isEmpty())return;
+      float left=Ui.dp(getContext(),42),right=getWidth()-Ui.dp(getContext(),8),top=Ui.dp(getContext(),20),bottom=getHeight()-Ui.dp(getContext(),38);
+      long observed=1;for(DashboardPoint point:points)observed=Math.max(observed,value(point));long maximum=axisMaximum(observed);
+      paint.setTypeface(Design.body());paint.setTextSize(Ui.dp(getContext(),10));paint.setTextAlign(Paint.Align.RIGHT);
+      for(int i=0;i<=4;i++){float y=bottom-(bottom-top)*i/4f;long tick=maximum*i/4;
+        paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(Ui.dp(getContext(),1));paint.setColor(i==0?Design.BORDER:0x33d5ccbc);canvas.drawLine(left,y,right,y,paint);
+        paint.setStyle(Paint.Style.FILL);paint.setColor(Design.MUTED);canvas.drawText(format(tick),left-Ui.dp(getContext(),7),y+Ui.dp(getContext(),3.5f),paint);
+      }
+      paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(Ui.dp(getContext(),1.4f));paint.setColor(Design.BORDER);canvas.drawLine(left,top,left,bottom,paint);canvas.drawLine(left,bottom,right,bottom,paint);
+      Path path=new Path();
+      for(int i=0;i<points.size();i++){float x=left+(right-left)*i/Math.max(1,points.size()-1);float y=bottom-(bottom-top)*value(points.get(i))/maximum;if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}
       paint.setColor(metric==0?Design.RED:metric==1?Design.BLUE:Design.GREEN);paint.setStrokeWidth(Ui.dp(getContext(),3));paint.setStrokeCap(Paint.Cap.ROUND);canvas.drawPath(path,paint);
-      paint.setStyle(Paint.Style.FILL);for(int i=0;i<points.size();i++){float x=left+(right-left)*i/Math.max(1,points.size()-1);float y=bottom-(bottom-top)*value(points.get(i))/max;canvas.drawCircle(x,y,Ui.dp(getContext(),4),paint);}
-      paint.setColor(Design.MUTED);paint.setTextSize(Ui.dp(getContext(),11));paint.setTextAlign(Paint.Align.CENTER);for(int i=0;i<points.size();i+=Math.max(1,points.size()-1)){float x=left+(right-left)*i/Math.max(1,points.size()-1);canvas.drawText(day.format(new Date(points.get(i).day())),x,getHeight()-Ui.dp(getContext(),7),paint);}
-      paint.setTextAlign(Paint.Align.RIGHT);canvas.drawText(format(max),right,top-Ui.dp(getContext(),5),paint);
+      paint.setStyle(Paint.Style.FILL);for(int i=0;i<points.size();i++){float x=left+(right-left)*i/Math.max(1,points.size()-1);float y=bottom-(bottom-top)*value(points.get(i))/maximum;canvas.drawCircle(x,y,Ui.dp(getContext(),4),paint);}
+      paint.setColor(Design.MUTED);paint.setTextSize(Ui.dp(getContext(),9));paint.setTextAlign(Paint.Align.CENTER);for(int i=0;i<points.size();i++){float x=left+(right-left)*i/Math.max(1,points.size()-1);canvas.drawText(day.format(new Date(points.get(i).day())),x,bottom+Ui.dp(getContext(),19),paint);}
     }
+    private long axisMaximum(long value){long raw=Math.max(1,(value+3)/4),magnitude=1;while(raw/magnitude>=10)magnitude*=10;long unit=(raw+magnitude-1)/magnitude;long nice=unit<=1?1:unit<=2?2:unit<=3?3:unit<=5?5:10;return Math.max(4,nice*magnitude*4);}
   }
 
   private static final class DashboardBackdrop extends android.graphics.drawable.Drawable {
