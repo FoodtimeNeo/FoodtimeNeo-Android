@@ -10,6 +10,7 @@
 | 分层、导航、草稿与图片 | [架构](architecture.md) |
 | 附件需求与后续确认的适用范围 | [功能范围](implementation-plan.md) |
 | 实际方法、路径及业务状态 | [接口映射](backend-integration.md) |
+| Superadmin 数据看板前后端约定 | [数据看板接口](admin-dashboard-contract.md) |
 | 会话加密、来源绑定与网络边界 | [真实数据源](remote-repository.md) |
 | 已执行检查、环境与限制 | [验收记录](verification.md) |
 | 功能分支和main发布规则 | [协作规范](../CONTRIBUTING.md) |

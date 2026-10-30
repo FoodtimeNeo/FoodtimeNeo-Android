@@ -177,6 +177,7 @@ public final class RemoteRepository implements FoodtimeRepository {
       }
       case ADMIN_REVIEWS -> reviews.put("admin",reviewPage("admin/reviews"));
       case ADMIN_USERS -> userList=page("admin/users",this::person);
+      case ADMIN_DASHBOARD -> { /* Frontend contract ready; Backend endpoint will populate this projection. */ }
       case AUDITS -> auditList=page("admin/moderation/logs",j -> new Audit(text(j,"id"),text(j,"submissionId"),text(j,"moderatorId"),text(j,"action"),text(j,"reason"),time(j,"createdAt")));
       case NOTICE_FEED -> {
         NoticeFeed polled=getNoticeFeed(0,20); lastFeed=polled; noticeUnread=polled.unreadCount();
