@@ -67,6 +67,9 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   /** Incremental announcement feed for background polling; does not reset page caches. */
   default NoticeFeed noticeFeed(long sinceSeq, int limit) { return NoticeFeed.empty(); }
   default void markNoticeRead(String id) {}
+  /** Login-only check. Null means no configured announcement or this user opted out. */
+  default Notice currentNotice() { return null; }
+  default void confirmNotice(String id, boolean dontShowAgain) {}
   default void readMessage(String id) {}
   default void readAllMessages() {}
   void submitPhoto(String dishId, String imageUrl);

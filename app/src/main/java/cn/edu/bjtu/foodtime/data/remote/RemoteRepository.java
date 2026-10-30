@@ -184,7 +184,7 @@ public final class RemoteRepository implements FoodtimeRepository {
       case NOTICES -> {
         // The inbox screen shows both tabs, so one refresh warms notices, messages and the badge.
         loadNoticePage(1); loadMessagePage(1);
-        noticeUnread=getNoticeFeed(0,1).unreadCount(); messageUnread=getUnreadCount();
+        noticeUnread=call("GET","users/me/notices/unread-count",null).optLong("unreadCount"); messageUnread=getUnreadCount();
       }
       case MESSAGES -> { loadMessagePage(1); messageUnread=getUnreadCount(); }
       case PROFILE -> { }
@@ -563,7 +563,18 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   @Override public void markNoticeRead(String id) {
     call("POST","users/me/notices/"+id+"/read",null);
-    if(noticeUnread>0) noticeUnread--;
+    noticeUnread=call("GET","users/me/notices/unread-count",null).optLong("unreadCount");
+  }
+  @Override public Notice currentNotice() {
+    JSONObject data=call("GET","users/me/notices/current",null);
+    if(data.length()==0||data.optBoolean("dontShowAgain"))return null;
+    if(text(data,"id").isEmpty()||!data.has("content"))throw new RepositoryException(502,"INVALID_RESPONSE","公告响应异常",0);
+    return new Notice(text(data,"id"),text(data,"content"),time(data,"createdTime"));
+  }
+  @Override public void confirmNotice(String id,boolean dontShowAgain) {
+    call("POST","users/me/notices/"+id+"/confirm",json("dontShowAgain",dontShowAgain));
+    // Counts are refreshed independently; a failed badge read must not fail a saved confirmation.
+    try {noticeUnread=call("GET","users/me/notices/unread-count",null).optLong("unreadCount");}catch(RepositoryException ignored){}
   }
   @Override public MessagePage messages() { return messagePage; }
   @Override public void loadMoreMessages() { if(messagePage.hasMore()) loadMessagePage(messageNumber+1); }
@@ -620,7 +631,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     messageUnread=0;
   }
   private Notice notice(JSONObject j) {
-    return new Notice(text(j,"id"),text(j,"title"),text(j,"body"),time(j,"publishedAt"));
+    return new Notice(text(j,"id"),text(j,"content"),time(j,"publishedAt"));
   }
   private Message message(JSONObject j) {
     return new Message(text(j,"id"),text(j,"title"),text(j,"body"),text(j,"category"),
