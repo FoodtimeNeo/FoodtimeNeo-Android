@@ -11,7 +11,7 @@ final class LoginNoticeController {
   private final Handler main = new Handler(Looper.getMainLooper());
   private String actor="";
   private int epoch;
-  private boolean checked;
+  private boolean checked, checking;
   private Object owner;
   private Runnable observer;
   Notice pending;
@@ -22,7 +22,7 @@ final class LoginNoticeController {
   void detach(Object owner) { if(this.owner==owner){this.owner=null;observer=null;} }
   private void changed() { if(observer!=null)observer.run(); }
   void reset() {
-    epoch++;actor="";checked=false;pending=null;saving=false;dontShowAgain=false;error="";checkError="";
+    epoch++;actor="";checked=false;checking=false;pending=null;saving=false;dontShowAgain=false;error="";checkError="";
     changed();
   }
   void check(FoodtimeRepository repo, Executor executor) {
@@ -30,18 +30,21 @@ final class LoginNoticeController {
     String user=repo.currentUser().id();
     if(!actor.equals(user)){reset();actor=user;}
     if(checked)return;
-    checked=true;int ticket=epoch;
+    checked=true;checking=true;int ticket=epoch;
     executor.execute(()->{
       Notice notice=null;RuntimeException failure=null;
       try { notice=repo.currentNotice(); } catch(RuntimeException e) { failure=e; }
       Notice result=notice;RuntimeException problem=failure;
       main.post(()->{
         if(ticket!=epoch||repo.currentUser()==null||!user.equals(repo.currentUser().id()))return;
-        pending=result;checkError=problem==null?"":"公告暂时无法加载，可在通知信箱重试";changed();
+        checking=false;pending=result;checkError=problem==null?"":"公告暂时无法加载，可在通知信箱重试";changed();
       });
     });
   }
-  void retry(FoodtimeRepository repo,Executor executor){checked=false;checkError="";check(repo,executor);}
+  void retry(FoodtimeRepository repo,Executor executor){
+    if(checking)return;
+    epoch++;checked=false;checkError="";check(repo,executor);
+  }
   void close(){if(!saving){pending=null;error="";dontShowAgain=false;changed();}}
   void confirm(FoodtimeRepository repo,Executor executor) {
     if(saving||pending==null)return;
