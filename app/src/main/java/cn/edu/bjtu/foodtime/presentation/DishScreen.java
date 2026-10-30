@@ -27,24 +27,15 @@ final class DishScreen {
     grid.addView(left,ll);grid.addView(right,rl);
     float[] height={0,0};
     for(int i=0;i<dishes.size();i++) {
-      int column=height[0]<=height[1]?0:1;float ratio=.56f+(i%4)*.08f;
-      dishCard(a,column==0?left:right,dishes.get(i),i,ratio);height[column]+=ratio+.58f;
+      Dish dish=dishes.get(i);int column=height[0]<=height[1]?0:1;
+      dishCard(a,column==0?left:right,dish);height[column]+=1f+Math.min(2,dish.name().length()/8)*.18f;
     }
     page.addView(grid,new LinearLayout.LayoutParams(-1,-2));
   }
 
-  private static void dishCard(MainActivity a,LinearLayout column,Dish dish,int index,float ratio) {
+  private static void dishCard(MainActivity a,LinearLayout column,Dish dish) {
     LinearLayout card=Ui.col(a);card.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,20));
     card.setClipToOutline(true);card.setElevation(Ui.dp(a,2));
-    List<Photo> photos=a.repo.photos(dish.id());
-    if(!photos.isEmpty()) card.addView(Ui.ratioImage(a,Ui.thumb(photos.get(0).imageUrl()),dish.name(),ratio));
-    else {
-      FrameLayout art=new FrameLayout(a);art.setBackgroundColor(Design.ALT);
-      TextView missing=Ui.note(a,"❎");missing.setTextSize(38);missing.setGravity(Gravity.CENTER);
-      missing.setContentDescription("暂无菜品图片");
-      art.addView(missing,new FrameLayout.LayoutParams(-1,-1));
-      card.addView(art,new LinearLayout.LayoutParams(-1,Ui.dp(a,96)));
-    }
     LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,12),Ui.dp(a,11),Ui.dp(a,12),Ui.dp(a,13));
     TextView name=Ui.title(a,dish.name(),18);name.setMaxLines(2);body.addView(name);Ui.gap(body,7);
     LinearLayout meta=Ui.row(a);TextView price=Ui.title(a,"¥"+dish.price().stripTrailingZeros().toPlainString(),17);
@@ -63,13 +54,7 @@ final class DishScreen {
     a.heading(page, "01.3", d.name(), h.name() + " · " + s.name());
     LinearLayout hero = Ui.card(page);
     hero.setPadding(0, 0, 0, Ui.dp(a, 4));
-    FrameLayout photo =
-        (FrameLayout)
-            Ui.image(
-                a,
-                a.repo.photos(d.id()).isEmpty() ? "" : a.repo.photos(d.id()).get(0).imageUrl(),
-                "暂未上传菜品图片",
-                true);
+    FrameLayout photo = detailPhoto(a,d);
     hero.addView(photo);
     TextView upload = Ui.button(a, "+", false, () -> a.go("upload-photo", d.id()));
     upload.setTextSize(24);
@@ -120,6 +105,21 @@ final class DishScreen {
     page.addView(Ui.title(a, "评论", 25));
     Ui.gap(page, 12);
     new DishReviewSection(a,page,d.id(),paintRating);
+  }
+
+  private static FrameLayout detailPhoto(MainActivity a,Dish dish) {
+    List<Photo> photos=a.repo.photos(dish.id());
+    if(!photos.isEmpty()) return (FrameLayout)Ui.image(a,photos.get(0).imageUrl(),dish.name()+"图片",true);
+    FrameLayout art=new FrameLayout(a);art.setBackgroundColor(Design.ALT);
+    art.setContentDescription("暂无菜品图片，敬请期待");
+    View doodle=Ui.foodDoodle(a,5,0x99c9341e);
+    FrameLayout.LayoutParams doodleLayout=new FrameLayout.LayoutParams(Ui.dp(a,132),Ui.dp(a,88),Gravity.CENTER);
+    doodleLayout.bottomMargin=Ui.dp(a,22);art.addView(doodle,doodleLayout);
+    TextView coming=Ui.note(a,"敬请期待");coming.setTextSize(22);coming.setTextColor(Design.RED);coming.setGravity(Gravity.CENTER);
+    FrameLayout.LayoutParams textLayout=new FrameLayout.LayoutParams(-1,Ui.dp(a,52),Gravity.BOTTOM);
+    textLayout.setMargins(Ui.dp(a,16),0,Ui.dp(a,16),Ui.dp(a,12));art.addView(coming,textLayout);
+    art.setLayoutParams(new LinearLayout.LayoutParams(-1,Ui.dp(a,210)));
+    return art;
   }
 
   static void gallery(MainActivity a, LinearLayout page, MainActivity.Route route) {
