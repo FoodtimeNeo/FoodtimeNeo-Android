@@ -42,7 +42,7 @@ final class AdminDashboardScreen {
       for(int column=0;column<2;column++) {
         int index=row*2+column;LinearLayout card=Ui.col(a);
         card.setPadding(Ui.dp(a,16),Ui.dp(a,16),Ui.dp(a,14),Ui.dp(a,17));
-        card.setBackground(Ui.shape(a,Design.ALT,Design.BORDER,22));
+        card.setBackground(Ui.shape(a,Color.WHITE,Design.BORDER,22));
         TextView label=Ui.text(a,labels[index],13,Design.MUTED);card.addView(label);Ui.gap(card,9);
         TextView value=Ui.title(a,format(values[index]),27);value.setTextColor(colors[index]);card.addView(value);
         LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);if(column==0)lp.rightMargin=Ui.dp(a,6);else lp.leftMargin=Ui.dp(a,6);line.addView(card,lp);
@@ -102,7 +102,8 @@ final class AdminDashboardScreen {
       for(int i=0;i<points.size();i++){float x=left+(right-left)*i/Math.max(1,points.size()-1);float y=bottom-(bottom-top)*value(points.get(i))/maximum;if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}
       paint.setColor(metric==0?Design.RED:metric==1?Design.BLUE:Design.GREEN);paint.setStrokeWidth(Ui.dp(getContext(),3));paint.setStrokeCap(Paint.Cap.ROUND);canvas.drawPath(path,paint);
       paint.setStyle(Paint.Style.FILL);for(int i=0;i<points.size();i++){float x=left+(right-left)*i/Math.max(1,points.size()-1);float y=bottom-(bottom-top)*value(points.get(i))/maximum;canvas.drawCircle(x,y,Ui.dp(getContext(),4),paint);}
-      paint.setTextSize(Ui.dp(getContext(),10));paint.setTextAlign(Paint.Align.CENTER);paint.setTypeface(Design.title());for(int i=0;i<points.size();i++){long amount=value(points.get(i));float x=left+(right-left)*i/Math.max(1,points.size()-1);float y=bottom-(bottom-top)*amount/maximum;float labelY=y-Ui.dp(getContext(),9);if(labelY<Ui.dp(getContext(),12))labelY=y+Ui.dp(getContext(),17);canvas.drawText(format(amount),x,labelY,paint);}
+      paint.setTextSize(Ui.dp(getContext(),10));paint.setTextAlign(Paint.Align.CENTER);paint.setTypeface(Design.title());Paint.FontMetrics metrics=paint.getFontMetrics();float inset=Ui.dp(getContext(),4),minBaseline=top+inset-metrics.top,maxBaseline=bottom-inset-metrics.bottom;
+      for(int i=0;i<points.size();i++){long amount=value(points.get(i));String label=format(amount);float x=left+(right-left)*i/Math.max(1,points.size()-1),y=bottom-(bottom-top)*amount/maximum;float labelY=y-Ui.dp(getContext(),9);if(labelY<minBaseline)labelY=y+Ui.dp(getContext(),17);labelY=Math.max(minBaseline,Math.min(maxBaseline,labelY));float half=paint.measureText(label)/2f,labelX=Math.max(left+inset+half,Math.min(right-inset-half,x));canvas.drawText(label,labelX,labelY,paint);}
       paint.setColor(Design.MUTED);paint.setTypeface(Design.body());paint.setTextSize(Ui.dp(getContext(),9));paint.setTextAlign(Paint.Align.CENTER);for(int i=0;i<points.size();i++){float x=left+(right-left)*i/Math.max(1,points.size()-1);canvas.drawText(day.format(new Date(points.get(i).day())),x,bottom+Ui.dp(getContext(),19),paint);}
     }
     private long axisMaximum(long value){long raw=Math.max(1,(value+3)/4),magnitude=1;while(raw/magnitude>=10)magnitude*=10;long unit=(raw+magnitude-1)/magnitude;long nice=unit<=1?1:unit<=2?2:unit<=3?3:unit<=5?5:10;return Math.max(4,nice*magnitude*4);}
