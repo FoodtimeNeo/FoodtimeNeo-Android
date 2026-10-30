@@ -147,7 +147,12 @@ public final class Models {
   }
 
   /** Announcement broadcast to all users; seq is a polling cursor only, never an identity. */
-  public record Notice(String id, String title, String body, long publishedAt) {}
+  public record Notice(String id, String content, long publishedAt) {
+    /** Compatibility for older test fixtures only; production uses content. */
+    public Notice(String id,String title,String body,long publishedAt) {
+      this(id,"# "+title+"\n\n"+body,publishedAt);
+    }
+  }
 
   /** Paged announcements, newest first. */
   public record NoticePage(List<Notice> items, long total, boolean hasMore) {

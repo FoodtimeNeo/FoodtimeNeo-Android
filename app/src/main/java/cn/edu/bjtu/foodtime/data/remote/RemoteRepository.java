@@ -185,7 +185,7 @@ public final class RemoteRepository implements FoodtimeRepository {
       case NOTICES -> {
         // The inbox screen shows both tabs, so one refresh warms notices, messages and the badge.
         loadNoticePage(1); loadMessagePage(1);
-        noticeUnread=getNoticeFeed(0,1).unreadCount(); messageUnread=getUnreadCount();
+        noticeUnread=call("GET","users/me/notices/unread-count",null).optLong("unreadCount"); messageUnread=getUnreadCount();
       }
       case MESSAGES -> { loadMessagePage(1); messageUnread=getUnreadCount(); }
       case PROFILE -> { }
@@ -564,7 +564,18 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   @Override public void markNoticeRead(String id) {
     call("POST","users/me/notices/"+id+"/read",null);
-    if(noticeUnread>0) noticeUnread--;
+    noticeUnread=call("GET","users/me/notices/unread-count",null).optLong("unreadCount");
+  }
+  @Override public Notice currentNotice() {
+    JSONObject data=call("GET","users/me/notices/current",null);
+    if(data.length()==0||data.optBoolean("dontShowAgain"))return null;
+    if(text(data,"id").isEmpty()||!data.has("content"))throw new RepositoryException(502,"INVALID_RESPONSE","公告响应异常",0);
+    return new Notice(text(data,"id"),text(data,"content"),time(data,"createdTime"));
+  }
+  @Override public void confirmNotice(String id,boolean dontShowAgain) {
+    call("POST","users/me/notices/"+id+"/confirm",json("dontShowAgain",dontShowAgain));
+    // Counts are refreshed independently; a failed badge read must not fail a saved confirmation.
+    try {noticeUnread=call("GET","users/me/notices/unread-count",null).optLong("unreadCount");}catch(RepositoryException ignored){}
   }
   @Override public MessagePage messages() { return messagePage; }
   @Override public void loadMoreMessages() { if(messagePage.hasMore()) loadMessagePage(messageNumber+1); }
@@ -620,8 +631,22 @@ public final class RemoteRepository implements FoodtimeRepository {
     messagePage=new MessagePage(items,messagePage.total(),messagePage.hasMore());
     messageUnread=0;
   }
+  private static String encode(String value) { try { return java.net.URLEncoder.encode(value,"UTF-8"); } catch(java.io.UnsupportedEncodingException e) { throw new IllegalStateException(e); } }
+  private AdminNotice adminNoticeRow(JSONObject j) { return new AdminNotice(text(j,"id"),text(j,"title"),text(j,"content")); }
+  @Override public AdminNoticePage adminNotices(int page,String query) {
+    JSONObject result=call("GET","admin/notices/search?page="+page+"&size=6&q="+encode(query),null);
+    JSONArray rows=result.optJSONArray("items");List<AdminNotice> items=new ArrayList<>();
+    if(rows!=null) for(int i=0;i<rows.length();i++) items.add(adminNoticeRow(rows.optJSONObject(i)));
+    return new AdminNoticePage(List.copyOf(items),result.optLong("total"));
+  }
+  @Override public AdminNotice adminNotice(String id) { return adminNoticeRow(call("GET","admin/notices/"+id,null)); }
+  @Override public String noticeSetting() { return text(call("GET","admin/notices/settings",null),"noticeId"); }
+  @Override public void setNoticeSetting(String id) { call("PUT","admin/notices/settings",json("noticeId",id==null||id.isEmpty()?JSONObject.NULL:id)); }
+  @Override public AdminNotice saveNotice(String id,String content) {
+    return adminNoticeRow(call(id==null||id.isEmpty()?"POST":"PUT",id==null||id.isEmpty()?"admin/notices/markdown":"admin/notices/"+id+"/markdown",json("content",content)));
+  }
   private Notice notice(JSONObject j) {
-    return new Notice(text(j,"id"),text(j,"title"),text(j,"body"),time(j,"publishedAt"));
+    return new Notice(text(j,"id"),text(j,"content"),time(j,"publishedAt"));
   }
   private Message message(JSONObject j) {
     return new Message(text(j,"id"),text(j,"title"),text(j,"body"),text(j,"category"),

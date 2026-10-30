@@ -68,10 +68,7 @@ public final class LoadingExperienceRunner extends Instrumentation {
     check(nextActivity instanceof MainActivity,"Rotation/recreation produces an attached Activity");activity=(MainActivity)nextActivity;
     delay.set(0);main(()->{activity.repo=repo;activity.openApp();});ready();
     main(()->{check(activity.route().id().equals(stall.id()),"Recreation restores route stack");check("保留草稿".equals(activity.drafts.getString(retainedDraft)),"Recreation preserves draft bundle");});
-    main(()->{try{Field baseline=MainActivity.class.getDeclaredField("inboxBaseline");baseline.setAccessible(true);baseline.set(activity,true);}catch(Exception e){throw new IllegalStateException(e);}});
-    delay.set(2200);main(()->activity.go("stalls",other.id()));announcements.set(1);
-    main(()->{try{Field task=MainActivity.class.getDeclaredField("inboxPollTask");task.setAccessible(true);((Runnable)task.get(activity)).run();}catch(Exception e){throw new IllegalStateException(e);}});Thread.sleep(400);check(!dialogVisible(),"Announcement waits for target content");ready();
-    long popupDeadline=System.currentTimeMillis()+4000;while(!dialogVisible()&&System.currentTimeMillis()<popupDeadline)Thread.sleep(100);check(dialogVisible(),"Queued announcement appears after load");dismissNotice();
+    check(!dialogVisible(),"Navigation does not start announcement polling");
     for(String[] actor:new String[][]{{"20260001@bjtu.edu.cn","user"},{"20260002@bjtu.edu.cn","admin"},{"20260003@bjtu.edu.cn","superadmin"}}){local.login(actor[0],"Foodtime2026!");delay.set(0);main(()->{activity.signedOut();activity.openApp();});ready();delay.set(350);main(()->activity.go("stalls",hall.id()));ready();main(()->check(activity.repo.currentUser().role().equals(actor[1])&&text(repo.stalls(hall.id()).get(0).name())!=null,"Catalog loads for "+actor[1]));}
     capture("loaded-catalog");report.putString("stream","Loading experience native PASS: "+checks+" checks\n");finish(-1,report);
   }catch(Throwable error){StringWriter stack=new StringWriter();error.printStackTrace(new PrintWriter(stack));report.putString("stream","Loading experience FAIL after "+checks+" checks\n"+stack);finish(1,report);}finally{if(activity!=null)main(()->activity.finish());getTargetContext().deleteSharedPreferences(namespace);}}
