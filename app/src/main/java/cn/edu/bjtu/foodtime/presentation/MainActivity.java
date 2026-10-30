@@ -162,6 +162,8 @@ public class MainActivity extends Activity {
     screens.put("admin-new", AdminScreen::edit);
     screens.put("admin-edit", AdminScreen::edit);
     screens.put("admin-reviews", AdminScreen::reviews);
+    screens.put("admin-notices", AdminNoticesScreen::settings);
+    screens.put("admin-notice-create", AdminNoticesScreen::create);
     screens.put("admin-users", AdminScreen::users);
     screens.put("admin-logs", AdminScreen::logs);
   }
@@ -379,6 +381,11 @@ public class MainActivity extends Activity {
     bar.addView(home, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
   }
 
+  void pinNoticeActions(LinearLayout actions) {
+    actions.setPadding(Ui.dp(this,14),Ui.dp(this,8),Ui.dp(this,14),Ui.dp(this,8));
+    actions.setBackgroundColor(Design.PAPER);
+    root.addView(actions,Math.max(0,root.getChildCount()-1),new LinearLayout.LayoutParams(-1,-2));
+  }
   private void shell(boolean navigation) {
     root = Ui.col(this);
     root.setBackgroundColor(Design.BAR);

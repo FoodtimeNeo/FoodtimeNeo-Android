@@ -630,6 +630,20 @@ public final class RemoteRepository implements FoodtimeRepository {
     messagePage=new MessagePage(items,messagePage.total(),messagePage.hasMore());
     messageUnread=0;
   }
+  private static String encode(String value) { try { return java.net.URLEncoder.encode(value,"UTF-8"); } catch(java.io.UnsupportedEncodingException e) { throw new IllegalStateException(e); } }
+  private AdminNotice adminNoticeRow(JSONObject j) { return new AdminNotice(text(j,"id"),text(j,"title"),text(j,"content")); }
+  @Override public AdminNoticePage adminNotices(int page,String query) {
+    JSONObject result=call("GET","admin/notices/search?page="+page+"&size=6&q="+encode(query),null);
+    JSONArray rows=result.optJSONArray("items");List<AdminNotice> items=new ArrayList<>();
+    if(rows!=null) for(int i=0;i<rows.length();i++) items.add(adminNoticeRow(rows.optJSONObject(i)));
+    return new AdminNoticePage(List.copyOf(items),result.optLong("total"));
+  }
+  @Override public AdminNotice adminNotice(String id) { return adminNoticeRow(call("GET","admin/notices/"+id,null)); }
+  @Override public String noticeSetting() { return text(call("GET","admin/notices/settings",null),"noticeId"); }
+  @Override public void setNoticeSetting(String id) { call("PUT","admin/notices/settings",json("noticeId",id==null||id.isEmpty()?JSONObject.NULL:id)); }
+  @Override public AdminNotice saveNotice(String id,String content) {
+    return adminNoticeRow(call(id==null||id.isEmpty()?"POST":"PUT",id==null||id.isEmpty()?"admin/notices/markdown":"admin/notices/"+id+"/markdown",json("content",content)));
+  }
   private Notice notice(JSONObject j) {
     return new Notice(text(j,"id"),text(j,"content"),time(j,"publishedAt"));
   }
