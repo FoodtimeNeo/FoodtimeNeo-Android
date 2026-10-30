@@ -91,6 +91,16 @@ public final class LoginNoticeRunner extends Instrumentation {
       Context context=new ContextWrapper(getTargetContext()){@Override public SharedPreferences getSharedPreferences(String name,int mode){return super.getSharedPreferences(namespace,mode);}};
       LocalRepository local=new LocalRepository(context);local.login("20260001@bjtu.edu.cn","Foodtime2026!");
       FoodtimeRepository repo=controlled(local);
+      // Repeated explicit retries while a request is queued must not create concurrent checks.
+      java.util.List<Runnable> queued=new java.util.ArrayList<>();
+      main(()->{
+        LoginNoticeController state=new LoginNoticeController();
+        state.check(repo,queued::add);
+        state.retry(repo,queued::add);
+        state.retry(repo,queued::add);
+        check(queued.size()==1,"Pending login check deduplicates rapid retries");
+        state.reset();
+      });
       activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
       main(()->{activity.repo=repo;activity.signedOut();activity.openApp();});
       await(()->dialog()!=null&&dialog().dialog.isShowing(),"login announcement");
