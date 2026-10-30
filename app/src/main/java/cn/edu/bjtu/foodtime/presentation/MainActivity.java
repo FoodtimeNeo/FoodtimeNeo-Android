@@ -187,7 +187,6 @@ public class MainActivity extends Activity {
     }
     if (tab.equals("admin") && !repo.currentUser().isAdmin()) tab = "dining";
     if (tab.equals("dashboard") && !repo.currentUser().role().equals("superadmin")) tab = "dining";
-    inboxPoll.removeCallbacks(inboxPollTask);if(foreground&&!inboxInFlight)inboxPoll.post(inboxPollTask);
     loginNotices.check(repo,inboxWorker);
     render();
   }
