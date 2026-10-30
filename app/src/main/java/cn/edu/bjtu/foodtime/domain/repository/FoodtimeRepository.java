@@ -21,6 +21,8 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default String imageIdentity() { var user=currentUser();return user==null?"guest":user.id()+":"+user.role(); }
   default long imageCacheBytes() { return 0; }
   default void clearImageCache() {}
+  /** Cached superadmin overview. Remote implementations can replace the preview after ADMIN_DASHBOARD refresh. */
+  default AdminDashboard adminDashboard() { return AdminDashboard.sample(); }
 
   default List<CommunityPost> communityPosts() { return List.of(); }
   default boolean communityPrototypeEnabled() { return false; }
