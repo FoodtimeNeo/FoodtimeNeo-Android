@@ -27,7 +27,7 @@ git push -u origin feature/<功能名>
 ## 自动化
 
 - Android CI：Pull Request 指向 main/dev，以及代码进入 main/dev 后都会运行。它检查分支流、架构边界、单元测试、Lint 和 Debug 构建。
-- Android CD：Pull Request 真正合并到 main 后运行，也可在 Actions 中选择 main 手动执行；其他分支不发布。重新验证后生成已签名 `app-release.apk` 和 SHA-256 校验文件，同时上传 Actions artifact（保留30天）和 GitHub Release。Release 标签格式为 `android-main-<运行编号>-<短提交号>`。
+- Android CD：Pull Request 真正合并到 main 后运行，也可在 Actions 中选择 main 手动执行；其他分支不发布。重新验证后生成已签名 `app-release.apk` 和 SHA-256 校验文件，同时上传 Actions artifact（保留30天）和 GitHub Release。Release标签格式为 `v<versionName>`，例如 `v1.1.0`。dev手动CD仅生成验收制品，不发布Release。
 - Release 签名：必须先在 GitHub Actions Secrets 配置 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`；任何一项缺失都会中止发布，避免上传无法安装的未签名 APK。
 
 仓库管理员还应为 dev 和 main 开启分支保护：要求 Pull Request、要求 Android CI 通过、禁止强推；main 只接受 dev 的 Pull Request。
