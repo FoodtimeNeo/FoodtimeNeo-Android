@@ -72,6 +72,8 @@ public final class HttpTransport {
       connection.setReadTimeout(10000);
       connection.setRequestMethod(method);
       connection.setRequestProperty("Accept", "application/json");
+      // 后端按注册路径识别官方客户端；未知客户端在 enforce 模式下会被拒绝。
+      connection.setRequestProperty("X-Foodtime-Client", "android");
       synchronized(cookies) {
         ticket=sessionGeneration;
         for (Map.Entry<String, List<String>> entry : cookies.get(target, Map.of()).entrySet()) {
