@@ -10,16 +10,17 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-main
+  group: signed-apk-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   release:
-    name: Publish signed APK after merge to main
+    name: Build signed APK (publish only from main)
     if: >-
       (github.event_name == 'pull_request' && github.event.pull_request.merged == true &&
         !contains(github.event.pull_request.labels.*.name, 'skip-release')) ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+      (github.event_name == 'workflow_dispatch' &&
+        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -94,6 +95,7 @@ jobs:
           retention-days: 30
 
       - name: Publish APK to GitHub Releases
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -115,6 +117,12 @@ jobs:
           gh release edit "$RELEASE_TAG" --draft=false
           echo "### Android Release APK" >> "$GITHUB_STEP_SUMMARY"
           gh release view "$RELEASE_TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summarize development artifact
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev'
+        run: |
+          echo "### Signed development APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "Artifact only: no main merge and no GitHub Release was published." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove signing key from runner
         if: always()

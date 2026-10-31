@@ -62,7 +62,7 @@ adb shell am instrument -w cn.edu.bjtu.foodtime.ipcheck.test/cn.edu.bjtu.foodtim
 
 设备验收会创建、审核、删除测试内容并调整样例账号；必须使用专用本地库，不在154.9.252.201线上库运行。普通构建及JVM测试不需要执行这些写操作。历史运行结果见 [验收记录](verification.md)。
 
-注册发送邮件仍取决于Backend配置。后端dev环境启用测试开关时，可以手工填写 `000000` 跳过邮件发送；客户端不生成验证码、不伪造成功响应，prod后端拒绝启用该通道。真实SMTP尚未完成正式验收。
+注册发送邮件仍取决于Backend配置。所有环境均须使用真实邮件验证码；固定测试验证码已移除，客户端不生成验证码、不伪造成功响应。真实SMTP尚未完成正式验收。
 
 ## GitHub CI与Release
 
@@ -94,3 +94,7 @@ CD通过Gradle环境变量传递签名参数，临时密钥只写入runner的临
 显式选择CommunityRepositoryRunner可运行真实社区接口闭环（21项），选择CommunityUiRunner可运行原生页面闭环（12项）；后者evidenceOnly=true模式只读已存在的联调样例并验证图片翻页、全屏缩放与关闭（2项）。使用FOODTIME_TEST_RUNNER构建属性指定完整Runner类名。页面Runner只接受`.integration`独立调试包、本机`http://127.0.0.1:8080/api/v1/`和关闭原型的数据源，开始登录前即校验这些条件。
 
 通过Instrumentation运行参数userAccount、adminAccount、testPassword传入本地测试账号；接口Runner还需要superadminAccount。账号凭据由调用方提供。完整写入测试创建临时帖子并以带原因软下架结束，重复运行遵守正常上传/提交限制。当前结构、接口说明及后端验收见Backend的docs/community-delivery.md。
+
+正式包的网络安全配置禁止全部明文连接；仅 debug 资源覆盖允许 `127.0.0.1`。`IpConnectionRunner` 同时验证服务器 IP 的 HTTP 被禁止、调试回环例外和真实 HTTPS API。修复版保持版本名1.0.1，versionCode递增至5；正式下载制品须由原发布证书签名后更新。
+
+在dev分支手动运行Android CD，仅生成同签名的验收APK与校验文件，不创建GitHub Release、不合并main；main及已合并发布PR仍按原流程发布。签名密钥只由GitHub Actions Secrets注入，不需要导出到开发机。
