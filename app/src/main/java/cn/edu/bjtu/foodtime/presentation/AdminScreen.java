@@ -92,6 +92,7 @@ final class AdminScreen {
     if(!creating&&item==null) throw new IllegalArgumentException("记录不存在");
     a.heading(page,"",(creating?"新增":"编辑")+label(table),"");LinearLayout form=Ui.card(page);
     EditText name=Ui.field(form,"名称",false,false),description=Ui.field(form,"描述（可选）",false,true);
+    description.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});
     EditText price=table.equals("dishes")?Ui.field(form,"价格（元）",false,false):null;
     if(price!=null) price.setInputType(8194);
     if(item!=null&&!a.drafts.containsKey(a.draftKey("loaded"))) {
