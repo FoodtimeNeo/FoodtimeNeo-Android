@@ -23,6 +23,10 @@ public final class IpConnectionRunner extends Instrumentation {
       String base = BuildConfig.API_BASE_URL;
       require(base.equals("https://154.9.252.201/api/v1/"), "Unexpected API endpoint");
       require(BuildConfig.APPLICATION_ID.endsWith(".ipcheck"), "Use isolated .ipcheck package");
+      var policy = android.security.NetworkSecurityPolicy.getInstance();
+      require(!policy.isCleartextTrafficPermitted("154.9.252.201"), "Cloud HTTP must be blocked");
+      require(!policy.isCleartextTrafficPermitted("example.com"), "Arbitrary HTTP must be blocked");
+      require(policy.isCleartextTrafficPermitted("127.0.0.1"), "Debug loopback integration must remain available");
       var store = new EncryptedCookieStore(getTargetContext(), base, "ip-connection-smoke");
       store.removeAll();
       var cookies = new CookieManager(store, CookiePolicy.ACCEPT_ORIGINAL_SERVER);
@@ -40,7 +44,7 @@ public final class IpConnectionRunner extends Instrumentation {
       String session = transport.sessionKey();
       get(transport, "auth/csrf");
       require(session.equals(transport.sessionKey()), "Anonymous session was replaced");
-      result.putString("stream", "IP TLS, API JSON, encrypted Secure cookie and session reuse passed\n");
+      result.putString("stream", "Cleartext policy, IP TLS, API JSON, encrypted Secure cookie and session reuse passed\n");
       finish(Activity.RESULT_OK, result);
     } catch (Exception | AssertionError failure) {
       result.putString("stream", "IP connection failed: " + failure + "\n");
