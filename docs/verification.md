@@ -1,5 +1,13 @@
 # 验收记录
 
+## 2026-10-31 密码输入遮罩修复
+
+`Ui.field` 原先在设置密码输入类型后调用 `setSingleLine`，导致密码转换器被覆盖。现于单行设置完成后显式安装 `PasswordTransformationMethod`，同时覆盖登录、注册及修改密码的公共输入框；输入原值仍用于提交，密码不写入 View 状态或草稿。
+
+架构检查、JVM 单元测试、Lint、Debug APK 和测试 APK 构建通过。Android 16 模拟器的 `PasswordInputRunner` 37 项原生检查通过，直接构建登录、注册和修改密码表单，验证五个密码字段的遮罩、密码无障碍标识、原值保留、单行类型和禁用状态保存，并确认邮箱不被遮罩。表单不提交，不登录或修改云端账号。
+
+复现时构建 `assembleDebug assembleDebugAndroidTest -PFOODTIME_DEBUG_SUFFIX=.maskcheck -PFOODTIME_API_BASE_URL=http://127.0.0.1:8080/api/v1/ -PFOODTIME_TEST_RUNNER=cn.edu.bjtu.foodtime.presentation.PasswordInputRunner`，安装后执行 `adb shell am instrument -w cn.edu.bjtu.foodtime.maskcheck.test/cn.edu.bjtu.foodtime.presentation.PasswordInputRunner`；该隔离包不需要启动 Backend。
+
 ## 2026-10-29 IP HTTPS 连接复验
 
 默认 API 已从 `http://154.9.252.201/api/v1/` 改为 `https://154.9.252.201/api/v1/`。服务器原来的 HTTP IP 入口返回跳转域名的 301；客户端禁止自动跳转，因此收到 HTML 而非 API JSON。现已部署匹配 IP 的可信证书与独立 HTTPS API 入口，HTTP 只跳到同一 IP 的 HTTPS 地址。旧安装包仍需更新；协议变化会使旧来源会话失效，用户需重新登录。

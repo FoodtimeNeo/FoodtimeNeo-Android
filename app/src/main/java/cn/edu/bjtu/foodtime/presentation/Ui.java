@@ -6,6 +6,7 @@ import android.graphics.*;
 import android.graphics.drawable.*;
 import android.net.Uri;
 import android.text.*;
+import android.text.method.PasswordTransformationMethod;
 import android.view.*;
 import android.widget.*;
 import java.io.*;
@@ -200,9 +201,14 @@ public final class Ui {
     input.setPadding(dp(c, 12), dp(c, 12), dp(c, 12), dp(c, 12));
     input.setBackground(shape(c, Design.PAPER, Design.BORDER, 16));
     input.setMinHeight(dp(c, 48));
-    input.setInputType(password ? 129 : multiline ? 131073 : 1);
+    input.setInputType(password
+        ? InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD
+        : multiline ? InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE
+        : InputType.TYPE_CLASS_TEXT);
     input.setSaveEnabled(!password);
     input.setSingleLine(!multiline);
+    // setSingleLine installs its own transformation; apply password masking afterwards.
+    if (password) input.setTransformationMethod(PasswordTransformationMethod.getInstance());
     if (multiline) {
       input.setMinLines(3);
       input.setGravity(Gravity.TOP);
