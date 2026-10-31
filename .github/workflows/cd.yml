@@ -84,7 +84,10 @@ jobs:
           cp "$apk_path" "$release_dir/app-release.apk"
           (cd "$release_dir" && sha256sum app-release.apk > app-release.apk.sha256)
           echo "directory=$release_dir" >> "$GITHUB_OUTPUT"
-          echo "tag=android-main-${GITHUB_RUN_NUMBER}-${MERGE_SHA:0:7}" >> "$GITHUB_OUTPUT"
+          version_name=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk_path" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
+          [[ "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "version=$version_name" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version_name" >> "$GITHUB_OUTPUT"
 
       - name: Upload release APK artifact
         uses: actions/upload-artifact@v4
@@ -101,13 +104,14 @@ jobs:
           GH_REPO: ${{ github.repository }}
           MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
           RELEASE_TAG: ${{ steps.apk.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.apk.outputs.version }}
           RELEASE_DIRECTORY: ${{ steps.apk.outputs.directory }}
         run: |
           set -euo pipefail
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" \
               --target "$MERGE_SHA" \
-              --title "Foodtime Android #${GITHUB_RUN_NUMBER}" \
+              --title "Foodtime Android v${RELEASE_VERSION}" \
               --draft \
               --generate-notes
           fi
