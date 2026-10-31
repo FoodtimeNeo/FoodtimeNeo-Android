@@ -65,7 +65,11 @@ public final class Models {
 
   public record Review(
       String id, String dishId, String userId, String userDisplayName, int rating, String content, long createdAt,
-      long likeCount, long replyCount, boolean likedByMe, long counterVersion,AiAssessment ai) {
+      long likeCount, long replyCount, boolean likedByMe, long counterVersion,AiAssessment ai,String userEmail) {
+    public Review(String id,String dishId,String userId,String userDisplayName,int rating,String content,long createdAt,
+        long likeCount,long replyCount,boolean likedByMe,long counterVersion,AiAssessment ai) {
+      this(id,dishId,userId,userDisplayName,rating,content,createdAt,likeCount,replyCount,likedByMe,counterVersion,ai,"");
+    }
     public Review(String id,String dishId,String userId,String userDisplayName,int rating,String content,long createdAt,
         long likeCount,long replyCount,boolean likedByMe,long counterVersion) {
       this(id,dishId,userId,userDisplayName,rating,content,createdAt,likeCount,replyCount,likedByMe,counterVersion,AiAssessment.empty());
@@ -91,7 +95,11 @@ public final class Models {
       int rating,
       String status,
       String reason,
-      long createdAt, String context,AiAssessment ai) {
+      long createdAt, String context,AiAssessment ai,String userEmail) {
+    public Submission(String id,String type,String targetId,String userId,String userDisplayName,String name,String content,
+        BigDecimal price,String imageUrl,int rating,String status,String reason,long createdAt,String context,AiAssessment ai) {
+      this(id,type,targetId,userId,userDisplayName,name,content,price,imageUrl,rating,status,reason,createdAt,context,ai,"");
+    }
     public Submission(String id,String type,String targetId,String userId,String userDisplayName,String name,String content,
         BigDecimal price,String imageUrl,int rating,String status,String reason,long createdAt,String context) {
       this(id,type,targetId,userId,userDisplayName,name,content,price,imageUrl,rating,status,reason,createdAt,context,AiAssessment.empty());
@@ -113,7 +121,9 @@ public final class Models {
     public CommunityAuditPage{items=List.copyOf(items);}
     public static CommunityAuditPage empty(){return new CommunityAuditPage("posts","pending",1,0,List.of());}
   }
-  public record CommunityAuditDetail(CommunityPost post,CommunityComment comment,CommunityComment rootComment,CommunityComment replyToComment,AiAssessment ai){}
+  public record CommunityAuditDetail(CommunityPost post,CommunityComment comment,CommunityComment rootComment,CommunityComment replyToComment,AiAssessment ai,String userEmail){
+    public CommunityAuditDetail(CommunityPost post,CommunityComment comment,CommunityComment rootComment,CommunityComment replyToComment,AiAssessment ai){this(post,comment,rootComment,replyToComment,ai,"");}
+  }
   public record CommunityPostPage(List<CommunityPost> items,long total,int page,boolean hasMore){
     public CommunityPostPage{items=List.copyOf(items);}
     public static CommunityPostPage empty(){return new CommunityPostPage(List.of(),0,0,false);}
@@ -197,7 +207,12 @@ public final class Models {
       String moderatorId,
       String action,
       String reason,
-      long createdAt) {}
+      long createdAt, String type,String actor,String aiModel,String userId,String userDisplayName,String userEmail,
+      String name,String content,String imageUrl,long submittedAt) {
+    public Audit(String id,String submissionId,String moderatorId,String action,String reason,long createdAt){
+      this(id,submissionId,moderatorId,action,reason,createdAt,"","","","","","","","","",0);
+    }
+  }
 
   private Models() {}
 }

@@ -13,7 +13,7 @@ final class CommunityAdminScreen {
   if(result.items().isEmpty())Ui.empty(page,"暂无审核记录","");
   for(Submission item:result.items()){
    LinearLayout card=Ui.card(page);card.addView(Ui.title(a,item.name().isBlank()?"社区评论／回复":item.name(),20));Ui.gap(card,8);
-   card.addView(Ui.text(a,"投稿者："+item.userDisplayName()+" · "+SubmissionScreen.date(item.createdAt()),12,Design.MUTED));Ui.gap(card,8);
+   PublisherDetailsView.show(a,card,item.userId(),item.userDisplayName(),item.userEmail(),item.createdAt());Ui.gap(card,8);
    card.addView(Ui.text(a,item.content(),15,Design.INK));AiAssessmentView.show(a,card,item.ai());Ui.gap(card,10);
    Ui.action(card,"查看完整内容与配图",false,()->a.go("admin-community-detail",result.type()+"~"+item.id()));
   }
@@ -25,7 +25,9 @@ final class CommunityAdminScreen {
   AdminScreen.guard(a);CommunityAuditDetail detail=a.repo.communityAuditDetail();if(detail==null)throw new IllegalArgumentException("审核内容不可用，请返回刷新");
   String[] parts=route.id().split("~",-1);String type=parts[0],id=parts[1];CommunityPost post=detail.post();CommunityComment comment=detail.comment();
   a.heading(page,"","完整社区审核",comment==null?"正文和全部配图均须核验。":"请结合根楼层、实际回复对象及原帖判断。");
-  LinearLayout context=Ui.card(page);context.addView(Ui.title(a,post.title(),24));Ui.gap(context,8);context.addView(Ui.text(a,post.content(),15,Design.INK));Ui.gap(context,12);
+  LinearLayout context=Ui.card(page);
+  PublisherDetailsView.show(a,context,comment==null?post.userId():comment.userId(),comment==null?post.userDisplayName():comment.userDisplayName(),detail.userEmail(),comment==null?post.createdAt():comment.createdAt());
+  context.addView(Ui.title(a,post.title(),24));Ui.gap(context,8);context.addView(Ui.text(a,post.content(),15,Design.INK));Ui.gap(context,12);
   context.addView(new CommunityGallery(a,post.imageUrls()),new LinearLayout.LayoutParams(-1,-2));
   if(detail.rootComment()!=null){Ui.gap(context,12);context.addView(Ui.text(a,"一级评论："+content(detail.rootComment()),14,Design.MUTED));}
   if(detail.replyToComment()!=null){Ui.gap(context,8);context.addView(Ui.text(a,"实际回复对象："+detail.replyToComment().userDisplayName()+" · "+content(detail.replyToComment()),14,Design.MUTED));}
