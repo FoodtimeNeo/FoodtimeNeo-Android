@@ -38,6 +38,7 @@ final class UploadScreen {
     LinearLayout card = Ui.card(page);
     EditText name = Ui.field(card, isStall ? "档口名称" : "菜品名称", false, false);
     EditText description = Ui.field(card, "简短描述（可选）", false, true);
+    description.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});
     EditText price = isStall ? null : Ui.field(card, "参考价格（元，可选）", false, false);
     if (price != null) price.setInputType(8194);
     String imageKey = a.draftKey("image");
