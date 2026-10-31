@@ -14,7 +14,7 @@ android {
         minSdk 26
         targetSdk 36
         versionCode 6
-        versionName '1.1.0'
+        versionName '1.1.1'
         buildConfigField 'String', 'API_BASE_URL', '"' + providers.gradleProperty('FOODTIME_API_BASE_URL').getOrElse('https://154.9.252.201/api/v1/').replace('"', '\\"') + '"'
         testInstrumentationRunner providers.gradleProperty('FOODTIME_TEST_RUNNER').getOrElse('cn.edu.bjtu.foodtime.presentation.RemoteUiRunner')
     }
