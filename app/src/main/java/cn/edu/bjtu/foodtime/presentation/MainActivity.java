@@ -9,7 +9,6 @@ import cn.edu.bjtu.foodtime.domain.repository.RepositoryProvider;
 import cn.edu.bjtu.foodtime.domain.repository.ContentRequest;
 import cn.edu.bjtu.foodtime.domain.repository.RepositoryException;
 import cn.edu.bjtu.foodtime.domain.model.Models.Notice;
-import cn.edu.bjtu.foodtime.domain.model.Models.NoticeFeed;
 import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.function.*;
@@ -38,10 +37,9 @@ public class MainActivity extends Activity {
   private boolean navigationLoading,contentReady,foreground,resumeNavigation,pageFailed;
   private LinearLayout refreshBanner;
   private String displayedActor="";
-  private int navigationEpoch,inboxEpoch;
-  private boolean inboxInFlight,inboxDialogShowing;
-  private android.app.AlertDialog inboxDialog;
-  private final Deque<String> pendingNotices=new ArrayDeque<>();
+  private int navigationEpoch;
+  private LoginNoticeController loginNotices;
+  private LoginNoticeDialog loginNoticeDialog;
   private int generation;
   private boolean writeInFlight;
   private String displayedLocation="";
@@ -53,48 +51,28 @@ public class MainActivity extends Activity {
   private Runnable deferredCompletion;
   private final Map<String,List<ReadListener>> reads=new HashMap<>();
   private final List<Runnable> deferredReads=new ArrayList<>();
-  private final android.os.Handler inboxPoll=new android.os.Handler(android.os.Looper.getMainLooper());
-  private final java.util.Set<String> inboxSeen=new java.util.HashSet<>();
-  private boolean inboxBaseline;
-  private final Runnable inboxPollTask=new Runnable() {
-    @Override public void run() {
-      inboxPoll.removeCallbacks(this);
-      if(!foreground||repo==null||repo.currentUser()==null||inboxInFlight) return;
-      inboxInFlight=true;int ticket=inboxEpoch;String actor=actor();
-      inboxWorker.execute(() -> {
-        NoticeFeed feed=null;RuntimeException failure=null;
-        try { feed=repo.noticeFeed(0,20); } catch(RuntimeException e) { failure=e; }
-        NoticeFeed result=feed;RuntimeException error=failure;
-        runOnUiThread(() -> {
-          inboxInFlight=false;
-          if(isDestroyed()) return;
-          if(foreground&&repo.currentUser()==null) {clearNavigation();showAuth(false);message("请重新登录");return;}
-          if(!foreground||ticket!=inboxEpoch||!actor.equals(actor())) {if(foreground&&repo.currentUser()!=null)inboxPoll.postDelayed(this,60_000);return;}
-          if(repo.currentUser()==null) { clearNavigation();showAuth(false);message("请重新登录");return; }
-          if(error==null&&result!=null) {
-            List<String> fresh=new ArrayList<>();
-            for(Notice item:result.items()) if(!inboxSeen.contains(item.id())) fresh.add(item.id());
-            inboxSeen.addAll(fresh);
-            boolean first=!inboxBaseline;inboxBaseline=true;
-            if(!first&&!fresh.isEmpty()) {
-              for(Notice item:result.items())if(fresh.contains(item.id()))pendingNotices.addLast(item.title());
-              drainNotices();
-            }
-          }
-          inboxPoll.postDelayed(this,60_000);
-        });
-      });
-    }
-  };
-  void noteInboxSeen(java.util.Collection<String> ids) { inboxSeen.addAll(ids); }
+  private final android.os.Handler noticeUi=new android.os.Handler(android.os.Looper.getMainLooper());
+  private String noticeErrorShown="";
   private String actor(){var user=repo==null?null:repo.currentUser();return user==null?"":user.id()+":"+user.role();}
   private void drainNotices() {
-    if(!foreground||!contentReady||pageFailed||navigationLoading||stateSaved||writeInFlight||inboxDialogShowing||!hasWindowFocus()||pendingNotices.isEmpty()||repo.currentUser()==null)return;
-    inboxDialogShowing=true;
-    inboxDialog=Ui.confirm(this,"收到新公告",pendingNotices.removeFirst(),()->go("inbox",""));
-    inboxDialog.setOnDismissListener(dialog->{inboxDialog=null;inboxDialogShowing=false;inboxPoll.post(this::drainNotices);});
+    if(loginNotices==null)return;
+    if(loginNotices.pending==null) {
+      if(loginNoticeDialog!=null){loginNoticeDialog.dialog.dismiss();loginNoticeDialog=null;}
+      if(foreground&&!loginNotices.checkError.isEmpty()&&!noticeErrorShown.equals(loginNotices.checkError)) {
+        noticeErrorShown=loginNotices.checkError;message(loginNotices.checkError);
+      }
+      return;
+    }
+    // A displayed Dialog owns window focus; its save/error state must still update.
+    if(loginNoticeDialog!=null){loginNoticeDialog.update();return;}
+    if(!foreground||!contentReady||pageFailed||navigationLoading||stateSaved||writeInFlight||!hasWindowFocus()||repo.currentUser()==null)return;
+    loginNoticeDialog=new LoginNoticeDialog(this,loginNotices);loginNoticeDialog.show();
   }
+  void confirmLoginNotice(){loginNotices.confirm(repo,inboxWorker);}
+  boolean loginNoticeFailed(){return loginNotices!=null&&!loginNotices.checkError.isEmpty();}
+  void retryLoginNotice(){noticeErrorShown="";loginNotices.retry(repo,inboxWorker);}
   @Override public void onWindowFocusChanged(boolean focused){super.onWindowFocusChanged(focused);if(focused)drainNotices();}
+  @Override public Object onRetainNonConfigurationInstance(){return loginNotices;}
   private record ReadListener(int generation,View trigger,TextView error,Runnable success,Runnable finished) {}
 
   @Override
@@ -104,9 +82,13 @@ public class MainActivity extends Activity {
     repo = ((RepositoryProvider) getApplication()).repository();
     worker = ((RepositoryProvider) getApplication()).workExecutor();
     inboxWorker = ((RepositoryProvider) getApplication()).backgroundExecutor();
+    loginNotices=getLastNonConfigurationInstance() instanceof LoginNoticeController retained?retained:new LoginNoticeController();
+    loginNotices.attach(this,this::drainNotices);
     registerScreens();
-    for (String key : List.of("dining", "community", "profile", "admin"))
-      stacks.put(key, new ArrayList<>(List.of(new Route(key, ""))));
+    for (String key : List.of("dining", "community", "profile", "admin", "dashboard")) {
+      String root = key.equals("dashboard") ? "admin-dashboard" : key;
+      stacks.put(key, new ArrayList<>(List.of(new Route(root, ""))));
+    }
     if (state != null) {
       pendingOperation=state.getLong("pendingOperation",0);
       authRegistration=state.getBoolean("authRegistration",false);
@@ -182,7 +164,10 @@ public class MainActivity extends Activity {
     screens.put("admin-new", AdminScreen::edit);
     screens.put("admin-edit", AdminScreen::edit);
     screens.put("admin-reviews", AdminScreen::reviews);
+    screens.put("admin-notices", AdminNoticesScreen::settings);
+    screens.put("admin-notice-create", AdminNoticesScreen::create);
     screens.put("admin-users", AdminScreen::users);
+    screens.put("admin-dashboard", AdminDashboardScreen::show);
     screens.put("admin-logs", AdminScreen::logs);
   }
 
@@ -201,7 +186,8 @@ public class MainActivity extends Activity {
       return;
     }
     if (tab.equals("admin") && !repo.currentUser().isAdmin()) tab = "dining";
-    inboxPoll.removeCallbacks(inboxPollTask);if(foreground&&!inboxInFlight)inboxPoll.post(inboxPollTask);
+    if (tab.equals("dashboard") && !repo.currentUser().role().equals("superadmin")) tab = "dining";
+    loginNotices.check(repo,inboxWorker);
     render();
   }
 
@@ -301,9 +287,8 @@ public class MainActivity extends Activity {
     if(retain) {body=Ui.col(this);refreshBanner=body;content.addView(body,0);TextView refresh=Ui.text(this,"更新中",12,Design.MUTED);body.addView(refresh);}
     else {
       contentReady=false;shell(true);buildHeader();
-      body=catalog?LoadingScreen.begin(this,content,target):content;
-      if(!catalog)body.addView(Ui.text(this,"加载中…",16,Design.MUTED));
-      else navigationHandler.postDelayed(()->{if(ticket==generation&&epoch==navigationEpoch&&navigationLoading)LoadingScreen.skeleton(this,body,target.kind().equals("dishes"));},180);
+      body=catalog?LoadingScreen.begin(this,content,target):LoadingScreen.general(this,content,target);
+      if(catalog)navigationHandler.postDelayed(()->{if(ticket==generation&&epoch==navigationEpoch&&navigationLoading)LoadingScreen.skeleton(this,body,target.kind().equals("dishes"));},180);
     }
     navigationHandler.postDelayed(()->{
       if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
@@ -314,7 +299,7 @@ public class MainActivity extends Activity {
       cancelNavigation();contentReady=retain;pageFailed=true;
       if(retain){refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body);}
       else if(catalog)LoadingScreen.failure(this,body);
-      else {content.removeAllViews();Ui.empty(content,"加载失败","");Ui.action(content,"重试",true,this::render);}
+      else LoadingScreen.failure(this,body);
     },15000);
     navigationRead=new java.util.concurrent.FutureTask<>(() -> {
       RuntimeException error=null;try {repo.refresh(query);}catch(RuntimeException e){error=e;}
@@ -325,7 +310,8 @@ public class MainActivity extends Activity {
         if(repo.currentUser()==null) {clearNavigation();showAuth(false);message("请重新登录");return;}
         if(!actor.equals(actor())){Ui.clearImages();displayedActor="";}
         if(tab.equals("admin")&&!repo.currentUser().isAdmin()) {tab="dining";render();return;}
-        if(failure!=null) {contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body);}else if(retain){content.removeAllViews();LoadingScreen.failure(this,LoadingScreen.begin(this,content,target));}else if(catalog)LoadingScreen.failure(this,body);else {content.removeAllViews();Ui.empty(content,"加载失败",safeMessage(failure));Ui.action(content,"重试",true,this::render);}return;}
+        if(tab.equals("dashboard")&&!repo.currentUser().role().equals("superadmin")) {tab="dining";render();return;}
+        if(failure!=null) {contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body);}else if(retain){content.removeAllViews();LoadingScreen.failure(this,LoadingScreen.begin(this,content,target));}else LoadingScreen.failure(this,body);return;}
         renderContent();
         if(catalog&&!retain&&android.animation.ValueAnimator.areAnimatorsEnabled()){content.setAlpha(.5f);content.animate().alpha(1).setDuration(150).start();}
       });
@@ -358,6 +344,7 @@ public class MainActivity extends Activity {
       case "admin-edit" -> ContentRequest.Query.CATALOG_ITEM;
       case "admin-reviews" -> ContentRequest.Query.ADMIN_REVIEWS;
       case "admin-users" -> ContentRequest.Query.ADMIN_USERS;
+      case "admin-dashboard" -> ContentRequest.Query.ADMIN_DASHBOARD;
       case "admin-logs" -> ContentRequest.Query.AUDITS;
       default -> ContentRequest.Query.PROFILE;
     };
@@ -373,7 +360,7 @@ public class MainActivity extends Activity {
     try {
       if (stacks.get(tab).size() > 1&&!LoadingScreen.catalog(route())) Ui.decorateSubpage(content, route().kind().hashCode());
       Screen s = screens.get(route().kind());
-      if (s == null) content.addView(Ui.title(this, tab.equals("profile") ? "我的" : tab.equals("admin") ? "管理" : tab.equals("community") ? "社区" : "食堂", 30));
+      if (s == null) content.addView(Ui.title(this, tab.equals("profile") ? "我的" : tab.equals("dashboard") ? "数据" : tab.equals("admin") ? "管理" : tab.equals("community") ? "社区" : "食堂", 30));
       else s.show(this, content, route());
     } catch (RuntimeException e) {
       contentReady=false;Ui.empty(content, "页面加载失败", e.getMessage() == null ? "请重试" : e.getMessage());
@@ -381,7 +368,7 @@ public class MainActivity extends Activity {
     }
     int offset = scrollPositions.getInt(location(), 0);
     scroll.post(() -> scroll.scrollTo(0, offset));
-    inboxPoll.post(this::drainNotices);
+    noticeUi.post(this::drainNotices);
   }
   private void buildHeader() {
     LinearLayout bar = Ui.row(this);
@@ -400,6 +387,11 @@ public class MainActivity extends Activity {
     bar.addView(home, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
   }
 
+  void pinNoticeActions(LinearLayout actions) {
+    actions.setPadding(Ui.dp(this,14),Ui.dp(this,8),Ui.dp(this,14),Ui.dp(this,8));
+    actions.setBackgroundColor(Design.PAPER);
+    root.addView(actions,Math.max(0,root.getChildCount()-1),new LinearLayout.LayoutParams(-1,-2));
+  }
   private void shell(boolean navigation) {
     root = Ui.col(this);
     root.setBackgroundColor(Design.BAR);
@@ -450,6 +442,7 @@ public class MainActivity extends Activity {
       addTab(nav, "食堂", "dining");
       addTab(nav, "社区", "community");
       if (repo.currentUser().isAdmin()) addTab(nav, "管理", "admin");
+      if (repo.currentUser().role().equals("superadmin")) addTab(nav, "数据", "dashboard");
       addTab(nav, "我的", "profile");
       root.addView(nav, new LinearLayout.LayoutParams(-1, -2));
     }
@@ -663,8 +656,9 @@ public class MainActivity extends Activity {
   }
   public void signedOut() {clearNavigation();showAuth(false);}
   private void clearNavigation() {
-    cancelNavigation();contentReady=false;displayedActor="";inboxEpoch++;pendingNotices.clear();if(inboxDialog!=null)inboxDialog.dismiss();
-    inboxPoll.removeCallbacks(inboxPollTask);inboxSeen.clear();inboxBaseline=false;
+    cancelNavigation();contentReady=false;displayedActor="";
+    if(loginNoticeDialog!=null){loginNoticeDialog.dialog.dismiss();loginNoticeDialog=null;}
+    loginNotices.reset();noticeErrorShown="";
     for(String key:drafts.keySet()) if(key.endsWith(":image")) {
       String photo=drafts.getString(key,"");worker.execute(() -> PhotoImport.discard(this,photo));
     }
@@ -672,7 +666,7 @@ public class MainActivity extends Activity {
     scrollPositions.clear();
     for (String key : stacks.keySet()) {
       stacks.get(key).clear();
-      stacks.get(key).add(new Route(key, ""));
+      stacks.get(key).add(new Route(key.equals("dashboard") ? "admin-dashboard" : key, ""));
     }
     tab = "dining";
     displayedLocation="";
@@ -683,13 +677,11 @@ public class MainActivity extends Activity {
     Ui.resumeImages();
     if(deferredCompletion!=null) {Runnable callback=deferredCompletion;deferredCompletion=null;callback.run();}
     List<Runnable> callbacks=new ArrayList<>(deferredReads);deferredReads.clear();
-    inboxPoll.removeCallbacks(inboxPollTask);
-    if(repo!=null&&repo.currentUser()!=null) inboxPoll.postDelayed(inboxPollTask,60_000);
     for(Runnable callback:callbacks) callback.run();
     if(resumeNavigation&&repo!=null&&repo.currentUser()!=null){resumeNavigation=false;render();}
-    inboxPoll.post(this::drainNotices);
+    noticeUi.post(this::drainNotices);
   }
-  @Override protected void onPause() { super.onPause();foreground=false;inboxEpoch++;resumeNavigation=navigationLoading;cancelNavigation();Ui.pauseImages();inboxPoll.removeCallbacks(inboxPollTask); }
+  @Override protected void onPause() { super.onPause();foreground=false;resumeNavigation=navigationLoading;cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)Ui.clearImages();}
-  @Override protected void onDestroy() {++generation;cancelNavigation();inboxPoll.removeCallbacksAndMessages(null);if(inboxDialog!=null)inboxDialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override protected void onDestroy() {++generation;cancelNavigation();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }

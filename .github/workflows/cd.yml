@@ -10,16 +10,17 @@ permissions:
   contents: read
 
 concurrency:
-  group: release-main
+  group: signed-apk-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   release:
-    name: Publish signed APK after merge to main
+    name: Build signed APK (publish only from main)
     if: >-
       (github.event_name == 'pull_request' && github.event.pull_request.merged == true &&
         !contains(github.event.pull_request.labels.*.name, 'skip-release')) ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+      (github.event_name == 'workflow_dispatch' &&
+        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -83,7 +84,10 @@ jobs:
           cp "$apk_path" "$release_dir/app-release.apk"
           (cd "$release_dir" && sha256sum app-release.apk > app-release.apk.sha256)
           echo "directory=$release_dir" >> "$GITHUB_OUTPUT"
-          echo "tag=android-main-${GITHUB_RUN_NUMBER}-${MERGE_SHA:0:7}" >> "$GITHUB_OUTPUT"
+          version_name=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk_path" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
+          [[ "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          echo "version=$version_name" >> "$GITHUB_OUTPUT"
+          echo "tag=v$version_name" >> "$GITHUB_OUTPUT"
 
       - name: Upload release APK artifact
         uses: actions/upload-artifact@v4
@@ -94,18 +98,20 @@ jobs:
           retention-days: 30
 
       - name: Publish APK to GitHub Releases
+        if: github.event_name == 'pull_request' || github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
           MERGE_SHA: ${{ github.event.pull_request.merge_commit_sha || github.sha }}
           RELEASE_TAG: ${{ steps.apk.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.apk.outputs.version }}
           RELEASE_DIRECTORY: ${{ steps.apk.outputs.directory }}
         run: |
           set -euo pipefail
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" \
               --target "$MERGE_SHA" \
-              --title "Foodtime Android #${GITHUB_RUN_NUMBER}" \
+              --title "Foodtime Android v${RELEASE_VERSION}" \
               --draft \
               --generate-notes
           fi
@@ -115,6 +121,12 @@ jobs:
           gh release edit "$RELEASE_TAG" --draft=false
           echo "### Android Release APK" >> "$GITHUB_STEP_SUMMARY"
           gh release view "$RELEASE_TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Summarize development artifact
+        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev'
+        run: |
+          echo "### Signed development APK" >> "$GITHUB_STEP_SUMMARY"
+          echo "Artifact only: no main merge and no GitHub Release was published." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove signing key from runner
         if: always()

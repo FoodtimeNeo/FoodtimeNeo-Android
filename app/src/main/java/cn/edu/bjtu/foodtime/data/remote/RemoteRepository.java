@@ -126,7 +126,7 @@ public final class RemoteRepository implements FoodtimeRepository {
         JSONObject data=call("GET","admin/community/"+type+"?status="+status+"&page="+number+"&size=20",null);
         List<Submission> rows=new ArrayList<>();JSONArray items=data.optJSONArray("items");
         if(items!=null)for(int i=0;i<items.length();i++){
-          JSONObject item=items.optJSONObject(i);rows.add(new Submission(text(item,"id"),text(item,"type"),text(item,"targetId"),text(item,"userId"),text(item,"userDisplayName"),text(item,"name"),text(item,"content"),null,text(item,"imageUrl"),0,text(item,"status"),text(item,"reason"),time(item,"createdAt"),"",assessment(item)));
+          JSONObject item=items.optJSONObject(i);rows.add(new Submission(text(item,"id"),text(item,"type"),text(item,"targetId"),text(item,"userId"),text(item,"userDisplayName"),text(item,"name"),text(item,"content"),null,text(item,"imageUrl"),0,text(item,"status"),text(item,"reason"),time(item,"createdAt"),"",assessment(item),text(item,"userEmail")));
         }
         communityAudit=new CommunityAuditPage(type,status,number,data.optLong("total"),rows);
       }
@@ -134,7 +134,7 @@ public final class RemoteRepository implements FoodtimeRepository {
         String[] parts=request.id().split("~",-1);JSONObject data=call("GET","admin/community/"+parts[0]+"/"+parts[1],null);
         JSONObject comment=data.optJSONObject("comment"),root=data.optJSONObject("rootComment"),target=data.optJSONObject("replyToComment");
         AiAssessment ai=communityAudit.items().stream().filter(item->item.id().equals(parts[1])).map(Submission::ai).findFirst().orElse(assessment(data.optJSONObject("post")));
-        communityAuditDetail=new CommunityAuditDetail(cacheCommunityPost(data.optJSONObject("post")),comment==null?null:communityComment(comment),root==null?null:communityComment(root),target==null?null:communityComment(target),ai);
+        communityAuditDetail=new CommunityAuditDetail(cacheCommunityPost(data.optJSONObject("post")),comment==null?null:communityComment(comment),root==null?null:communityComment(root),target==null?null:communityComment(target),ai,text(data,"userEmail"));
       }
       case MY_COMMUNITY_POSTS -> loadCommunityCollection(false,false);
       case MY_COMMUNITY_FAVORITES -> loadCommunityCollection(true,false);
@@ -177,14 +177,15 @@ public final class RemoteRepository implements FoodtimeRepository {
       }
       case ADMIN_REVIEWS -> reviews.put("admin",reviewPage("admin/reviews"));
       case ADMIN_USERS -> userList=page("admin/users",this::person);
-      case AUDITS -> auditList=page("admin/moderation/logs",j -> new Audit(text(j,"id"),text(j,"submissionId"),text(j,"moderatorId"),text(j,"action"),text(j,"reason"),time(j,"createdAt")));
+      case ADMIN_DASHBOARD -> { /* Frontend contract ready; Backend endpoint will populate this projection. */ }
+      case AUDITS -> auditList=page("admin/moderation/logs",j -> new Audit(text(j,"id"),text(j,"submissionId"),text(j,"moderatorId"),text(j,"action"),text(j,"reason"),time(j,"createdAt"),text(j,"type"),text(j,"actor"),text(j,"aiModel"),text(j,"userId"),text(j,"userDisplayName"),text(j,"userEmail"),text(j,"name"),text(j,"content"),text(j,"imageUrl"),time(j,"submittedAt")));
       case NOTICE_FEED -> {
         NoticeFeed polled=getNoticeFeed(0,20); lastFeed=polled; noticeUnread=polled.unreadCount();
       }
       case NOTICES -> {
         // The inbox screen shows both tabs, so one refresh warms notices, messages and the badge.
         loadNoticePage(1); loadMessagePage(1);
-        noticeUnread=getNoticeFeed(0,1).unreadCount(); messageUnread=getUnreadCount();
+        noticeUnread=call("GET","users/me/notices/unread-count",null).optLong("unreadCount"); messageUnread=getUnreadCount();
       }
       case MESSAGES -> { loadMessagePage(1); messageUnread=getUnreadCount(); }
       case PROFILE -> { }
@@ -209,10 +210,9 @@ public final class RemoteRepository implements FoodtimeRepository {
   private void fetchDishes(String id) {
     var items=list("stalls/"+id+"/dishes",j -> new Dish(text(j,"id"),id,text(j,"name"),decimal(j,"price"),"",true));
     dishes.entrySet().removeIf(e -> e.getValue().stallId().equals(id));
-    for(Dish d:items) {
-      dishes.put(d.id(),d);
-      fetchDishImages(d.id());
-    }
+    // The stall page only needs the catalog rows. Loading every dish gallery here turns one
+    // navigation into an N+1 request burst, so media stays lazy until DISH_DETAIL is opened.
+    for(Dish d:items) dishes.put(d.id(),d);
     dishLists.put(id,items);
   }
   private void fetchDetail(String id) {
@@ -234,7 +234,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private Review review(JSONObject j) {
     contexts.put(text(j,"dishId"),joined(j,true));
-    return new Review(text(j,"id"),text(j,"dishId"),text(j,"userId"),text(j,"userDisplayName"),j.optInt("rating"),text(j,"content"),time(j,"createdAt"),j.optLong("likeCount"),j.optLong("replyCount"),j.optBoolean("likedByMe"),j.optLong("counterVersion"),assessment(j));
+    return new Review(text(j,"id"),text(j,"dishId"),text(j,"userId"),text(j,"userDisplayName"),j.optInt("rating"),text(j,"content"),time(j,"createdAt"),j.optLong("likeCount"),j.optLong("replyCount"),j.optBoolean("likedByMe"),j.optLong("counterVersion"),assessment(j),text(j,"userEmail"));
   }
   private ReviewPage fetchDishReviewPage(String dishId,int number) {
     JSONObject data=call("GET","dishes/"+dishId+"/reviews?page="+number+"&size=20",null);
@@ -281,7 +281,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     LikeState state=new LikeState(result.optBoolean("likedByMe"),result.optLong("likeCount"),result.optLong("counterVersion"));
     dishReviewPages.replaceAll((id,page) -> new ReviewPage(page.items().stream().map(row -> {
       if(!row.id().equals(reviewId)||row.counterVersion()>state.counterVersion()) return row;
-      return new Review(row.id(),row.dishId(),row.userId(),row.userDisplayName(),row.rating(),row.content(),row.createdAt(),state.likeCount(),row.replyCount(),state.likedByMe(),state.counterVersion(),row.ai());
+      return new Review(row.id(),row.dishId(),row.userId(),row.userDisplayName(),row.rating(),row.content(),row.createdAt(),state.likeCount(),row.replyCount(),state.likedByMe(),state.counterVersion(),row.ai(),row.userEmail());
     }).collect(java.util.stream.Collectors.toList()),page.total(),page.page(),page.hasMore()));
     return state;
   }
@@ -338,7 +338,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     return new Submission(text(j,"id"),type,target,admin?text(j,"userId"):user.id(),admin?text(j,"userDisplayName"):"",
         name,text(j,admin||type.equals("review")?"content":"description"),decimal(j,"price"),
         text(j,type.equals("stall")&&!admin?"coverImageUrl":"imageUrl"),j.optInt("rating"),text(j,"status"),
-        text(j,admin?"reason":"reviewReason"),time(j,type.equals("review")&&!admin?"submittedAt":"createdAt"),context,admin?assessment(j):AiAssessment.empty());
+        text(j,admin?"reason":"reviewReason"),time(j,type.equals("review")&&!admin?"submittedAt":"createdAt"),context,admin?assessment(j):AiAssessment.empty(),admin?text(j,"userEmail"):"");
   }
   private AiAssessment assessment(JSONObject j) {
     JSONArray raw=j.optJSONArray("aiLabels");List<String> labels=new ArrayList<>();
@@ -563,7 +563,18 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   @Override public void markNoticeRead(String id) {
     call("POST","users/me/notices/"+id+"/read",null);
-    if(noticeUnread>0) noticeUnread--;
+    noticeUnread=call("GET","users/me/notices/unread-count",null).optLong("unreadCount");
+  }
+  @Override public Notice currentNotice() {
+    JSONObject data=call("GET","users/me/notices/current",null);
+    if(data.length()==0||data.optBoolean("dontShowAgain"))return null;
+    if(text(data,"id").isEmpty()||!data.has("content"))throw new RepositoryException(502,"INVALID_RESPONSE","公告响应异常",0);
+    return new Notice(text(data,"id"),text(data,"content"),time(data,"createdTime"));
+  }
+  @Override public void confirmNotice(String id,boolean dontShowAgain) {
+    call("POST","users/me/notices/"+id+"/confirm",json("dontShowAgain",dontShowAgain));
+    // Counts are refreshed independently; a failed badge read must not fail a saved confirmation.
+    try {noticeUnread=call("GET","users/me/notices/unread-count",null).optLong("unreadCount");}catch(RepositoryException ignored){}
   }
   @Override public MessagePage messages() { return messagePage; }
   @Override public void loadMoreMessages() { if(messagePage.hasMore()) loadMessagePage(messageNumber+1); }
@@ -619,8 +630,22 @@ public final class RemoteRepository implements FoodtimeRepository {
     messagePage=new MessagePage(items,messagePage.total(),messagePage.hasMore());
     messageUnread=0;
   }
+  private static String encode(String value) { try { return java.net.URLEncoder.encode(value,"UTF-8"); } catch(java.io.UnsupportedEncodingException e) { throw new IllegalStateException(e); } }
+  private AdminNotice adminNoticeRow(JSONObject j) { return new AdminNotice(text(j,"id"),text(j,"title"),text(j,"content")); }
+  @Override public AdminNoticePage adminNotices(int page,String query) {
+    JSONObject result=call("GET","admin/notices/search?page="+page+"&size=6&q="+encode(query),null);
+    JSONArray rows=result.optJSONArray("items");List<AdminNotice> items=new ArrayList<>();
+    if(rows!=null) for(int i=0;i<rows.length();i++) items.add(adminNoticeRow(rows.optJSONObject(i)));
+    return new AdminNoticePage(List.copyOf(items),result.optLong("total"));
+  }
+  @Override public AdminNotice adminNotice(String id) { return adminNoticeRow(call("GET","admin/notices/"+id,null)); }
+  @Override public String noticeSetting() { return text(call("GET","admin/notices/settings",null),"noticeId"); }
+  @Override public void setNoticeSetting(String id) { call("PUT","admin/notices/settings",json("noticeId",id==null||id.isEmpty()?JSONObject.NULL:id)); }
+  @Override public AdminNotice saveNotice(String id,String content) {
+    return adminNoticeRow(call(id==null||id.isEmpty()?"POST":"PUT",id==null||id.isEmpty()?"admin/notices/markdown":"admin/notices/"+id+"/markdown",json("content",content)));
+  }
   private Notice notice(JSONObject j) {
-    return new Notice(text(j,"id"),text(j,"title"),text(j,"body"),time(j,"publishedAt"));
+    return new Notice(text(j,"id"),text(j,"content"),time(j,"publishedAt"));
   }
   private Message message(JSONObject j) {
     return new Message(text(j,"id"),text(j,"title"),text(j,"body"),text(j,"category"),

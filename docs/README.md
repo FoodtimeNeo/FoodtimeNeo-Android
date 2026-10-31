@@ -3,13 +3,17 @@
 | 需要了解的内容 | 文档 |
 | --- | --- |
 | 安装、当前功能和默认服务器 | [项目 README](../README.md) |
-| 1.0.1 版本与更新范围 | [1.0.1 发布说明](release-1.0.1.md) |
+| 1.1.1 版本与更新范围 | [1.1.1 发布说明](release-1.1.1.md) |
+| 1.0.1 历史版本 | [1.0.1 发布说明](release-1.0.1.md) |
 | 1.0.0 历史签名与完整回归 | [1.0.0 发布验收](release-1.0.0.md) |
 | 工具链、构建参数、设备测试与发布 | [构建与测试](build-and-test.md) |
 | 本地 Backend 与ADB映射 | [本地连接](local-backend.md) |
 | 分层、导航、草稿与图片 | [架构](architecture.md) |
 | 附件需求与后续确认的适用范围 | [功能范围](implementation-plan.md) |
 | 实际方法、路径及业务状态 | [接口映射](backend-integration.md) |
+| Superadmin 数据看板前后端约定 | [数据看板接口](admin-dashboard-contract.md) |
+| 登录公告、Markdown、已读与免弹 | [登录公告展示](login-notices.md) |
+| Superadmin 公告创建、编辑与当前公告设置 | [公告管理](notice-management.md) |
 | 会话加密、来源绑定与网络边界 | [真实数据源](remote-repository.md) |
 | 已执行检查、环境与限制 | [验收记录](verification.md) |
 | 功能分支和main发布规则 | [协作规范](../CONTRIBUTING.md) |

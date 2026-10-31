@@ -21,7 +21,10 @@ final class AdminScreen {
     Ui.action(card,"食堂 · 档口 · 菜品",false,() -> a.go("admin-data","halls~"));Ui.gap(card,12);
     Ui.action(card,"评论管理",false,() -> a.go("admin-reviews",""));Ui.gap(card,12);
     Ui.action(card,"审核日志",false,() -> a.go("admin-logs",""));
-    if(a.repo.currentUser().role().equals("superadmin")) {Ui.gap(card,12);Ui.action(card,"用户管理",false,() -> a.go("admin-users",""));}
+    if(a.repo.currentUser().role().equals("superadmin")) {
+      Ui.gap(card,12);Ui.action(card,"公告管理",false,() -> a.go("admin-notices",""));
+      Ui.gap(card,12);Ui.action(card,"用户管理",false,() -> a.go("admin-users",""));
+    }
   }
   static void audit(MainActivity a,LinearLayout page,MainActivity.Route route) {
     guard(a);a.heading(page,"","审核投稿","");
@@ -122,9 +125,8 @@ final class AdminScreen {
     Runnable filter=() -> {
       String query=search.getText().toString().strip().toLowerCase(Locale.ROOT);list.removeAllViews();int found=0;
       for(Review review:all) if(query.isBlank()||review.userDisplayName().toLowerCase(Locale.ROOT).contains(query)
-          ||review.userId().toLowerCase(Locale.ROOT).contains(query)) {
-        found++;LinearLayout card=Ui.card(list);card.addView(Ui.text(a,"作者："+(review.userDisplayName().isEmpty()?"未命名用户":review.userDisplayName()),12,Design.BLUE));Ui.gap(card,8);
-        card.addView(Ui.text(a,SubmissionScreen.date(review.createdAt()),12,Design.MUTED));
+          ||review.userId().toLowerCase(Locale.ROOT).contains(query)||review.userEmail().toLowerCase(Locale.ROOT).contains(query)) {
+        found++;LinearLayout card=Ui.card(list);PublisherDetailsView.show(a,card,review.userId(),review.userDisplayName(),review.userEmail(),review.createdAt());
         card.addView(Ui.text(a,a.repo.context(review.dishId()),14,Design.MUTED));
         card.addView(Ui.text(a,"★".repeat(review.rating())+" · "+review.rating()+" / 5",16,Design.RED));card.addView(Ui.text(a,review.content(),16,Design.INK));Ui.gap(card,12);
         AiAssessmentView.show(a,card,review.ai());
@@ -171,7 +173,16 @@ final class AdminScreen {
     guard(a);a.heading(page,"","审核日志","");List<Audit> all=a.repo.audits();if(all.isEmpty()) Ui.empty(page,"暂无审核记录","");
     for(Audit audit:all) {
       LinearLayout card=Ui.card(page);card.addView(Ui.stamp(a,audit.action().equals("approve")?"通过":"驳回",audit.action().equals("approve")?Design.GREEN:Design.RED));Ui.gap(card,12);
-      card.addView(Ui.text(a,SubmissionScreen.date(audit.createdAt()),12,Design.MUTED));if(!audit.reason().isBlank()) card.addView(Ui.text(a,audit.reason(),16,Design.INK));
+      if(!audit.type().isBlank())card.addView(Ui.title(a,SubmissionScreen.type(audit.type()),20));
+      card.addView(Ui.text(a,"日志 ID："+audit.id(),12,Design.MUTED));
+      card.addView(Ui.text(a,"投稿 ID："+audit.submissionId(),12,Design.MUTED));
+      PublisherDetailsView.show(a,card,audit.userId(),audit.userDisplayName(),audit.userEmail(),audit.submittedAt());
+      if(!audit.name().isBlank())card.addView(Ui.title(a,audit.name(),20));
+      card.addView(Ui.text(a,"发布内容："+(audit.content().isBlank()?"无文字内容":audit.content()),16,Design.INK));
+      if(!audit.imageUrl().isBlank())card.addView(Ui.image(a,audit.imageUrl(),"发布内容配图",true));
+      card.addView(Ui.text(a,audit.actor().equals("ai")?"AI 审核："+audit.aiModel():"审核人 ID："+audit.moderatorId(),12,Design.MUTED));
+      card.addView(Ui.text(a,"审核时间："+SubmissionScreen.date(audit.createdAt()),12,Design.MUTED));
+      if(!audit.reason().isBlank()) card.addView(Ui.text(a,"审核说明："+audit.reason(),16,Design.INK));
     }
   }
 }

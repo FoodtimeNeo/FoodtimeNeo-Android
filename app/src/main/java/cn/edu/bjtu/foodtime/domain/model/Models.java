@@ -27,6 +27,22 @@ public final class Models {
     }
   }
 
+  /** One calendar-day bucket used by the platform data dashboard. */
+  public record DashboardPoint(long day,long newUsers,long newReviews,long newReplies,long newPosts,long onlinePeak) {}
+
+  /** Single Backend projection for the superadmin dashboard. */
+  public record AdminDashboard(long registeredUsers,long onlineUsers,long reviews,long replies,long posts,
+      long halls,long stalls,long dishes,List<DashboardPoint> trend,long generatedAt,boolean preview) {
+    public AdminDashboard { trend=trend==null?List.of():List.copyOf(trend); }
+    public static AdminDashboard sample() {
+      long day=System.currentTimeMillis()/86_400_000L*86_400_000L;
+      long[] users={7,9,6,12,8,11,10},reviews={68,75,61,88,79,95,92},replies={104,118,97,143,126,158,151},posts={12,15,11,19,16,22,24},online={91,96,88,112,105,127,119};
+      java.util.ArrayList<DashboardPoint> points=new java.util.ArrayList<>();
+      for(int i=0;i<7;i++) points.add(new DashboardPoint(day-(6L-i)*86_400_000L,users[i],reviews[i],replies[i],posts[i],online[i]));
+      return new AdminDashboard(1248,86,3862,5917,742,7,46,618,points,System.currentTimeMillis(),true);
+    }
+  }
+
   public record LikeState(boolean likedByMe, long likeCount, long counterVersion) {}
 
   public record AiAssessment(String riskLevel,BigDecimal confidence,java.util.List<String> labels,String reason,long checkedAt) {
@@ -49,7 +65,11 @@ public final class Models {
 
   public record Review(
       String id, String dishId, String userId, String userDisplayName, int rating, String content, long createdAt,
-      long likeCount, long replyCount, boolean likedByMe, long counterVersion,AiAssessment ai) {
+      long likeCount, long replyCount, boolean likedByMe, long counterVersion,AiAssessment ai,String userEmail) {
+    public Review(String id,String dishId,String userId,String userDisplayName,int rating,String content,long createdAt,
+        long likeCount,long replyCount,boolean likedByMe,long counterVersion,AiAssessment ai) {
+      this(id,dishId,userId,userDisplayName,rating,content,createdAt,likeCount,replyCount,likedByMe,counterVersion,ai,"");
+    }
     public Review(String id,String dishId,String userId,String userDisplayName,int rating,String content,long createdAt,
         long likeCount,long replyCount,boolean likedByMe,long counterVersion) {
       this(id,dishId,userId,userDisplayName,rating,content,createdAt,likeCount,replyCount,likedByMe,counterVersion,AiAssessment.empty());
@@ -75,7 +95,11 @@ public final class Models {
       int rating,
       String status,
       String reason,
-      long createdAt, String context,AiAssessment ai) {
+      long createdAt, String context,AiAssessment ai,String userEmail) {
+    public Submission(String id,String type,String targetId,String userId,String userDisplayName,String name,String content,
+        BigDecimal price,String imageUrl,int rating,String status,String reason,long createdAt,String context,AiAssessment ai) {
+      this(id,type,targetId,userId,userDisplayName,name,content,price,imageUrl,rating,status,reason,createdAt,context,ai,"");
+    }
     public Submission(String id,String type,String targetId,String userId,String userDisplayName,String name,String content,
         BigDecimal price,String imageUrl,int rating,String status,String reason,long createdAt,String context) {
       this(id,type,targetId,userId,userDisplayName,name,content,price,imageUrl,rating,status,reason,createdAt,context,AiAssessment.empty());
@@ -97,7 +121,9 @@ public final class Models {
     public CommunityAuditPage{items=List.copyOf(items);}
     public static CommunityAuditPage empty(){return new CommunityAuditPage("posts","pending",1,0,List.of());}
   }
-  public record CommunityAuditDetail(CommunityPost post,CommunityComment comment,CommunityComment rootComment,CommunityComment replyToComment,AiAssessment ai){}
+  public record CommunityAuditDetail(CommunityPost post,CommunityComment comment,CommunityComment rootComment,CommunityComment replyToComment,AiAssessment ai,String userEmail){
+    public CommunityAuditDetail(CommunityPost post,CommunityComment comment,CommunityComment rootComment,CommunityComment replyToComment,AiAssessment ai){this(post,comment,rootComment,replyToComment,ai,"");}
+  }
   public record CommunityPostPage(List<CommunityPost> items,long total,int page,boolean hasMore){
     public CommunityPostPage{items=List.copyOf(items);}
     public static CommunityPostPage empty(){return new CommunityPostPage(List.of(),0,0,false);}
@@ -131,7 +157,12 @@ public final class Models {
   }
 
   /** Announcement broadcast to all users; seq is a polling cursor only, never an identity. */
-  public record Notice(String id, String title, String body, long publishedAt) {}
+  public record Notice(String id, String content, long publishedAt) {
+    /** Compatibility for older test fixtures only; production uses content. */
+    public Notice(String id,String title,String body,long publishedAt) {
+      this(id,"# "+title+"\n\n"+body,publishedAt);
+    }
+  }
 
   /** Paged announcements, newest first. */
   public record NoticePage(List<Notice> items, long total, boolean hasMore) {
@@ -176,7 +207,12 @@ public final class Models {
       String moderatorId,
       String action,
       String reason,
-      long createdAt) {}
+      long createdAt, String type,String actor,String aiModel,String userId,String userDisplayName,String userEmail,
+      String name,String content,String imageUrl,long submittedAt) {
+    public Audit(String id,String submissionId,String moderatorId,String action,String reason,long createdAt){
+      this(id,submissionId,moderatorId,action,reason,createdAt,"","","","","","","","","",0);
+    }
+  }
 
   private Models() {}
 }

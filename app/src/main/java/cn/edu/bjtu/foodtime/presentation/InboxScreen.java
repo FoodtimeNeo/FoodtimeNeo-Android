@@ -16,11 +16,7 @@ final class InboxScreen {
       page.addView(Ui.text(a, "还有 " + unread + " 条未读", 14, Design.RED));
       Ui.gap(page, 12);
     }
-    // Seed the background poll watermark so it only pops truly new announcements.
-    List<String> known = new ArrayList<>();
-    for (Notice notice : a.repo.notices().items()) known.add(notice.id());
-    for (Message message : a.repo.messages().items()) known.add(message.id());
-    a.noteInboxSeen(known);
+    if(a.loginNoticeFailed()) Ui.action(page,"重试登录公告",false,a::retryLoginNotice);
 
     String tabKey = a.draftKey("tab");
     String tab = a.drafts.getString(tabKey, "notice");
@@ -31,7 +27,7 @@ final class InboxScreen {
       a.drafts.putString(tabKey, "notice");
       a.redraw();
     });
-    TextView messageTab = segment(a, unread > 0 ? "系统消息 · " + unread + "未读" : "系统消息", tab.equals("message"), () -> {
+    TextView messageTab = segment(a, "系统消息", tab.equals("message"), () -> {
       a.drafts.putString(tabKey, "message");
       a.redraw();
     });
@@ -62,9 +58,9 @@ final class InboxScreen {
     }
     for (Notice notice : result.items()) {
       LinearLayout card = Ui.card(page);
-      card.addView(Ui.text(a, notice.title(), 17, Design.INK));
+      card.addView(Ui.text(a, "系统公告", 17, Design.INK));
       Ui.gap(card, 6);
-      String body = notice.body() == null ? "" : notice.body();
+      String body = notice.content() == null ? "" : notice.content();
       if (!body.isBlank()) {
         String snippet = body.length() > 80 ? body.substring(0, 80) + "…" : body;
         card.addView(Ui.text(a, snippet, 14, Design.MUTED));
@@ -73,7 +69,7 @@ final class InboxScreen {
       card.addView(Ui.text(a, CommunityText.publishedAt(notice.publishedAt()), 12, Design.MUTED));
       card.setClickable(true);
       card.setFocusable(true);
-      card.setContentDescription(notice.title() + "，查看全文");
+      card.setContentDescription("系统公告" + "，查看全文");
       card.setOnClickListener(v -> openNotice(a, notice));
     }
     if (result.hasMore()) {
@@ -131,8 +127,8 @@ final class InboxScreen {
   }
 
   private static void openNotice(MainActivity a, Notice notice) {
-    String body = notice.body() == null ? "" : notice.body();
-    showDetail(a, notice.title(), body);
+    String body = notice.content() == null ? "" : notice.content();
+    openFull(a, "系统公告", body, true);
     a.request(null, null, () -> a.repo.markNoticeRead(notice.id()), a::redraw);
   }
 
@@ -150,7 +146,8 @@ final class InboxScreen {
   }
 
   /** Full-screen text reader following the CommunityGallery.open() Dialog pattern. */
-  private static void openFull(MainActivity a, String title, String body) {
+  private static void openFull(MainActivity a, String title, String body) { openFull(a,title,body,false); }
+  private static void openFull(MainActivity a, String title, String body, boolean markdown) {
     Dialog dialog = new Dialog(a, android.R.style.Theme_Material_NoActionBar_Fullscreen);
     LinearLayout screen = Ui.col(a);
     screen.setBackgroundColor(Design.PAPER);
@@ -168,7 +165,9 @@ final class InboxScreen {
     content.setPadding(Ui.dp(a, 20), Ui.dp(a, 8), Ui.dp(a, 20), Ui.dp(a, 32));
     content.addView(Ui.title(a, title, 24));
     Ui.gap(content, 12);
-    content.addView(Ui.text(a, body, 16, Design.INK));
+    TextView text=Ui.text(a, body, 16, Design.INK);
+    if(markdown) NoticeMarkdown.render(text,body);
+    content.addView(text);
     scroll.addView(content);
     screen.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
     dialog.setContentView(screen);
