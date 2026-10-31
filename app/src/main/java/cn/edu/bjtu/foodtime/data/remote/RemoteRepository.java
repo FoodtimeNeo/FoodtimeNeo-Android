@@ -126,7 +126,7 @@ public final class RemoteRepository implements FoodtimeRepository {
         JSONObject data=call("GET","admin/community/"+type+"?status="+status+"&page="+number+"&size=20",null);
         List<Submission> rows=new ArrayList<>();JSONArray items=data.optJSONArray("items");
         if(items!=null)for(int i=0;i<items.length();i++){
-          JSONObject item=items.optJSONObject(i);rows.add(new Submission(text(item,"id"),text(item,"type"),text(item,"targetId"),text(item,"userId"),text(item,"userDisplayName"),text(item,"name"),text(item,"content"),null,text(item,"imageUrl"),0,text(item,"status"),text(item,"reason"),time(item,"createdAt"),"",assessment(item)));
+          JSONObject item=items.optJSONObject(i);rows.add(new Submission(text(item,"id"),text(item,"type"),text(item,"targetId"),text(item,"userId"),text(item,"userDisplayName"),text(item,"name"),text(item,"content"),null,text(item,"imageUrl"),0,text(item,"status"),text(item,"reason"),time(item,"createdAt"),"",assessment(item),text(item,"userEmail")));
         }
         communityAudit=new CommunityAuditPage(type,status,number,data.optLong("total"),rows);
       }
@@ -134,7 +134,7 @@ public final class RemoteRepository implements FoodtimeRepository {
         String[] parts=request.id().split("~",-1);JSONObject data=call("GET","admin/community/"+parts[0]+"/"+parts[1],null);
         JSONObject comment=data.optJSONObject("comment"),root=data.optJSONObject("rootComment"),target=data.optJSONObject("replyToComment");
         AiAssessment ai=communityAudit.items().stream().filter(item->item.id().equals(parts[1])).map(Submission::ai).findFirst().orElse(assessment(data.optJSONObject("post")));
-        communityAuditDetail=new CommunityAuditDetail(cacheCommunityPost(data.optJSONObject("post")),comment==null?null:communityComment(comment),root==null?null:communityComment(root),target==null?null:communityComment(target),ai);
+        communityAuditDetail=new CommunityAuditDetail(cacheCommunityPost(data.optJSONObject("post")),comment==null?null:communityComment(comment),root==null?null:communityComment(root),target==null?null:communityComment(target),ai,text(data,"userEmail"));
       }
       case MY_COMMUNITY_POSTS -> loadCommunityCollection(false,false);
       case MY_COMMUNITY_FAVORITES -> loadCommunityCollection(true,false);
@@ -178,7 +178,7 @@ public final class RemoteRepository implements FoodtimeRepository {
       case ADMIN_REVIEWS -> reviews.put("admin",reviewPage("admin/reviews"));
       case ADMIN_USERS -> userList=page("admin/users",this::person);
       case ADMIN_DASHBOARD -> { /* Frontend contract ready; Backend endpoint will populate this projection. */ }
-      case AUDITS -> auditList=page("admin/moderation/logs",j -> new Audit(text(j,"id"),text(j,"submissionId"),text(j,"moderatorId"),text(j,"action"),text(j,"reason"),time(j,"createdAt")));
+      case AUDITS -> auditList=page("admin/moderation/logs",j -> new Audit(text(j,"id"),text(j,"submissionId"),text(j,"moderatorId"),text(j,"action"),text(j,"reason"),time(j,"createdAt"),text(j,"type"),text(j,"actor"),text(j,"aiModel"),text(j,"userId"),text(j,"userDisplayName"),text(j,"userEmail"),text(j,"name"),text(j,"content"),text(j,"imageUrl"),time(j,"submittedAt")));
       case NOTICE_FEED -> {
         NoticeFeed polled=getNoticeFeed(0,20); lastFeed=polled; noticeUnread=polled.unreadCount();
       }
@@ -234,7 +234,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private Review review(JSONObject j) {
     contexts.put(text(j,"dishId"),joined(j,true));
-    return new Review(text(j,"id"),text(j,"dishId"),text(j,"userId"),text(j,"userDisplayName"),j.optInt("rating"),text(j,"content"),time(j,"createdAt"),j.optLong("likeCount"),j.optLong("replyCount"),j.optBoolean("likedByMe"),j.optLong("counterVersion"),assessment(j));
+    return new Review(text(j,"id"),text(j,"dishId"),text(j,"userId"),text(j,"userDisplayName"),j.optInt("rating"),text(j,"content"),time(j,"createdAt"),j.optLong("likeCount"),j.optLong("replyCount"),j.optBoolean("likedByMe"),j.optLong("counterVersion"),assessment(j),text(j,"userEmail"));
   }
   private ReviewPage fetchDishReviewPage(String dishId,int number) {
     JSONObject data=call("GET","dishes/"+dishId+"/reviews?page="+number+"&size=20",null);
@@ -281,7 +281,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     LikeState state=new LikeState(result.optBoolean("likedByMe"),result.optLong("likeCount"),result.optLong("counterVersion"));
     dishReviewPages.replaceAll((id,page) -> new ReviewPage(page.items().stream().map(row -> {
       if(!row.id().equals(reviewId)||row.counterVersion()>state.counterVersion()) return row;
-      return new Review(row.id(),row.dishId(),row.userId(),row.userDisplayName(),row.rating(),row.content(),row.createdAt(),state.likeCount(),row.replyCount(),state.likedByMe(),state.counterVersion(),row.ai());
+      return new Review(row.id(),row.dishId(),row.userId(),row.userDisplayName(),row.rating(),row.content(),row.createdAt(),state.likeCount(),row.replyCount(),state.likedByMe(),state.counterVersion(),row.ai(),row.userEmail());
     }).collect(java.util.stream.Collectors.toList()),page.total(),page.page(),page.hasMore()));
     return state;
   }
@@ -338,7 +338,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     return new Submission(text(j,"id"),type,target,admin?text(j,"userId"):user.id(),admin?text(j,"userDisplayName"):"",
         name,text(j,admin||type.equals("review")?"content":"description"),decimal(j,"price"),
         text(j,type.equals("stall")&&!admin?"coverImageUrl":"imageUrl"),j.optInt("rating"),text(j,"status"),
-        text(j,admin?"reason":"reviewReason"),time(j,type.equals("review")&&!admin?"submittedAt":"createdAt"),context,admin?assessment(j):AiAssessment.empty());
+        text(j,admin?"reason":"reviewReason"),time(j,type.equals("review")&&!admin?"submittedAt":"createdAt"),context,admin?assessment(j):AiAssessment.empty(),admin?text(j,"userEmail"):"");
   }
   private AiAssessment assessment(JSONObject j) {
     JSONArray raw=j.optJSONArray("aiLabels");List<String> labels=new ArrayList<>();

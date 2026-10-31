@@ -1,5 +1,13 @@
 # 验收记录
 
+## 2026-10-31 审核发布者信息
+
+审核投稿、社区审核（列表与详情）、评论管理和审核日志显示发布者名称、邮箱、ID、正文/配图和发布时间。日志单独标明审核时间及审核人/AI；缺失字段显示“未记录”，不将缺失时间显示为 1970 年。
+
+架构检查、JVM 测试、Lint 和 Debug/AndroidTest 构建通过。隔离 `.moderationcheck` 包的 `ModerationPublisherRunner` 在 Android 16 模拟器通过 22 项原生检查，使用进程内仓库验证审核、评论、日志和社区列表字段及两种时间，表单不提交、不访问云端业务写接口。Backend 的配套接口需随版本部署；旧接口缺少的邮箱显示为“未记录”。
+
+复现：构建参数使用 `-PFOODTIME_DEBUG_SUFFIX=.moderationcheck -PFOODTIME_API_BASE_URL=http://127.0.0.1:8080/api/v1/ -PFOODTIME_TEST_RUNNER=cn.edu.bjtu.foodtime.presentation.ModerationPublisherRunner`，安装主包和测试包后执行 `adb shell am instrument -w cn.edu.bjtu.foodtime.moderationcheck.test/cn.edu.bjtu.foodtime.presentation.ModerationPublisherRunner`。
+
 ## 2026-10-31 密码输入遮罩修复
 
 `Ui.field` 原先在设置密码输入类型后调用 `setSingleLine`，导致密码转换器被覆盖。现于单行设置完成后显式安装 `PasswordTransformationMethod`，同时覆盖登录、注册及修改密码的公共输入框；输入原值仍用于提交，密码不写入 View 状态或草稿。
