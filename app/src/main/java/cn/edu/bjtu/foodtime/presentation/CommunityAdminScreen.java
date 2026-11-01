@@ -35,12 +35,12 @@ final class CommunityAdminScreen {
   AiAssessmentView.show(a,context,detail.ai());
   String status=comment==null?post.status():comment.status();
   if(status.equals("rejected")){context.addView(Ui.text(a,"已驳回："+(comment==null?post.reviewReason():comment.reviewReason()),14,Design.RED));return;}
-  LinearLayout form=Ui.card(page);EditText reason=Ui.field(form,status.equals("approved")?"下架原因":"审核说明",false,true);reason.setHint("驳回或下架时必填，最多500字");reason.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});
+  LinearLayout form=Ui.card(page);EditText reason=status.equals("pending")?Ui.field(form,"审核说明",false,true):null;if(reason!=null){reason.setHint("驳回时必填，最多500字");reason.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});}
   TextView error=Ui.text(a,"",13,Design.RED);form.addView(error);
   if(status.equals("pending")){
    Ui.submit(form,"通过审核",error,()->{String explanation=reason.getText().toString().trim();return ()->a.repo.moderateCommunity(type,id,"approve",explanation);},()->{a.clearDraft(route);a.message("审核已通过");a.back();});
    Ui.submit(form,"驳回内容",error,()->{String explanation=Validation.text(reason.getText().toString(),500,"驳回原因");return ()->a.repo.moderateCommunity(type,id,"reject",explanation);},()->{a.clearDraft(route);a.message("已驳回");a.back();});
-  }else Ui.submit(form,"下架违规内容",error,()->{String explanation=Validation.text(reason.getText().toString(),500,"下架原因");return ()->a.repo.removeCommunityAsAdmin(type,id,explanation);},()->{a.clearDraft(route);a.message("内容已下架");a.back();});
+  }else Ui.action(form,"删除内容",false,()->CommunityRemoval.confirm(a,type,id,comment==null?post.userId():comment.userId(),comment==null?post.title():comment.content(),()->{a.clearDraft(route);a.back();}));
  }
  private static String content(CommunityComment comment){return comment.deleted()?"已删除":comment.content();}
  private CommunityAdminScreen(){}
