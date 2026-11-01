@@ -37,7 +37,9 @@ final class ImageLoader {
     TASKS.clear();WORK.purge();
     for(Runnable[] binding:List.copyOf(BINDINGS.values()))binding[0].run();
   }
-  static void pause(){paused=true;clear();}
+  /** 切后台只暂停加载与绑定，不清内存缓存：回前台可直接复用已解码位图。
+   *  低内存仍由 onTrimMemory 触发 clear()，登出/切号走 Ui.clearImages()。 */
+  static void pause(){paused=true;}
   static void resume(){paused=false;for(Runnable[] binding:List.copyOf(BINDINGS.values()))binding[1].run();}
   private static Runnable subscribe(MainActivity a,String path,int bound,Consumer<Bitmap> listener) {
     String identity=a.repo.imageIdentity(),key=identity+":"+path+":"+bound;int ticket=epoch;
