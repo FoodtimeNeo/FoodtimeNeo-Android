@@ -79,7 +79,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private void profile() { user=person(call("GET","users/me/profile",null)); }
   @Override public User login(String account,String password) {
-    Validation.email(account); Validation.password(password,false);
+    Validation.accountEmail(account); Validation.password(password,false);
     csrf=null; token();
     call("POST","auth/login",json("account",account.strip(),"password",password));
     csrf=null; token(); profile(); return user;
@@ -92,6 +92,25 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public void register(String email,String password,String code) {
     Validation.email(email); Validation.password(password,true);
     call("POST","auth/register",json("email",email.strip(),"password",password,"verificationCode",code));
+  }
+  @Override public long sendPasswordResetCode(String email) {
+    var response=call("POST","auth/password-reset/email-code",json("email",Validation.accountEmail(email)));
+    return response.optLong("resendAfterSeconds",60);
+  }
+  @Override public cn.edu.bjtu.foodtime.domain.model.PasswordResetGrant verifyPasswordResetCode(String email,String code) {
+    if(!code.matches("[0-9]{6}"))throw new IllegalArgumentException("验证码须为6位数字");
+    var response=call("POST","auth/password-reset/verify",json("email",Validation.accountEmail(email),"verificationCode",code));
+    String grant=text(response,"resetToken");
+    try {
+      if(!grant.matches("[A-Za-z0-9_-]{43}"))throw new IllegalArgumentException();
+      long expires=java.time.Instant.parse(text(response,"expiresAt")).toEpochMilli();
+      return new cn.edu.bjtu.foodtime.domain.model.PasswordResetGrant(grant,expires);
+    }catch(RuntimeException e){throw new RepositoryException(0,"INVALID_RESPONSE","验证响应异常，请重新验证邮箱",0);}
+  }
+  @Override public void resetPassword(String grant,String newPassword) {
+    Validation.password(newPassword,true);
+    if(!grant.matches("[A-Za-z0-9_-]{43}"))throw new IllegalArgumentException("验证已失效，请重新验证邮箱");
+    call("POST","auth/password-reset",json("resetToken",grant,"newPassword",newPassword));clear();
   }
   @Override public void logout() {
     try { call("POST","auth/logout",null); }

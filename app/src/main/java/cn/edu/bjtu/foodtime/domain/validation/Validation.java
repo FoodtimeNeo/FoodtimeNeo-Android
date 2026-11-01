@@ -4,6 +4,12 @@ import java.math.BigDecimal;
 import java.util.Locale;
 
 public final class Validation {
+  public static String accountEmail(String s) {
+    String value=s.trim().toLowerCase(Locale.ROOT);
+    if(value.length()>254||!value.matches("[^\\s@]+@[^\\s@]+\\.[^\\s@]+"))
+      throw new IllegalArgumentException("请输入账号绑定的完整邮箱");
+    return value;
+  }
   public static String email(String s) {
     String value = s.trim().toLowerCase(Locale.ROOT);
     if (value.length() > 254 || !value.matches("[0-9]+@bjtu\\.edu\\.cn"))

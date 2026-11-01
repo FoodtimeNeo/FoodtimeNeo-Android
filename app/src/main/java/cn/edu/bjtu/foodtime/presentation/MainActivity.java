@@ -171,8 +171,15 @@ public class MainActivity extends Activity {
     screens.put("admin-logs", AdminScreen::logs);
   }
 
+  private PasswordRecoveryScreen passwordRecovery;
+  public void showPasswordRecovery() {
+    if(writeInFlight){message("正在提交，请稍候");return;}
+    cancelNavigation();contentReady=false;++generation;shell(false);
+    passwordRecovery=new PasswordRecoveryScreen(this,content);
+  }
   public void showAuth(boolean register) {
     if(writeInFlight) {message("正在提交，请稍候");return;}
+    if(passwordRecovery!=null){passwordRecovery.close();passwordRecovery=null;}
     authRegistration=register;
     cancelNavigation();contentReady=false;
     ++generation;
@@ -227,6 +234,7 @@ public class MainActivity extends Activity {
 
   public void back() {
     if(writeInFlight) {message("正在提交，请稍候");return;}
+    if(passwordRecovery!=null){passwordRecovery.back();return;}
     if (repo.currentUser() == null) {
       finish();
       return;
@@ -683,5 +691,5 @@ public class MainActivity extends Activity {
   }
   @Override protected void onPause() { super.onPause();foreground=false;resumeNavigation=navigationLoading;cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)Ui.clearImages();}
-  @Override protected void onDestroy() {++generation;cancelNavigation();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override protected void onDestroy() {if(passwordRecovery!=null)passwordRecovery.close();++generation;cancelNavigation();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }
