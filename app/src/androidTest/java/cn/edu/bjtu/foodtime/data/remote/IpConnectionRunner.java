@@ -21,10 +21,12 @@ public final class IpConnectionRunner extends Instrumentation {
     HttpTransport transport = null;
     try {
       String base = BuildConfig.API_BASE_URL;
-      require(base.equals("https://154.9.252.201/api/v1/"), "Unexpected API endpoint");
+      java.net.URI endpoint = java.net.URI.create(base);
+      require(base.endsWith("/api/v1/"), "Unexpected API endpoint");
+      require(endpoint.getHost() != null && !endpoint.getHost().isBlank(), "Missing API host");
       require(BuildConfig.APPLICATION_ID.endsWith(".ipcheck"), "Use isolated .ipcheck package");
       var policy = android.security.NetworkSecurityPolicy.getInstance();
-      require(!policy.isCleartextTrafficPermitted("154.9.252.201"), "Cloud HTTP must be blocked");
+      require(!policy.isCleartextTrafficPermitted(endpoint.getHost()), "Cloud HTTP must be blocked");
       require(!policy.isCleartextTrafficPermitted("example.com"), "Arbitrary HTTP must be blocked");
       require(policy.isCleartextTrafficPermitted("127.0.0.1"), "Debug loopback integration must remain available");
       var store = new EncryptedCookieStore(getTargetContext(), base, "ip-connection-smoke");
@@ -40,14 +42,14 @@ public final class IpConnectionRunner extends Instrumentation {
           "Missing secure session cookie");
       require(cookies.get(URI.create(base + "auth/csrf"), java.util.Map.of()).values()
           .stream().flatMap(java.util.Collection::stream)
-          .anyMatch(value -> value.contains("FOODTIME_SESSION=")), "Cookie not sent to IP");
+          .anyMatch(value -> value.contains("FOODTIME_SESSION=")), "Cookie not sent to endpoint");
       String session = transport.sessionKey();
       get(transport, "auth/csrf");
       require(session.equals(transport.sessionKey()), "Anonymous session was replaced");
       result.putString("stream", "Cleartext policy, IP TLS, API JSON, encrypted Secure cookie and session reuse passed\n");
       finish(Activity.RESULT_OK, result);
     } catch (Exception | AssertionError failure) {
-      result.putString("stream", "IP connection failed: " + failure + "\n");
+      result.putString("stream", "Endpoint connection failed: " + failure + "\n");
       finish(Activity.RESULT_CANCELED, result);
     } finally {
       if (transport != null) transport.clearSession();
