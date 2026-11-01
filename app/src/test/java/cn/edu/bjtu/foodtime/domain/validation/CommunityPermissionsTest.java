@@ -15,10 +15,10 @@ public class CommunityPermissionsTest {
     assertFalse(CommunityPermissions.requiresReason(user("user", true), "viewer"));
   }
 
-  @Test public void bothAdministratorRolesCanRemoveOtherPeoplesContentWithAReason() {
+  @Test public void bothAdministratorRolesCanRemoveOtherPeoplesContentWithoutAReason() {
     for (String role : new String[]{"admin", "superadmin"}) {
       assertTrue(CommunityPermissions.canRemove(user(role, true), "author"));
-      assertTrue(CommunityPermissions.requiresReason(user(role, true), "author"));
+      assertFalse(CommunityPermissions.requiresReason(user(role, true), "author"));
       assertFalse(CommunityPermissions.requiresReason(user(role, true), "viewer"));
     }
   }

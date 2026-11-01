@@ -11,6 +11,9 @@ import org.json.*;
 
 /** Historical offline simulator for tests only. Not packaged in the application. */
 public class LocalRepository implements FoodtimeRepository {
+  @Override public long sendPasswordResetCode(String email) {throw new UnsupportedOperationException("找回密码需要真实后端");}
+  @Override public cn.edu.bjtu.foodtime.domain.model.PasswordResetGrant verifyPasswordResetCode(String email,String code) {throw new UnsupportedOperationException("找回密码需要真实后端");}
+  @Override public void resetPassword(String token,String password) {throw new UnsupportedOperationException("找回密码需要真实后端");}
   protected final SharedPreferences prefs;
   protected JSONObject db;
 

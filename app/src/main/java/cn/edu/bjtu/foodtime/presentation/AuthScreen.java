@@ -9,8 +9,9 @@ final class AuthScreen {
     EditText email=Ui.field(card,"学号邮箱",false,false);
     email.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
     email.setHint("20260001@bjtu.edu.cn");
-    EditText password=Ui.field(card,"密码",true,false);
     EditText code=register?Ui.field(card,"邮箱验证码",false,false):null;
+    EditText password=Ui.field(card,"密码",true,false);
+    EditText confirm=register?Ui.field(card,"确认密码",true,false):null;
     TextView error=Ui.text(a,"",14,Design.RED);error.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);card.addView(error);
     if(register) {
       code.setInputType(InputType.TYPE_CLASS_NUMBER);
@@ -19,8 +20,13 @@ final class AuthScreen {
     }
     Ui.submit(card,register?"注册":"登录",error,() -> {
       String account=email.getText().toString(),secret=password.getText().toString(),verification=register?code.getText().toString():"";
+      if(register&&!secret.equals(confirm.getText().toString())){
+        confirm.setError("两次输入的密码不一致");confirm.requestFocus();
+        throw new IllegalArgumentException("两次输入的密码不一致");
+      }
       return () -> {if(register) a.repo.register(account,secret,verification);else a.repo.login(account,secret);};
-    },() -> {password.setText("");Ui.clearImages();if(register) {a.message("注册成功，请登录");a.showAuth(false);}else a.openApp();});
+    },() -> {password.setText("");if(confirm!=null)confirm.setText("");if(code!=null)code.setText("");Ui.clearImages();if(register) {a.message("注册成功，请登录");a.showAuth(false);}else a.openApp();});
     Ui.gap(card,12);Ui.link(card,register?"去登录":"注册账号",() -> a.showAuth(!register));
+    if(!register){Ui.gap(card,12);Ui.link(card,"忘记密码？",a::showPasswordRecovery);}
   }
 }

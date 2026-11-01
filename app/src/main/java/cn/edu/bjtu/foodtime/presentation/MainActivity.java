@@ -1,6 +1,9 @@
 package cn.edu.bjtu.foodtime.presentation;
 
 import android.app.Activity;
+import android.app.AlertDialog;
+import android.content.Intent;
+import android.net.Uri;
 import android.os.Bundle;
 import android.view.*;
 import android.widget.*;
@@ -8,6 +11,7 @@ import cn.edu.bjtu.foodtime.domain.repository.FoodtimeRepository;
 import cn.edu.bjtu.foodtime.domain.repository.RepositoryProvider;
 import cn.edu.bjtu.foodtime.domain.repository.ContentRequest;
 import cn.edu.bjtu.foodtime.domain.repository.RepositoryException;
+import cn.edu.bjtu.foodtime.domain.model.Models.AppRelease;
 import cn.edu.bjtu.foodtime.domain.model.Models.Notice;
 import java.util.*;
 import java.util.concurrent.Executor;
@@ -15,6 +19,7 @@ import java.util.function.*;
 
 public class MainActivity extends Activity {
   public FoodtimeRepository repo;
+  private boolean releaseChecked;
 
   public record Route(String kind, String id) {}
 
@@ -149,6 +154,8 @@ public class MainActivity extends Activity {
     screens.put("submit-dish", UploadScreen::dish);
     screens.put("submit-stall", UploadScreen::stall);
     screens.put("mine-submissions", SubmissionScreen::mine);
+    screens.put("following", FollowListScreen::following);
+    screens.put("followers", FollowListScreen::followers);
     screens.put("profile", ProfileScreen::profile);
     screens.put("profile-edit", ProfileScreen::edit);
     screens.put("mine-reviews", ProfileScreen::reviews);
@@ -171,8 +178,15 @@ public class MainActivity extends Activity {
     screens.put("admin-logs", AdminScreen::logs);
   }
 
+  private PasswordRecoveryScreen passwordRecovery;
+  public void showPasswordRecovery() {
+    if(writeInFlight){message("正在提交，请稍候");return;}
+    cancelNavigation();contentReady=false;++generation;shell(false);
+    passwordRecovery=new PasswordRecoveryScreen(this,content);
+  }
   public void showAuth(boolean register) {
     if(writeInFlight) {message("正在提交，请稍候");return;}
+    if(passwordRecovery!=null){passwordRecovery.close();passwordRecovery=null;}
     authRegistration=register;
     cancelNavigation();contentReady=false;
     ++generation;
@@ -189,6 +203,57 @@ public class MainActivity extends Activity {
     if (tab.equals("dashboard") && !repo.currentUser().role().equals("superadmin")) tab = "dining";
     loginNotices.check(repo,inboxWorker);
     render();
+    checkAppRelease(false);
+  }
+
+  /** 应用内更新检查：启动后自动一次，个人页可手动再次触发。 */
+  void checkAppRelease(boolean manual) {
+    if (!manual && releaseChecked) return;
+    final AppRelease[] release = {null};
+    final RuntimeException[] failure = {null};
+    read("app-release", null, null,
+        () -> {
+          try { release[0] = repo.appRelease(); }
+          catch (RuntimeException error) { failure[0] = error; }
+        },
+        () -> {
+          releaseChecked = true;
+          if (failure[0] != null) {
+            if (manual) message(safeMessage(failure[0]));
+            return;
+          }
+          AppRelease info = release[0];
+          if (info == null || info.versionCode() <= cn.edu.bjtu.foodtime.BuildConfig.VERSION_CODE) {
+            if (manual) message("已是最新版本 v" + cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME);
+            return;
+          }
+          showUpdateDialog(info);
+        }, () -> {});
+  }
+
+  private void showUpdateDialog(AppRelease info) {
+    if (isFinishing() || isDestroyed()) return;
+    boolean forced = info.minVersionCode() > cn.edu.bjtu.foodtime.BuildConfig.VERSION_CODE;
+    String notes = info.notes() == null || info.notes().isBlank()
+        ? "建议更新到最新版本，获得最新功能与修复。" : info.notes();
+    AlertDialog.Builder builder = new AlertDialog.Builder(this)
+        .setTitle("发现新版本 v" + info.versionName())
+        .setMessage(notes)
+        .setCancelable(!forced)
+        .setPositiveButton("去下载", (dialog, which) -> openReleaseUrl(info.apkUrl()));
+    if (!forced) builder.setNegativeButton("稍后更新", null);
+    AlertDialog dialog = builder.create();
+    dialog.setCanceledOnTouchOutside(!forced);
+    dialog.show();
+  }
+
+  private void openReleaseUrl(String url) {
+    if (url == null || url.isBlank()) {
+      message("下载地址暂不可用");
+      return;
+    }
+    try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
+    catch (RuntimeException error) { message("无法打开下载页面"); }
   }
 
   public void go(String kind, String id) {
@@ -227,6 +292,7 @@ public class MainActivity extends Activity {
 
   public void back() {
     if(writeInFlight) {message("正在提交，请稍候");return;}
+    if(passwordRecovery!=null){passwordRecovery.back();return;}
     if (repo.currentUser() == null) {
       finish();
       return;
@@ -335,6 +401,8 @@ public class MainActivity extends Activity {
       case "inbox" -> ContentRequest.Query.NOTICES;
       case "admin-community" -> ContentRequest.Query.COMMUNITY_MODERATION;
       case "admin-community-detail" -> ContentRequest.Query.COMMUNITY_MODERATION_DETAIL;
+      case "following" -> ContentRequest.Query.FOLLOWING;
+      case "followers" -> ContentRequest.Query.FOLLOWERS;
       case "mine-reviews" -> ContentRequest.Query.MY_REVIEWS;
       case "review-replies","reply-create" -> ContentRequest.Query.REVIEW_REPLIES;
       case "mine-review-replies" -> ContentRequest.Query.MY_REVIEW_REPLIES;
@@ -683,5 +751,5 @@ public class MainActivity extends Activity {
   }
   @Override protected void onPause() { super.onPause();foreground=false;resumeNavigation=navigationLoading;cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)Ui.clearImages();}
-  @Override protected void onDestroy() {++generation;cancelNavigation();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override protected void onDestroy() {if(passwordRecovery!=null)passwordRecovery.close();++generation;cancelNavigation();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }

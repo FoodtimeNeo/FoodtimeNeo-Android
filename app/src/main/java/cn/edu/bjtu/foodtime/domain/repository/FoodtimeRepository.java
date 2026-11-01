@@ -34,14 +34,18 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default void submitCommunityPost(String title,String content,List<String> images,String clientRequestId) {throw new UnsupportedOperationException();}
   default void loadMoreCommunityPosts(){throw new UnsupportedOperationException();}
   default boolean hasMoreCommunityPosts(){return false;}
-  default void submitCommunityComment(String postId, String content) {
+  default String submitCommunityComment(String postId, String content) {
     throw new UnsupportedOperationException("此数据源不支持社区评论");
   }
   default CommunityCommentPage communityRoots(String postId){return CommunityCommentPage.empty();}
   default CommunityCommentPage communityReplies(String rootId){return CommunityCommentPage.empty();}
   default void loadMoreCommunityComments(String postId){throw new UnsupportedOperationException();}
   default void loadCommunityReplies(String postId,String rootId,boolean more){throw new UnsupportedOperationException();}
-  default void submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){throw new UnsupportedOperationException();}
+  default String submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){throw new UnsupportedOperationException();}
+  /** 提交后轮询审核结果；返回 null 表示评论已不可见。 */
+  default String communityCommentStatus(String commentId) { return null; }
+  default void reloadCommunityComments(String postId) {}
+  default void reloadCommunityReplies(String postId,String rootId) {}
   default void deleteCommunityComment(String id){throw new UnsupportedOperationException();}
   default CommunityPostPage communityCollection(boolean favorites){return CommunityPostPage.empty();}
   default void loadMoreCommunityCollection(boolean favorites){throw new UnsupportedOperationException();}
@@ -69,9 +73,17 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default NoticePage notices() { return NoticePage.empty(); }
   default void loadMoreNotices() { throw new UnsupportedOperationException(); }
   /** Personal system messages, newest first. Refreshed by ContentRequest MESSAGES on a worker. */
+  /** My follow lists, refreshed by ContentRequest FOLLOWING / FOLLOWERS on a worker. */
+  default FollowPage following() { return FollowPage.empty(); }
+  default FollowPage followers() { return FollowPage.empty(); }
+  /** Cached relation state for one author; null when it has not been loaded yet. */
+  default FollowState followState(String userId) { return null; }
+  default FollowState setFollow(String userId, boolean follow) { throw new UnsupportedOperationException("此数据源不支持关注"); }
   default MessagePage messages() { return MessagePage.empty(); }
   default void loadMoreMessages() { throw new UnsupportedOperationException(); }
   /** Combined unread badge: unread announcements plus unread personal messages. */
+  /** 应用内更新检查；返回 null 表示后端未配置或无更新。 */
+  default AppRelease appRelease() { return null; }
   default long unreadCount() { return 0; }
   /** Incremental announcement feed for background polling; does not reset page caches. */
   default NoticeFeed noticeFeed(long sinceSeq, int limit) { return NoticeFeed.empty(); }

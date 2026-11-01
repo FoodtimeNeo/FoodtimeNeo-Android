@@ -11,6 +11,7 @@ public final class Design {
       RED_PRESSED = 0xffab1f0b,
       GREEN = 0xff5b7a3a,
       BLUE = 0xff3f7291,
+      GOLD = 0xffb88924,
       PAPER = 0xfffffaf0,
       ALT = 0xfff7efd9,
       KRAFT = 0xffd8c08b,

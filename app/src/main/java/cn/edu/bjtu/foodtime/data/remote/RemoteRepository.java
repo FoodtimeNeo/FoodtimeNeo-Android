@@ -51,6 +51,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile CommunityAuditPage communityAudit=CommunityAuditPage.empty();
   private volatile CommunityAuditDetail communityAuditDetail;
   private volatile String communityCursor="";
+  private volatile FollowPage followingPage=FollowPage.empty(),followersPage=FollowPage.empty();
+  private final Map<String,FollowState> followStates=new ConcurrentHashMap<>();
   private volatile NoticePage noticePage=NoticePage.empty();
   private volatile int noticeNumber=1;
   private volatile MessagePage messagePage=MessagePage.empty();
@@ -79,7 +81,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private void profile() { user=person(call("GET","users/me/profile",null)); }
   @Override public User login(String account,String password) {
-    Validation.email(account); Validation.password(password,false);
+    Validation.accountEmail(account); Validation.password(password,false);
     csrf=null; token();
     call("POST","auth/login",json("account",account.strip(),"password",password));
     csrf=null; token(); profile(); return user;
@@ -92,6 +94,25 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public void register(String email,String password,String code) {
     Validation.email(email); Validation.password(password,true);
     call("POST","auth/register",json("email",email.strip(),"password",password,"verificationCode",code));
+  }
+  @Override public long sendPasswordResetCode(String email) {
+    var response=call("POST","auth/password-reset/email-code",json("email",Validation.accountEmail(email)));
+    return response.optLong("resendAfterSeconds",60);
+  }
+  @Override public cn.edu.bjtu.foodtime.domain.model.PasswordResetGrant verifyPasswordResetCode(String email,String code) {
+    if(!code.matches("[0-9]{6}"))throw new IllegalArgumentException("验证码须为6位数字");
+    var response=call("POST","auth/password-reset/verify",json("email",Validation.accountEmail(email),"verificationCode",code));
+    String grant=text(response,"resetToken");
+    try {
+      if(!grant.matches("[A-Za-z0-9_-]{43}"))throw new IllegalArgumentException();
+      long expires=java.time.Instant.parse(text(response,"expiresAt")).toEpochMilli();
+      return new cn.edu.bjtu.foodtime.domain.model.PasswordResetGrant(grant,expires);
+    }catch(RuntimeException e){throw new RepositoryException(0,"INVALID_RESPONSE","验证响应异常，请重新验证邮箱",0);}
+  }
+  @Override public void resetPassword(String grant,String newPassword) {
+    Validation.password(newPassword,true);
+    if(!grant.matches("[A-Za-z0-9_-]{43}"))throw new IllegalArgumentException("验证已失效，请重新验证邮箱");
+    call("POST","auth/password-reset",json("resetToken",grant,"newPassword",newPassword));clear();
   }
   @Override public void logout() {
     try { call("POST","auth/logout",null); }
@@ -141,6 +162,9 @@ public final class RemoteRepository implements FoodtimeRepository {
       case COMMUNITY_DETAIL -> {
         if(communityPrototype==null) {
           CommunityPost post=cacheCommunityPost(call("GET","community/posts/"+request.id(),null));
+          User viewer=user;
+          if(viewer!=null&&!post.userId().isBlank()&&!post.userId().equals(viewer.id()))
+            followStates.put(post.userId(),fetchFollowState(post.userId()));
           if(post.status().equals("approved"))loadCommunityRoots(post.id(),false);
           else {communityRoots.remove(post.id());communityCommentCache.remove(post.id());}
         } else {
@@ -150,6 +174,8 @@ public final class RemoteRepository implements FoodtimeRepository {
           communityCommentCache.put(post.id(),communityPrototype.comments(post.id()));
         }
       }
+      case FOLLOWING -> followingPage=followPage("users/me/following");
+      case FOLLOWERS -> followersPage=followPage("users/me/followers");
       case MY_REVIEWS -> ownReviews=reviewPage("users/me/reviews");
       case MY_SUBMISSIONS -> fetchOwnSubmissions();
       case REVIEW_REPLIES -> {
@@ -488,17 +514,34 @@ public final class RemoteRepository implements FoodtimeRepository {
     var prior=communityReplies(rootId);if(more&&!prior.hasMore())return;
     communityReplies.put(rootId,commentPage("community/posts/"+postId+"/comments/"+rootId+"/replies?size="+(more?20:3)+(more?"&cursor="+prior.nextCursor():""),more?prior:null));
   }
-  @Override public void submitCommunityComment(String postId,String content){submitCommunityComment(postId,content,"","",UUID.randomUUID().toString());}
-  @Override public void submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){
+  @Override public String submitCommunityComment(String postId,String content){return submitCommunityComment(postId,content,"","",UUID.randomUUID().toString());}
+  @Override public String submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){
     String body=Validation.text(content,500,"评论");
-    call("POST","community/posts/"+postId+"/comments",json("content",body,"clientRequestId",requestId,
+    JSONObject created=call("POST","community/posts/"+postId+"/comments",json("content",body,"clientRequestId",requestId,
         "rootCommentId",rootId.isBlank()?null:rootId,"replyToCommentId",targetId.isBlank()?null:targetId));
+    // 立即刷新本地缓存：服务端会返回本人尚未通过的评论，无需关闭帖子。
+    if(rootId.isBlank()) loadCommunityRoots(postId,false); else loadCommunityReplies(postId,rootId,false);
+    return text(created,"id");
   }
+  @Override public AppRelease appRelease(){
+    JSONObject data=call("GET","system/app-release",null);
+    int code=data.optInt("versionCode");
+    if(code<=0) return null;
+    String url=text(data,"apkUrl");
+    if(url.startsWith("/")) url=origin.resolve(url).toString();
+    return new AppRelease(code,text(data,"versionName"),url,text(data,"notes"),data.optInt("minVersionCode"));
+  }
+  @Override public String communityCommentStatus(String commentId){
+    try { return text(call("GET","community/comments/"+commentId+"/status",null),"status"); }
+    catch(RepositoryException missing){ return null; }
+  }
+  @Override public void reloadCommunityComments(String postId){ loadCommunityRoots(postId,false); }
+  @Override public void reloadCommunityReplies(String postId,String rootId){ loadCommunityReplies(postId,rootId,false); }
   @Override public void deleteCommunityComment(String id){call("DELETE","community/comments/"+id,null);}
   @Override public CommunityAuditPage communityAudit(){return communityAudit;}
   @Override public CommunityAuditDetail communityAuditDetail(){return communityAuditDetail;}
   @Override public void moderateCommunity(String type,String id,String action,String reason){call("POST","admin/community/"+type+"/"+id,json("action",action,"reason",reason));}
-  @Override public void removeCommunityAsAdmin(String type,String id,String reason){call("DELETE","admin/community/"+type+"/"+id,json("reason",reason));}
+  @Override public void removeCommunityAsAdmin(String type,String id,String reason){call("DELETE","admin/community/"+type+"/"+id,reason==null||reason.isBlank()?null:json("reason",reason));}
   private void loadCommunityCollection(boolean favorites,boolean more){
     CommunityPostPage prior=communityCollection(favorites);int number=more?prior.page()+1:1;
     JSONObject data=call("GET","users/me/community-"+(favorites?"favorites":"posts")+"?page="+number+"&size=20",null);
@@ -589,6 +632,17 @@ public final class RemoteRepository implements FoodtimeRepository {
       messagePage=new MessagePage(merged,page.total(),page.hasMore());
     }
     messageNumber=number;
+  }
+  @Override public FollowPage following() { return followingPage; }
+  @Override public FollowPage followers() { return followersPage; }
+  @Override public FollowState followState(String userId) { return userId==null?null:followStates.get(userId); }
+  @Override public FollowState setFollow(String userId,boolean follow) {
+    JSONObject state=call(follow?"PUT":"DELETE","users/"+userId+"/follow",null);
+    FollowState result=new FollowState(state.optBoolean("followed"),state.optLong("followerCount"));
+    followStates.put(userId,result);
+    followingPage=withFollowState(followingPage,userId,result.followed());
+    followersPage=withFollowState(followersPage,userId,result.followed());
+    return result;
   }
   @Override public long unreadCount() { return noticeUnread+messageUnread; }
   @Override public NoticeFeed noticeFeed(long sinceSeq,int limit) {
@@ -777,7 +831,34 @@ public final class RemoteRepository implements FoodtimeRepository {
       page++;
     }
   }
-  private User person(JSONObject j) { return new User(text(j,"id"),text(j,"email"),text(j,"displayName"),text(j,"role"),!text(j,"status").equals("disabled"),text(j,"avatarUrl"),time(j,"createdAt"),j.optLong("reviewCount")); }
+  /** 只替换本地缓存中的关注标记，避免为一次切换重新拉取整页列表。 */
+  private static FollowPage withFollowState(FollowPage page,String userId,boolean followed) {
+    List<FollowUser> rows=new ArrayList<>(page.items());
+    for(int i=0;i<rows.size();i++) {
+      FollowUser row=rows.get(i);
+      if(row.id().equals(userId))
+        rows.set(i,new FollowUser(row.id(),row.displayName(),row.avatarUrl(),followed));
+    }
+    return new FollowPage(rows,page.total());
+  }
+
+  private FollowPage followPage(String path) {
+    JSONObject data=call("GET",path+"?page=1&size=100",null);
+    JSONArray items=data.optJSONArray("items");
+    List<FollowUser> rows=new ArrayList<>();
+    if(items!=null) for(int i=0;i<items.length();i++) {
+      JSONObject j=items.optJSONObject(i);
+      rows.add(new FollowUser(text(j,"id"),text(j,"displayName"),text(j,"avatarUrl"),j.optBoolean("followedByMe")));
+    }
+    return new FollowPage(rows,data.optLong("total"));
+  }
+
+  private FollowState fetchFollowState(String userId) {
+    JSONObject state=call("GET","users/"+userId+"/follow-status",null);
+    return new FollowState(state.optBoolean("followed"),state.optLong("followerCount"));
+  }
+
+  private User person(JSONObject j) { return new User(text(j,"id"),text(j,"email"),text(j,"displayName"),text(j,"role"),!text(j,"status").equals("disabled"),text(j,"avatarUrl"),time(j,"createdAt"),j.optLong("reviewCount"),j.optLong("followingCount"),j.optLong("followerCount")); }
   private String joined(JSONObject j,boolean dish) {
     List<String> names=new ArrayList<>();
     for(String key: dish?List.of("diningHallName","stallName","dishName"):List.of("diningHallName","stallName")) {

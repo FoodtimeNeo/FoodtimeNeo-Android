@@ -14,6 +14,8 @@ import java.util.function.Consumer;
 /** Visible-first, cancellable native image pipeline; disk/HTTP policy remains in the repository. */
 final class ImageLoader {
   private record Decoded(Bitmap bitmap,String version,long freshUntil) {}
+  /** 私有图片的服务端策略是 no-cache，freshUntil 恒为 0；内存中仍保留一小段时间用于重绘。 */
+  private static final long DISPLAY_TTL_MS=5*60*1000;
   private static final Handler MAIN=new Handler(Looper.getMainLooper());
   private static final android.util.LruCache<String,Decoded> MEMORY=new android.util.LruCache<>((int)Math.min(32L*1024*1024,Runtime.getRuntime().maxMemory()/8)) {
     @Override protected int sizeOf(String key,Decoded image){return image.bitmap().getByteCount();}
@@ -35,7 +37,9 @@ final class ImageLoader {
     TASKS.clear();WORK.purge();
     for(Runnable[] binding:List.copyOf(BINDINGS.values()))binding[0].run();
   }
-  static void pause(){paused=true;clear();}
+  /** 切后台只暂停加载与绑定，不清内存缓存：回前台可直接复用已解码位图。
+   *  低内存仍由 onTrimMemory 触发 clear()，登出/切号走 Ui.clearImages()。 */
+  static void pause(){paused=true;}
   static void resume(){paused=false;for(Runnable[] binding:List.copyOf(BINDINGS.values()))binding[1].run();}
   private static Runnable subscribe(MainActivity a,String path,int bound,Consumer<Bitmap> listener) {
     String identity=a.repo.imageIdentity(),key=identity+":"+path+":"+bound;int ticket=epoch;
@@ -70,7 +74,8 @@ final class ImageLoader {
         MAIN.post(()->{
           if(TASKS.get(key)!=current||ticket!=epoch||!identity.equals(a.repo.imageIdentity()))return;
           TASKS.remove(key);
-          if(result!=null&&loaded!=null&&loaded.reusable())MEMORY.put(key,new Decoded(result,loaded.version(),loaded.freshUntil()));
+          if(result!=null&&loaded!=null&&loaded.reusable())MEMORY.put(key,new Decoded(result,loaded.version(),
+              Math.max(loaded.freshUntil(),System.currentTimeMillis()+DISPLAY_TTL_MS)));
           else MEMORY.remove(key);
           for(Consumer<Bitmap> callback:List.copyOf(current.listeners))callback.accept(result);
         });

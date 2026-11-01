@@ -62,8 +62,12 @@ final class InboxScreen {
       Ui.gap(card, 6);
       String body = notice.content() == null ? "" : notice.content();
       if (!body.isBlank()) {
-        String snippet = body.length() > 80 ? body.substring(0, 80) + "…" : body;
-        card.addView(Ui.text(a, snippet, 14, Design.MUTED));
+        // 列表内直接渲染 Markdown，截断交给 maxLines，避免把标记符号当正文展示。
+        TextView preview = Ui.text(a, body, 14, Design.MUTED);
+        NoticeMarkdown.render(preview, body);
+        preview.setMaxLines(6);
+        preview.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        card.addView(preview);
         Ui.gap(card, 6);
       }
       card.addView(Ui.text(a, CommunityText.publishedAt(notice.publishedAt()), 12, Design.MUTED));
