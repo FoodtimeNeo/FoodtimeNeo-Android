@@ -1,6 +1,6 @@
 # v1.1.3 发布说明
 
-versionName 为 `1.1.3`，versionCode 为 `8`，包名仍为 `cn.edu.bjtu.foodtime`。沿用固定正式签名，通过 `dev → main` 发布 PR 触发签名 APK 构建，Release 标签为 `v1.1.3`。
+versionName 为 `1.1.3`，versionCode 为 `8`，包名仍为 `cn.edu.bjtu.foodtime`。沿用固定正式签名，`dev → main` 合并提交的 CI 成功后触发签名 APK 构建，Release 标签为 `v1.1.3`。支持发布 PR 和负责人明确授权的本地合并推送。
 
 ## 更新范围
 
