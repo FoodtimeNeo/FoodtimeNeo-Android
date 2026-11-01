@@ -27,6 +27,14 @@ final class ReviewActions {
       button.setText((state[0].likedByMe()?"已赞 ":"赞 ")+state[0].likeCount());
       button.setSelected(state[0].likedByMe());
       button.setTextColor(state[0].likedByMe()?Design.RED:Design.MUTED);
+      // 与 Web 一致的大拇指图标；未点赞为中性色，已点赞为印章红。
+      android.graphics.drawable.Drawable icon=a.getDrawable(cn.edu.bjtu.foodtime.R.drawable.ic_thumb_up);
+      if(icon!=null) {
+        icon=icon.mutate();
+        icon.setTint(state[0].likedByMe()?Design.RED:Design.MUTED);
+      }
+      button.setCompoundDrawablesWithIntrinsicBounds(icon,null,null,null);
+      button.setCompoundDrawablePadding(Ui.dp(a,4));
       button.setContentDescription((state[0].likedByMe()?"取消":"")+target+"点赞，"+state[0].likeCount()+"个赞");
     };
     paint.run();
