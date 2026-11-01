@@ -185,13 +185,39 @@ final class CommunityScreen {
     EditText input=Ui.field(composer,"评论内容",false,true);input.setHint("分享美食体验（最多500字）");
     input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});
     TextView error=Ui.text(a,"",13,Design.RED);composer.addView(error);
+    final String[] created=new String[1];
     Ui.submit(composer,rootId.isBlank()?"提交评论":"提交回复",error,()->{
       String body=Validation.text(input.getText().toString(),500,"评论"),key=a.draftKey("commentRequestId");
       String fingerprint=rootId+"|"+targetId+"|"+body;
       if(!fingerprint.equals(a.drafts.getString(a.draftKey("commentPayload"),""))){a.drafts.putString(key,UUID.randomUUID().toString());a.drafts.putString(a.draftKey("commentPayload"),fingerprint);}
       String requestId=a.drafts.getString(key);
-      return ()->a.repo.submitCommunityComment(post.id(),body,rootId,targetId,requestId);
-    },()->{for(String key:List.of("评论内容","replyRoot","replyTarget","replyName","commentPayload","commentRequestId"))a.drafts.remove(a.draftKey(key));a.message("已提交审核，通过前仅自己可见");a.render();});
+      String scope=rootId,target=targetId;
+      return ()->created[0]=a.repo.submitCommunityComment(post.id(),body,scope,target,requestId);
+    },()->{
+      for(String key:List.of("评论内容","replyRoot","replyTarget","replyName","commentPayload","commentRequestId"))a.drafts.remove(a.draftKey(key));
+      a.message("已提交审核，通过前仅自己可见");
+      a.render();
+      // 审核完成后自动刷新一次，不用再手动进入帖子。
+      if(created[0]!=null)watchApproval(a,post.id(),rootId,created[0],0);
+    });
+  }
+
+  /** 提交后短轮询：仍待审则 2 秒后再查，通过/驳回后刷新一次列表。最多约 24 秒。 */
+  private static void watchApproval(MainActivity a,String postId,String rootId,String commentId,int attempt){
+    if(attempt>=12||a.isFinishing()) return;
+    final String[] status=new String[1];
+    a.read("comment-status:"+commentId,null,null,
+        ()->status[0]=a.repo.communityCommentStatus(commentId),
+        ()->{
+          if(status[0]==null) return;
+          if(status[0].equals("pending")){
+            a.getWindow().getDecorView().postDelayed(()->watchApproval(a,postId,rootId,commentId,attempt+1),2000);
+          }else{
+            a.read("comment-reload:"+postId,null,null,
+                ()->{if(rootId.isBlank())a.repo.reloadCommunityComments(postId);else a.repo.reloadCommunityReplies(postId,rootId);},
+                a::redraw,()->{});
+          }
+        },()->{});
   }
 
   private static void comment(MainActivity a,LinearLayout page,CommunityComment item,CommunityComment root){

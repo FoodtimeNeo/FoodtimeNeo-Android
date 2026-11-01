@@ -34,14 +34,18 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default void submitCommunityPost(String title,String content,List<String> images,String clientRequestId) {throw new UnsupportedOperationException();}
   default void loadMoreCommunityPosts(){throw new UnsupportedOperationException();}
   default boolean hasMoreCommunityPosts(){return false;}
-  default void submitCommunityComment(String postId, String content) {
+  default String submitCommunityComment(String postId, String content) {
     throw new UnsupportedOperationException("此数据源不支持社区评论");
   }
   default CommunityCommentPage communityRoots(String postId){return CommunityCommentPage.empty();}
   default CommunityCommentPage communityReplies(String rootId){return CommunityCommentPage.empty();}
   default void loadMoreCommunityComments(String postId){throw new UnsupportedOperationException();}
   default void loadCommunityReplies(String postId,String rootId,boolean more){throw new UnsupportedOperationException();}
-  default void submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){throw new UnsupportedOperationException();}
+  default String submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){throw new UnsupportedOperationException();}
+  /** 提交后轮询审核结果；返回 null 表示评论已不可见。 */
+  default String communityCommentStatus(String commentId) { return null; }
+  default void reloadCommunityComments(String postId) {}
+  default void reloadCommunityReplies(String postId,String rootId) {}
   default void deleteCommunityComment(String id){throw new UnsupportedOperationException();}
   default CommunityPostPage communityCollection(boolean favorites){return CommunityPostPage.empty();}
   default void loadMoreCommunityCollection(boolean favorites){throw new UnsupportedOperationException();}

@@ -514,12 +514,21 @@ public final class RemoteRepository implements FoodtimeRepository {
     var prior=communityReplies(rootId);if(more&&!prior.hasMore())return;
     communityReplies.put(rootId,commentPage("community/posts/"+postId+"/comments/"+rootId+"/replies?size="+(more?20:3)+(more?"&cursor="+prior.nextCursor():""),more?prior:null));
   }
-  @Override public void submitCommunityComment(String postId,String content){submitCommunityComment(postId,content,"","",UUID.randomUUID().toString());}
-  @Override public void submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){
+  @Override public String submitCommunityComment(String postId,String content){return submitCommunityComment(postId,content,"","",UUID.randomUUID().toString());}
+  @Override public String submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){
     String body=Validation.text(content,500,"评论");
-    call("POST","community/posts/"+postId+"/comments",json("content",body,"clientRequestId",requestId,
+    JSONObject created=call("POST","community/posts/"+postId+"/comments",json("content",body,"clientRequestId",requestId,
         "rootCommentId",rootId.isBlank()?null:rootId,"replyToCommentId",targetId.isBlank()?null:targetId));
+    // 立即刷新本地缓存：服务端会返回本人尚未通过的评论，无需关闭帖子。
+    if(rootId.isBlank()) loadCommunityRoots(postId,false); else loadCommunityReplies(postId,rootId,false);
+    return text(created,"id");
   }
+  @Override public String communityCommentStatus(String commentId){
+    try { return text(call("GET","community/comments/"+commentId+"/status",null),"status"); }
+    catch(RepositoryException missing){ return null; }
+  }
+  @Override public void reloadCommunityComments(String postId){ loadCommunityRoots(postId,false); }
+  @Override public void reloadCommunityReplies(String postId,String rootId){ loadCommunityReplies(postId,rootId,false); }
   @Override public void deleteCommunityComment(String id){call("DELETE","community/comments/"+id,null);}
   @Override public CommunityAuditPage communityAudit(){return communityAudit;}
   @Override public CommunityAuditDetail communityAuditDetail(){return communityAuditDetail;}
