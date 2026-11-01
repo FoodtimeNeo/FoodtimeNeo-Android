@@ -14,7 +14,7 @@
 
 ## 地址与独立联调包
 
-默认地址为 `https://154.9.252.201/api/v1/`，无需ADB映射。已有同包名但签名不同的应用时，使用独立后缀，避免卸载原应用的数据：
+默认地址为 `https://bjtufoodtime.top/api/v1/`，无需ADB映射。已有同包名但签名不同的应用时，使用独立后缀，避免卸载原应用的数据：
 
 ```powershell
 .\gradlew.bat assembleDebug '-PFOODTIME_DEBUG_SUFFIX=.integration' --no-configuration-cache
