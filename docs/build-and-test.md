@@ -67,7 +67,7 @@ adb shell am instrument -w cn.edu.bjtu.foodtime.ipcheck.test/cn.edu.bjtu.foodtim
 ## GitHub CI与Release
 
 - [CI](../.github/workflows/ci.yml) 在main/dev的PR及push时运行架构、JVM测试、Lint、Debug与测试包构建；构建测试包不等于运行设备测试。PR进入main时要求来源为dev。
-- [CD](../.github/workflows/cd.yml) 在PR实际合并进main后运行，检出该合并SHA，再执行架构、JVM测试、Release Lint和签名构建；支持在Actions选择main手动执行，非main手动执行不会发布。
+- [CD](../.github/workflows/cd.yml) 在 main 合并提交的 Android CI 成功后运行，检出通过 CI 的同一 SHA，再执行架构、JVM 测试、Release Lint 和签名构建。支持 PR 合并与明确授权的本地合并推送，跳过过期、非合并和带 `skip-release` 的发布提交。支持在 Actions 选择 main 手动执行；dev 手动运行仅生成验收制品。
 - 产物为真正的release变体 `app-release.apk`，使用固定发布证书签名，并以 `apksigner verify` 校验。同步生成 `app-release.apk.sha256`；两份文件上传Actions artifact（保留30天）及GitHub Release。Release先以草稿创建，附件完整上传后公开；失败重跑可覆盖同一次运行的附件，不重复创建标签。
 - Release需要 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 四个Actions Secrets，缺少任何一项会停止发布。本文不读取或保存它们的实际值。
 - 自动标签为 `android-main-<运行编号>-<短SHA>`。仅同步dev或推送文档功能分支不会触发这条main发布流程；实际发布结果以Actions与Release为准，不能从YAML存在推断已经发布成功。

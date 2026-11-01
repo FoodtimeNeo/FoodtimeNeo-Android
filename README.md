@@ -37,6 +37,6 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 .\scripts\verify.ps1 -Device -ApplicationSuffix .integration
 ```
 
-按最新dev建立功能分支，使用中文提交，并以一次非快进合并回dev；复用旧功能分支时先让其指针指向最新dev。正式发布通过dev → main的PR；合并后CD验证、构建并发布签名release APK，也支持在main手动执行。
+按最新dev建立功能分支，使用中文提交，并以一次非快进合并回dev；复用旧功能分支时先让其指针指向最新dev。正式发布默认通过dev → main的PR；负责人明确授权本地合并推送时保留合并历史。main合并提交的CI通过后，CD检出同一SHA验证、构建并发布签名release APK，也支持在main手动执行。
 
 点评已支持点赞、回复、回复点赞和“我的回复”审核记录，具体交互见[点评互动](docs/review-interactions.md)。

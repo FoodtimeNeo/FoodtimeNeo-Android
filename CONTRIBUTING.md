@@ -9,7 +9,7 @@ dev → feature/<功能名> → dev；发布时 dev → main
 1. 从最新 dev 创建功能分支。复用旧分支时先确认其工作已合并，再将该分支指针同步到最新dev；不要将dev合并进旧feature形成交叉历史。
 2. 一个分支完成一个可审查的功能或重构，提交和合并说明使用中文。
 3. 验证后一次非快进合并回dev；团队使用Pull Request时采用相同的功能边界。本轮按用户要求本地合并后同步远端。
-4. dev 集成验证通过后，只通过 `dev → main` 的 Pull Request 发布。
+4. dev 集成验证通过后，默认通过 `dev → main` 的 Pull Request 发布；负责人明确授权直接推送 main 时，以本地非快进合并保留发布历史，不强推。
 5. 实现提交放在feature，dev只接收合并；main按发布流程处理。分支清理与改写已有远端历史须遵从项目负责人的指令。
 
 推荐命令：
@@ -27,7 +27,7 @@ git push -u origin feature/<功能名>
 ## 自动化
 
 - Android CI：Pull Request 指向 main/dev，以及代码进入 main/dev 后都会运行。它检查分支流、架构边界、单元测试、Lint 和 Debug 构建。
-- Android CD：Pull Request 真正合并到 main 后运行，也可在 Actions 中选择 main 手动执行；其他分支不发布。重新验证后生成已签名 `app-release.apk` 和 SHA-256 校验文件，同时上传 Actions artifact（保留30天）和 GitHub Release。Release标签格式为 `v<versionName>`，例如 `v1.1.1`。dev手动CD仅生成验收制品，不发布Release。
+- Android CD：main 合并提交的 Android CI 成功后运行，支持 PR 合并和明确授权的本地合并推送；只构建通过 CI 的同一 SHA，跳过过期提交、非合并提交和带 `skip-release` 的发布 PR。也可在 Actions 中选择 main 手动执行。重新验证后生成已签名 `app-release.apk` 和 SHA-256 校验文件，同时上传 Actions artifact（保留30天）和 GitHub Release。Release 标签格式为 `v<versionName>`。dev 手动 CD 仅生成验收制品，不发布 Release。
 - Release 签名：必须先在 GitHub Actions Secrets 配置 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`；任何一项缺失都会中止发布，避免上传无法安装的未签名 APK。
 
 仓库管理员还应为 dev 和 main 开启分支保护：要求 Pull Request、要求 Android CI 通过、禁止强推；main 只接受 dev 的 Pull Request。
