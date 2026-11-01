@@ -45,6 +45,8 @@ final class ReviewScreen {
     paint.run();
     Ui.gap(card, 24);
     EditText text = Ui.field(card, "评价内容", false, true);
+    text.setHint("最多500字");
+    text.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});
     TextView error = Ui.text(a, "", 14, Design.RED);
     error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
     card.addView(error);
