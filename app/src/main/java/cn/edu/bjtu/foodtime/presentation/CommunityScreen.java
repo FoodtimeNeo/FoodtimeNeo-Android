@@ -146,12 +146,29 @@ final class CommunityScreen {
       Ui.action(page,"删除这篇食记",false,()->CommunityRemoval.confirm(a,"posts",post.id(),post.userId(),post.title(),a::back));
     if(!post.status().equals("approved"))return;
     Ui.gap(page,18);LinearLayout actions=Ui.row(a);
-    TextView like=Ui.button(a,(post.likedByMe()?"♥ 已赞 ":"♡ 点赞 ")+post.likeCount(),false,() -> {});
-    like.setTextColor(post.likedByMe()?Design.RED:Design.MUTED);
-    like.setOnClickListener(v -> a.request(v,null,() -> a.repo.setCommunityLike("post",post.id(),!post.likedByMe()),a::redraw));
-    TextView favorite=Ui.button(a,(post.favoritedByMe()?"★ 已收藏 ":"☆ 收藏 ")+post.favoriteCount(),false,() -> {});
-    favorite.setTextColor(post.favoritedByMe()?Design.GOLD:Design.MUTED);
-    favorite.setOnClickListener(v -> a.request(v,null,() -> a.repo.setCommunityFavorite(post.id(),!post.favoritedByMe()),a::redraw));
+    // 点赞/收藏只就地更新按钮，避免整页重建带来的闪烁与滚动跳动。
+    final boolean[] liked={post.likedByMe()},favorited={post.favoritedByMe()};
+    final long[] likeCount={post.likeCount()},favoriteCount={post.favoriteCount()};
+    TextView like=Ui.button(a,"",false,() -> {});
+    Runnable paintLike=()->{
+      like.setText((liked[0]?"♥ 已赞 ":"♡ 点赞 ")+likeCount[0]);
+      like.setTextColor(liked[0]?Design.RED:Design.MUTED);
+      like.setContentDescription((liked[0]?"取消点赞":"点赞")+"，当前"+likeCount[0]+"赞");
+    };
+    paintLike.run();
+    like.setOnClickListener(v -> a.request(v,null,
+        () -> {CommunityAction state=a.repo.setCommunityLike("post",post.id(),!liked[0]);liked[0]=state.active();likeCount[0]=state.count();},
+        paintLike));
+    TextView favorite=Ui.button(a,"",false,() -> {});
+    Runnable paintFavorite=()->{
+      favorite.setText((favorited[0]?"★ 已收藏 ":"☆ 收藏 ")+favoriteCount[0]);
+      favorite.setTextColor(favorited[0]?Design.GOLD:Design.MUTED);
+      favorite.setContentDescription((favorited[0]?"取消收藏":"收藏")+"，当前"+favoriteCount[0]+"个收藏");
+    };
+    paintFavorite.run();
+    favorite.setOnClickListener(v -> a.request(v,null,
+        () -> {CommunityAction state=a.repo.setCommunityFavorite(post.id(),!favorited[0]);favorited[0]=state.active();favoriteCount[0]=state.count();},
+        paintFavorite));
     LinearLayout.LayoutParams actionLp=new LinearLayout.LayoutParams(0,-2,1);actionLp.rightMargin=Ui.dp(a,6);
     actions.addView(like,actionLp);LinearLayout.LayoutParams favoriteLp=new LinearLayout.LayoutParams(0,-2,1);favoriteLp.leftMargin=Ui.dp(a,6);
     actions.addView(favorite,favoriteLp);page.addView(actions);
@@ -198,7 +215,8 @@ final class CommunityScreen {
     },()->{
       for(String key:List.of("评论内容","replyRoot","replyTarget","replyName","commentPayload","commentRequestId"))a.drafts.remove(a.draftKey(key));
       a.message("已提交审核，通过前仅自己可见");
-      a.render();
+      // 保留滚动位置，避免提交后整页跳回顶部。
+      a.redraw();
       // 审核完成后自动刷新一次，不用再手动进入帖子。
       if(created[0]!=null)watchApproval(a,post.id(),rootId,created[0],0);
     });
@@ -234,10 +252,18 @@ final class CommunityScreen {
     body.addView(Ui.text(a,format(item.createdAt())+(item.status().equals("pending")?" · 审核中，仅自己可见":item.status().equals("rejected")?" · 未通过："+item.reviewReason():""),11,Design.MUTED));
     LinearLayout actions=Ui.row(a);body.addView(actions);
     if(!item.deleted()&&item.status().equals("approved")){
-      TextView like=Ui.button(a,(item.likedByMe()?"♥ ":"♡ ")+item.likeCount(),false,()->{});actions.addView(like);
-      like.setTextColor(item.likedByMe()?Design.RED:Design.MUTED);
-      like.setContentDescription((item.likedByMe()?"取消点赞":"点赞")+"，当前"+item.likeCount()+"赞");
-      like.setOnClickListener(v->a.request(v,null,()->a.repo.setCommunityLike("comment",item.id(),!item.likedByMe()),a::redraw));
+      final boolean[] commentLiked={item.likedByMe()};
+      final long[] commentLikes={item.likeCount()};
+      TextView like=Ui.button(a,"",false,()->{});actions.addView(like);
+      Runnable paintComment=()->{
+        like.setText((commentLiked[0]?"♥ ":"♡ ")+commentLikes[0]);
+        like.setTextColor(commentLiked[0]?Design.RED:Design.MUTED);
+        like.setContentDescription((commentLiked[0]?"取消点赞":"点赞")+"，当前"+commentLikes[0]+"赞");
+      };
+      paintComment.run();
+      like.setOnClickListener(v->a.request(v,null,
+          ()->{CommunityAction state=a.repo.setCommunityLike("comment",item.id(),!commentLiked[0]);commentLiked[0]=state.active();commentLikes[0]=state.count();},
+          paintComment));
     }
     if(!item.deleted()&&item.status().equals("approved")&&!root.deleted())actions.addView(Ui.button(a,"回复",false,()->{
       a.drafts.putString(a.draftKey("replyRoot"),root.id());a.drafts.putString(a.draftKey("replyTarget"),item.id());a.drafts.putString(a.draftKey("replyName"),item.userDisplayName());a.redraw();
