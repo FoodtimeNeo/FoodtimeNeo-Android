@@ -147,8 +147,10 @@ final class CommunityScreen {
     if(!post.status().equals("approved"))return;
     Ui.gap(page,18);LinearLayout actions=Ui.row(a);
     TextView like=Ui.button(a,(post.likedByMe()?"♥ 已赞 ":"♡ 点赞 ")+post.likeCount(),false,() -> {});
+    like.setTextColor(post.likedByMe()?Design.RED:Design.MUTED);
     like.setOnClickListener(v -> a.request(v,null,() -> a.repo.setCommunityLike("post",post.id(),!post.likedByMe()),a::redraw));
     TextView favorite=Ui.button(a,(post.favoritedByMe()?"★ 已收藏 ":"☆ 收藏 ")+post.favoriteCount(),false,() -> {});
+    favorite.setTextColor(post.favoritedByMe()?Design.GOLD:Design.MUTED);
     favorite.setOnClickListener(v -> a.request(v,null,() -> a.repo.setCommunityFavorite(post.id(),!post.favoritedByMe()),a::redraw));
     LinearLayout.LayoutParams actionLp=new LinearLayout.LayoutParams(0,-2,1);actionLp.rightMargin=Ui.dp(a,6);
     actions.addView(like,actionLp);LinearLayout.LayoutParams favoriteLp=new LinearLayout.LayoutParams(0,-2,1);favoriteLp.leftMargin=Ui.dp(a,6);
@@ -233,6 +235,7 @@ final class CommunityScreen {
     LinearLayout actions=Ui.row(a);body.addView(actions);
     if(!item.deleted()&&item.status().equals("approved")){
       TextView like=Ui.button(a,(item.likedByMe()?"♥ ":"♡ ")+item.likeCount(),false,()->{});actions.addView(like);
+      like.setTextColor(item.likedByMe()?Design.RED:Design.MUTED);
       like.setContentDescription((item.likedByMe()?"取消点赞":"点赞")+"，当前"+item.likeCount()+"赞");
       like.setOnClickListener(v->a.request(v,null,()->a.repo.setCommunityLike("comment",item.id(),!item.likedByMe()),a::redraw));
     }
