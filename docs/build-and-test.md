@@ -98,3 +98,58 @@ CD通过Gradle环境变量传递签名参数，临时密钥只写入runner的临
 正式包的网络安全配置禁止全部明文连接；仅 debug 资源覆盖允许 `127.0.0.1`。`IpConnectionRunner` 同时验证服务器 IP 的 HTTP 被禁止、调试回环例外和真实 HTTPS API。修复版保持版本名1.0.1，versionCode递增至5；正式下载制品须由原发布证书签名后更新。
 
 在dev分支手动运行Android CD，仅生成同签名的验收APK与校验文件，不创建GitHub Release、不合并main；main及已合并发布PR仍按原流程发布。签名密钥只由GitHub Actions Secrets注入，不需要导出到开发机。
+
+## 发布打包与应用内更新
+
+### 版本号
+
+`app/build.gradle` 中 `versionCode` 每次发布递增 1，`versionName` 使用语义化版本。当前为 `versionCode 9`、`versionName 1.2.0`。
+
+### 正式 APK 由 CI 构建
+
+`.github/workflows/cd.yml`：`dev → main` 合并提交在 Android CI 通过后触发 CD。
+
+1. 校验 main 当前提交、合并提交与 `skip-release` 标签
+2. 从仓库 Secrets 恢复签名密钥（`ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`）
+3. 执行 `verifyArchitecture testDebugUnitTest lintRelease assembleRelease`
+4. `apksigner verify --print-certs` 校验签名，`aapt dump badging` 读取 versionName
+5. 发布 GitHub Release `v{versionName}`，附件为 `app-release.apk` 与 `.sha256`
+
+也可在 Actions 页面手动 `workflow_dispatch` 触发（main/dev 均可，dev 只上传 Artifact 不发布 Release）。
+
+### 本地构建正式包
+
+需要本机有签名密钥时：
+
+```powershell
+.\gradlew.bat assembleRelease `
+  "-PFOODTIME_RELEASE_STORE_FILE=C:\keysoodtime-release.jks" `
+  "-PFOODTIME_RELEASE_STORE_PASSWORD=***" `
+  "-PFOODTIME_RELEASE_KEY_ALIAS=foodtime" `
+  "-PFOODTIME_RELEASE_KEY_PASSWORD=***" --no-configuration-cache
+```
+
+产物为 `app/build/outputs/apk/release/app-release.apk`。未提供签名属性时构建的是 unsigned 包，仅供体积估算，不能分发。
+
+### 应用内更新检查
+
+后端公开接口 `GET /api/v1/system/app-release`，通过环境变量配置：
+
+| 变量 | 说明 |
+| --- | --- |
+| `APP_RELEASE_VERSION_CODE` | 最新 versionCode；为 0 表示关闭提示 |
+| `APP_RELEASE_VERSION_NAME` | 展示用版本号 |
+| `APP_RELEASE_APK_URL` | 下载地址，相对路径会按 API 源解析 |
+| `APP_RELEASE_NOTES` | 更新说明 |
+| `APP_RELEASE_MIN_VERSION_CODE` | 低于该版本强制更新 |
+
+App 启动后自动检查一次；「我的」页「检查更新」可手动触发。
+
+发布步骤：
+
+1. 递增 `versionCode`，更新 `versionName`
+2. 合并到 main 触发 CD，拿到签名 APK
+3. 把 APK 放到 Web 的 `/downloads/FoodtimeNeo-Android.apk`
+4. 更新 Web 的 `src/constants/download.js`（版本、大小、更新时间）
+5. 更新后端 `APP_RELEASE_*` 环境变量并重启
+

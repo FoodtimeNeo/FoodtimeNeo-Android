@@ -523,6 +523,14 @@ public final class RemoteRepository implements FoodtimeRepository {
     if(rootId.isBlank()) loadCommunityRoots(postId,false); else loadCommunityReplies(postId,rootId,false);
     return text(created,"id");
   }
+  @Override public AppRelease appRelease(){
+    JSONObject data=call("GET","system/app-release",null);
+    int code=data.optInt("versionCode");
+    if(code<=0) return null;
+    String url=text(data,"apkUrl");
+    if(url.startsWith("/")) url=origin.resolve(url).toString();
+    return new AppRelease(code,text(data,"versionName"),url,text(data,"notes"),data.optInt("minVersionCode"));
+  }
   @Override public String communityCommentStatus(String commentId){
     try { return text(call("GET","community/comments/"+commentId+"/status",null),"status"); }
     catch(RepositoryException missing){ return null; }

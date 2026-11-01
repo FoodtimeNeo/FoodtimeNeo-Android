@@ -162,6 +162,9 @@ public final class Models {
 
   /** Announcement broadcast to all users; seq is a polling cursor only, never an identity. */
   /** One row of a follow / follower list; followedByMe means the signed-in user follows them. */
+  /** 后端下发的安卓更新信息；versionCode <= 0 表示未配置。 */
+  public record AppRelease(int versionCode, String versionName, String apkUrl, String notes, int minVersionCode) {}
+
   public record FollowUser(String id, String displayName, String avatarUrl, boolean followedByMe) {}
   public record FollowPage(List<FollowUser> items, long total) {
     public FollowPage { items=List.copyOf(items); }
