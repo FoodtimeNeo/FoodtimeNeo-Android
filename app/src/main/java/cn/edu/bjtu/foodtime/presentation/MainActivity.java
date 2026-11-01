@@ -149,6 +149,8 @@ public class MainActivity extends Activity {
     screens.put("submit-dish", UploadScreen::dish);
     screens.put("submit-stall", UploadScreen::stall);
     screens.put("mine-submissions", SubmissionScreen::mine);
+    screens.put("following", FollowListScreen::following);
+    screens.put("followers", FollowListScreen::followers);
     screens.put("profile", ProfileScreen::profile);
     screens.put("profile-edit", ProfileScreen::edit);
     screens.put("mine-reviews", ProfileScreen::reviews);
@@ -343,6 +345,8 @@ public class MainActivity extends Activity {
       case "inbox" -> ContentRequest.Query.NOTICES;
       case "admin-community" -> ContentRequest.Query.COMMUNITY_MODERATION;
       case "admin-community-detail" -> ContentRequest.Query.COMMUNITY_MODERATION_DETAIL;
+      case "following" -> ContentRequest.Query.FOLLOWING;
+      case "followers" -> ContentRequest.Query.FOLLOWERS;
       case "mine-reviews" -> ContentRequest.Query.MY_REVIEWS;
       case "review-replies","reply-create" -> ContentRequest.Query.REVIEW_REPLIES;
       case "mine-review-replies" -> ContentRequest.Query.MY_REVIEW_REPLIES;

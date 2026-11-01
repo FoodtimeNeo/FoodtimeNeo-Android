@@ -115,7 +115,22 @@ final class CommunityScreen {
     String authorName=post.userDisplayName().isBlank()?"校园干饭人":post.userDisplayName();
     if(!post.userAvatarUrl().isBlank()){View avatar=Ui.image(a,post.userAvatarUrl(),"作者头像",false);avatar.setBackground(Ui.shape(a,Design.ALT,0,20));avatar.setClipToOutline(true);LinearLayout.LayoutParams avatarLp=new LinearLayout.LayoutParams(Ui.dp(a,36),Ui.dp(a,36));avatarLp.rightMargin=Ui.dp(a,8);author.addView(avatar,avatarLp);}
     author.addView(Ui.title(a,authorName,18),new LinearLayout.LayoutParams(0,-2,1));
-    author.addView(Ui.text(a,format(post.createdAt()),12,Design.MUTED));page.addView(author);
+    author.addView(Ui.text(a,format(post.createdAt()),12,Design.MUTED));
+    User viewer=a.repo.currentUser();
+    if(viewer!=null&&!post.userId().isBlank()&&!post.userId().equals(viewer.id())) {
+      FollowState state=a.repo.followState(post.userId());
+      boolean followed=state!=null&&state.followed();
+      TextView followButton=Ui.button(a,followed?"已关注":"关注",false,() -> {});
+      followButton.setContentDescription(followed?"已关注作者，点击取消":"关注作者");
+      followButton.setBackground(Ui.ripple(a,Design.PAPER,Design.RED,19));
+      followButton.setTextColor(followed?Design.MUTED:Design.RED);
+      followButton.setOnClickListener(v -> a.request(followButton,null,
+          () -> a.repo.setFollow(post.userId(),!followed),
+          () -> { a.message(!followed?"已关注作者":"已取消关注"); a.render(); }));
+      LinearLayout.LayoutParams followLp=new LinearLayout.LayoutParams(-2,-2);followLp.leftMargin=Ui.dp(a,8);
+      author.addView(followButton,followLp);
+    }
+    page.addView(author);
     Ui.gap(page,16);
     page.addView(Ui.title(a,post.title(),24));Ui.gap(page,10);
     page.addView(Ui.text(a,post.content(),16,Design.INK));
