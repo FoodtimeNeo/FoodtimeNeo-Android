@@ -1,6 +1,6 @@
 # FoodtimeNeo Android · 北交干饭吧
 
-当前版本 **1.1.2**（versionCode 7）；更新范围与交付流程见 [1.1.2 发布说明](docs/release-1.1.2.md)，固定签名与历史验收见 [1.0.0 发布验收](docs/release-1.0.0.md)。
+当前版本 **1.1.3**（versionCode 8）；更新范围与交付流程见 [1.1.3 发布说明](docs/release-1.1.3.md)，管理功能与权限见 [社区管理与个人资料](docs/community-management.md)。固定签名与历史验收见 [1.0.0 发布验收](docs/release-1.0.0.md)。
 
 原生 Java 17 / Android View 应用，默认访问真实 Backend。视觉沿用所给 Web 风格的纸张底色、墨棕描边、实色阴影与中文字体。
 
@@ -37,6 +37,6 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 .\scripts\verify.ps1 -Device -ApplicationSuffix .integration
 ```
 
-按最新dev建立功能分支，使用中文提交，并以一次非快进合并回dev；复用旧功能分支时先让其指针指向最新dev。正式发布通过dev → main的PR；合并后CD验证、构建并发布签名release APK，也支持在main手动执行。
+按最新dev建立功能分支，使用中文提交，并以一次非快进合并回dev；复用旧功能分支时先让其指针指向最新dev。正式发布默认通过dev → main的PR；负责人明确授权本地合并推送时保留合并历史。main合并提交的CI通过后，CD检出同一SHA验证、构建并发布签名release APK，也支持在main手动执行。
 
 点评已支持点赞、回复、回复点赞和“我的回复”审核记录，具体交互见[点评互动](docs/review-interactions.md)。

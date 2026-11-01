@@ -8,6 +8,7 @@ import android.widget.*;
 import cn.edu.bjtu.foodtime.domain.model.CommunityText;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import cn.edu.bjtu.foodtime.domain.validation.Validation;
+import cn.edu.bjtu.foodtime.domain.validation.CommunityPermissions;
 import java.util.*;
 
 /** Native two-column campus food community, backed by the Backend P3 community contract. */
@@ -126,7 +127,8 @@ final class CommunityScreen {
     }
 
     if(post.status().equals("rejected")){Ui.gap(page,12);page.addView(Ui.text(a,"未通过审核："+post.reviewReason(),14,Design.RED));}
-    if(a.repo.currentUser()!=null&&post.userId().equals(a.repo.currentUser().id()))Ui.action(page,"删除这篇食记",false,()->Ui.confirm(a,"删除食记？","删除后无法恢复，帖子将从社区隐藏。",()->a.request(null,null,()->a.repo.deleteCommunityPost(post.id()),a::back)));
+    if(CommunityPermissions.canRemove(a.repo.currentUser(),post.userId()))
+      Ui.action(page,"删除这篇食记",false,()->CommunityRemoval.confirm(a,"posts",post.id(),post.userId(),a::back));
     if(!post.status().equals("approved"))return;
     Ui.gap(page,18);LinearLayout actions=Ui.row(a);
     TextView like=Ui.button(a,(post.likedByMe()?"♥ 已赞 ":"♡ 点赞 ")+post.likeCount(),false,() -> {});
@@ -196,9 +198,12 @@ final class CommunityScreen {
     if(!item.deleted()&&item.status().equals("approved")&&!root.deleted())actions.addView(Ui.button(a,"回复",false,()->{
       a.drafts.putString(a.draftKey("replyRoot"),root.id());a.drafts.putString(a.draftKey("replyTarget"),item.id());a.drafts.putString(a.draftKey("replyName"),item.userDisplayName());a.redraw();
     }));
-    if(!item.deleted()&&a.repo.currentUser()!=null&&item.userId().equals(a.repo.currentUser().id())){
+    if(!item.deleted()&&CommunityPermissions.canRemove(a.repo.currentUser(),item.userId())){
       TextView remove=Ui.button(a,"删除",false,()->{});actions.addView(remove);
-      remove.setOnClickListener(v->new android.app.AlertDialog.Builder(a).setTitle("删除评论").setMessage("删除后无法恢复，已通过的楼内回复会保留。").setNegativeButton("取消",null).setPositiveButton("删除",(dialog,which)->a.request(v,null,()->a.repo.deleteCommunityComment(item.id()),a::render)).show());
+      remove.setOnClickListener(v->CommunityRemoval.confirm(a,"comments",item.id(),item.userId(),()->{
+        for(String key:List.of("replyRoot","replyTarget","replyName"))a.drafts.remove(a.draftKey(key));
+        a.render();
+      }));
     }
   }
 
