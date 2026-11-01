@@ -27,5 +27,6 @@ final class AuthScreen {
       return () -> {if(register) a.repo.register(account,secret,verification);else a.repo.login(account,secret);};
     },() -> {password.setText("");if(confirm!=null)confirm.setText("");if(code!=null)code.setText("");Ui.clearImages();if(register) {a.message("注册成功，请登录");a.showAuth(false);}else a.openApp();});
     Ui.gap(card,12);Ui.link(card,register?"去登录":"注册账号",() -> a.showAuth(!register));
+    if(!register){Ui.gap(card,12);Ui.link(card,"忘记密码？",a::showPasswordRecovery);}
   }
 }
