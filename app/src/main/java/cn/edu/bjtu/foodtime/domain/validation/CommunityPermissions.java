@@ -10,6 +10,10 @@ public final class CommunityPermissions {
   }
 
   public static boolean requiresReason(User actor, String authorId) {
+    return false;
+  }
+
+  public static boolean administrativeRemoval(User actor, String authorId) {
     return canRemove(actor, authorId) && !actor.id().equals(authorId);
   }
 

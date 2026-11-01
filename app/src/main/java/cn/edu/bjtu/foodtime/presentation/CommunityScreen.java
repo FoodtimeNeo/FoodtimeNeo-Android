@@ -128,7 +128,7 @@ final class CommunityScreen {
 
     if(post.status().equals("rejected")){Ui.gap(page,12);page.addView(Ui.text(a,"未通过审核："+post.reviewReason(),14,Design.RED));}
     if(CommunityPermissions.canRemove(a.repo.currentUser(),post.userId()))
-      Ui.action(page,"删除这篇食记",false,()->CommunityRemoval.confirm(a,"posts",post.id(),post.userId(),a::back));
+      Ui.action(page,"删除这篇食记",false,()->CommunityRemoval.confirm(a,"posts",post.id(),post.userId(),post.title(),a::back));
     if(!post.status().equals("approved"))return;
     Ui.gap(page,18);LinearLayout actions=Ui.row(a);
     TextView like=Ui.button(a,(post.likedByMe()?"♥ 已赞 ":"♡ 点赞 ")+post.likeCount(),false,() -> {});
@@ -200,8 +200,9 @@ final class CommunityScreen {
     }));
     if(!item.deleted()&&CommunityPermissions.canRemove(a.repo.currentUser(),item.userId())){
       TextView remove=Ui.button(a,"删除",false,()->{});actions.addView(remove);
-      remove.setOnClickListener(v->CommunityRemoval.confirm(a,"comments",item.id(),item.userId(),()->{
-        for(String key:List.of("replyRoot","replyTarget","replyName"))a.drafts.remove(a.draftKey(key));
+      remove.setOnClickListener(v->CommunityRemoval.confirm(a,"comments",item.id(),item.userId(),item.content(),()->{
+        if(item.id().equals(a.drafts.getString(a.draftKey("replyRoot"),""))||item.id().equals(a.drafts.getString(a.draftKey("replyTarget"),"")))
+          for(String key:List.of("replyRoot","replyTarget","replyName"))a.drafts.remove(a.draftKey(key));
         a.render();
       }));
     }

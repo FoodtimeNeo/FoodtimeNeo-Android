@@ -517,7 +517,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public CommunityAuditPage communityAudit(){return communityAudit;}
   @Override public CommunityAuditDetail communityAuditDetail(){return communityAuditDetail;}
   @Override public void moderateCommunity(String type,String id,String action,String reason){call("POST","admin/community/"+type+"/"+id,json("action",action,"reason",reason));}
-  @Override public void removeCommunityAsAdmin(String type,String id,String reason){call("DELETE","admin/community/"+type+"/"+id,json("reason",reason));}
+  @Override public void removeCommunityAsAdmin(String type,String id,String reason){call("DELETE","admin/community/"+type+"/"+id,reason==null||reason.isBlank()?null:json("reason",reason));}
   private void loadCommunityCollection(boolean favorites,boolean more){
     CommunityPostPage prior=communityCollection(favorites);int number=more?prior.page()+1:1;
     JSONObject data=call("GET","users/me/community-"+(favorites?"favorites":"posts")+"?page="+number+"&size=20",null);
