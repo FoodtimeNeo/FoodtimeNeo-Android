@@ -69,6 +69,12 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default NoticePage notices() { return NoticePage.empty(); }
   default void loadMoreNotices() { throw new UnsupportedOperationException(); }
   /** Personal system messages, newest first. Refreshed by ContentRequest MESSAGES on a worker. */
+  /** My follow lists, refreshed by ContentRequest FOLLOWING / FOLLOWERS on a worker. */
+  default FollowPage following() { return FollowPage.empty(); }
+  default FollowPage followers() { return FollowPage.empty(); }
+  /** Cached relation state for one author; null when it has not been loaded yet. */
+  default FollowState followState(String userId) { return null; }
+  default FollowState setFollow(String userId, boolean follow) { throw new UnsupportedOperationException("此数据源不支持关注"); }
   default MessagePage messages() { return MessagePage.empty(); }
   default void loadMoreMessages() { throw new UnsupportedOperationException(); }
   /** Combined unread badge: unread announcements plus unread personal messages. */

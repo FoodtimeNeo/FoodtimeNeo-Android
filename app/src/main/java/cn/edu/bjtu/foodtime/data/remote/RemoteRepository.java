@@ -51,6 +51,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile CommunityAuditPage communityAudit=CommunityAuditPage.empty();
   private volatile CommunityAuditDetail communityAuditDetail;
   private volatile String communityCursor="";
+  private volatile FollowPage followingPage=FollowPage.empty(),followersPage=FollowPage.empty();
+  private final Map<String,FollowState> followStates=new ConcurrentHashMap<>();
   private volatile NoticePage noticePage=NoticePage.empty();
   private volatile int noticeNumber=1;
   private volatile MessagePage messagePage=MessagePage.empty();
@@ -160,6 +162,9 @@ public final class RemoteRepository implements FoodtimeRepository {
       case COMMUNITY_DETAIL -> {
         if(communityPrototype==null) {
           CommunityPost post=cacheCommunityPost(call("GET","community/posts/"+request.id(),null));
+          User viewer=user;
+          if(viewer!=null&&!post.userId().isBlank()&&!post.userId().equals(viewer.id()))
+            followStates.put(post.userId(),fetchFollowState(post.userId()));
           if(post.status().equals("approved"))loadCommunityRoots(post.id(),false);
           else {communityRoots.remove(post.id());communityCommentCache.remove(post.id());}
         } else {
@@ -169,6 +174,8 @@ public final class RemoteRepository implements FoodtimeRepository {
           communityCommentCache.put(post.id(),communityPrototype.comments(post.id()));
         }
       }
+      case FOLLOWING -> followingPage=followPage("users/me/following");
+      case FOLLOWERS -> followersPage=followPage("users/me/followers");
       case MY_REVIEWS -> ownReviews=reviewPage("users/me/reviews");
       case MY_SUBMISSIONS -> fetchOwnSubmissions();
       case REVIEW_REPLIES -> {
@@ -609,6 +616,17 @@ public final class RemoteRepository implements FoodtimeRepository {
     }
     messageNumber=number;
   }
+  @Override public FollowPage following() { return followingPage; }
+  @Override public FollowPage followers() { return followersPage; }
+  @Override public FollowState followState(String userId) { return userId==null?null:followStates.get(userId); }
+  @Override public FollowState setFollow(String userId,boolean follow) {
+    JSONObject state=call(follow?"PUT":"DELETE","users/"+userId+"/follow",null);
+    FollowState result=new FollowState(state.optBoolean("followed"),state.optLong("followerCount"));
+    followStates.put(userId,result);
+    followingPage=withFollowState(followingPage,userId,result.followed());
+    followersPage=withFollowState(followersPage,userId,result.followed());
+    return result;
+  }
   @Override public long unreadCount() { return noticeUnread+messageUnread; }
   @Override public NoticeFeed noticeFeed(long sinceSeq,int limit) {
     NoticeFeed feed=getNoticeFeed(sinceSeq,limit); lastFeed=feed; noticeUnread=feed.unreadCount(); return feed;
@@ -796,7 +814,34 @@ public final class RemoteRepository implements FoodtimeRepository {
       page++;
     }
   }
-  private User person(JSONObject j) { return new User(text(j,"id"),text(j,"email"),text(j,"displayName"),text(j,"role"),!text(j,"status").equals("disabled"),text(j,"avatarUrl"),time(j,"createdAt"),j.optLong("reviewCount")); }
+  /** 只替换本地缓存中的关注标记，避免为一次切换重新拉取整页列表。 */
+  private static FollowPage withFollowState(FollowPage page,String userId,boolean followed) {
+    List<FollowUser> rows=new ArrayList<>(page.items());
+    for(int i=0;i<rows.size();i++) {
+      FollowUser row=rows.get(i);
+      if(row.id().equals(userId))
+        rows.set(i,new FollowUser(row.id(),row.displayName(),row.avatarUrl(),followed));
+    }
+    return new FollowPage(rows,page.total());
+  }
+
+  private FollowPage followPage(String path) {
+    JSONObject data=call("GET",path+"?page=1&size=100",null);
+    JSONArray items=data.optJSONArray("items");
+    List<FollowUser> rows=new ArrayList<>();
+    if(items!=null) for(int i=0;i<items.length();i++) {
+      JSONObject j=items.optJSONObject(i);
+      rows.add(new FollowUser(text(j,"id"),text(j,"displayName"),text(j,"avatarUrl"),j.optBoolean("followedByMe")));
+    }
+    return new FollowPage(rows,data.optLong("total"));
+  }
+
+  private FollowState fetchFollowState(String userId) {
+    JSONObject state=call("GET","users/"+userId+"/follow-status",null);
+    return new FollowState(state.optBoolean("followed"),state.optLong("followerCount"));
+  }
+
+  private User person(JSONObject j) { return new User(text(j,"id"),text(j,"email"),text(j,"displayName"),text(j,"role"),!text(j,"status").equals("disabled"),text(j,"avatarUrl"),time(j,"createdAt"),j.optLong("reviewCount"),j.optLong("followingCount"),j.optLong("followerCount")); }
   private String joined(JSONObject j,boolean dish) {
     List<String> names=new ArrayList<>();
     for(String key: dish?List.of("diningHallName","stallName","dishName"):List.of("diningHallName","stallName")) {

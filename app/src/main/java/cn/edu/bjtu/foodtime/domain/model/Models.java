@@ -18,9 +18,13 @@ public final class Models {
       boolean active) {}
 
   public record User(String id, String email, String displayName, String role, boolean active,
-      String avatarUrl, long createdAt, long reviewCount) {
+      String avatarUrl, long createdAt, long reviewCount, long followingCount, long followerCount) {
+    public User(String id, String email, String displayName, String role, boolean active,
+        String avatarUrl, long createdAt, long reviewCount) {
+      this(id,email,displayName,role,active,avatarUrl,createdAt,reviewCount,0,0);
+    }
     public User(String id, String email, String displayName, String role, boolean active) {
-      this(id,email,displayName,role,active,"",0,0);
+      this(id,email,displayName,role,active,"",0,0,0,0);
     }
     public boolean isAdmin() {
       return role.equals("admin") || role.equals("superadmin");
@@ -157,6 +161,15 @@ public final class Models {
   }
 
   /** Announcement broadcast to all users; seq is a polling cursor only, never an identity. */
+  /** One row of a follow / follower list; followedByMe means the signed-in user follows them. */
+  public record FollowUser(String id, String displayName, String avatarUrl, boolean followedByMe) {}
+  public record FollowPage(List<FollowUser> items, long total) {
+    public FollowPage { items=List.copyOf(items); }
+    public static FollowPage empty() { return new FollowPage(List.of(),0); }
+  }
+  /** Follow relation state plus the target's follower count. */
+  public record FollowState(boolean followed, long followerCount) {}
+
   public record Notice(String id, String content, long publishedAt) {
     /** Compatibility for older test fixtures only; production uses content. */
     public Notice(String id,String title,String body,long publishedAt) {
