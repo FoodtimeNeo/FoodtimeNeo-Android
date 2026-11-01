@@ -41,6 +41,12 @@ final class ProfileScreen {
     identityFoot.addView(motto,new LinearLayout.LayoutParams(0,-2,1));
     TextView edit=Ui.button(a,"编辑资料",false,() -> a.go("profile-edit",""));edit.setTextSize(13);edit.setMinHeight(Ui.dp(a,38));
     edit.setBackground(Ui.ripple(a,Design.PAPER,Design.RED,19));edit.setTextColor(Design.RED);identityFoot.addView(edit);
+    TextView update=Ui.button(a,"检查更新",false,() -> a.checkAppRelease(true));
+    update.setTextSize(13);update.setMinHeight(Ui.dp(a,38));
+    update.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,19));update.setTextColor(Design.INK);
+    update.setContentDescription("检查应用更新，当前版本"+cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME);
+    LinearLayout.LayoutParams updateLp=new LinearLayout.LayoutParams(-2,-2);updateLp.leftMargin=Ui.dp(a,8);
+    identityFoot.addView(update,updateLp);
     identity.addView(identityFoot);
     page.addView(identity,new LinearLayout.LayoutParams(-1,-2));Ui.gap(page,20);
 

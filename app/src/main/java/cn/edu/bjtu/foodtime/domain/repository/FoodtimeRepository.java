@@ -82,6 +82,8 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default MessagePage messages() { return MessagePage.empty(); }
   default void loadMoreMessages() { throw new UnsupportedOperationException(); }
   /** Combined unread badge: unread announcements plus unread personal messages. */
+  /** 应用内更新检查；返回 null 表示后端未配置或无更新。 */
+  default AppRelease appRelease() { return null; }
   default long unreadCount() { return 0; }
   /** Incremental announcement feed for background polling; does not reset page caches. */
   default NoticeFeed noticeFeed(long sinceSeq, int limit) { return NoticeFeed.empty(); }
