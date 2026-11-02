@@ -86,6 +86,9 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   /** Combined unread badge: unread announcements plus unread personal messages. */
   /** 应用内更新检查；返回 null 表示后端未配置或无更新。 */
   default AppRelease appRelease() { return null; }
+  /** 访客绑定学校邮箱：先发验证码，再带验证码绑定并刷新当前用户。 */
+  default void sendSchoolEmailCode(String email) { throw new UnsupportedOperationException("此数据源不支持绑定学校邮箱"); }
+  default void bindSchoolEmail(String email, String code) { throw new UnsupportedOperationException("此数据源不支持绑定学校邮箱"); }
   default long unreadCount() { return 0; }
   /** Incremental announcement feed for background polling; does not reset page caches. */
   default NoticeFeed noticeFeed(long sinceSeq, int limit) { return NoticeFeed.empty(); }

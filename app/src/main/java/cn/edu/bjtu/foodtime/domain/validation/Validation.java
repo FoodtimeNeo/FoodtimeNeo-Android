@@ -12,6 +12,16 @@ public final class Validation {
   }
   public static String email(String s) {
     String value = s.trim().toLowerCase(Locale.ROOT);
+    // 与服务端一致：任意可用邮箱；校园邮箱注册可直接发布内容。
+    if (value.length() > 254 || !value.matches(
+        "[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(\\.[A-Za-z0-9-]{1,63})+"))
+      throw new IllegalArgumentException("请输入有效邮箱");
+    return value;
+  }
+
+  /** 绑定学校邮箱只接受北交数字邮箱。 */
+  public static String schoolEmail(String s) {
+    String value = s.trim().toLowerCase(Locale.ROOT);
     if (value.length() > 254 || !value.matches("[0-9]+@bjtu\\.edu\\.cn"))
       throw new IllegalArgumentException("请输入学号邮箱：数字@bjtu.edu.cn");
     return value;

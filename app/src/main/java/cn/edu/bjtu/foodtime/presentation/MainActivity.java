@@ -158,6 +158,7 @@ public class MainActivity extends Activity {
     screens.put("followers", FollowListScreen::followers);
     screens.put("profile", ProfileScreen::profile);
     screens.put("profile-edit", ProfileScreen::edit);
+    screens.put("bind-school-email", SchoolEmailScreen::binder);
     screens.put("mine-reviews", ProfileScreen::reviews);
     screens.put("password", PasswordScreen::show);
     screens.put("detail", DishScreen::detail);

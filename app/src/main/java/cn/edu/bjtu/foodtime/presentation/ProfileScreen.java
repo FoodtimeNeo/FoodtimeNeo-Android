@@ -49,6 +49,17 @@ final class ProfileScreen {
     identityFoot.addView(update,updateLp);
     identity.addView(identityFoot);
     page.addView(identity,new LinearLayout.LayoutParams(-1,-2));Ui.gap(page,20);
+    if("visitor".equals(user.role())) {
+      LinearLayout guest=Ui.col(a);guest.setPadding(Ui.dp(a,18),Ui.dp(a,16),Ui.dp(a,18),Ui.dp(a,18));
+      guest.setBackground(Ui.shape(a,Design.KRAFT_SOFT,Design.RED,22));
+      guest.addView(Ui.title(a,"访客模式",20));Ui.gap(guest,6);
+      guest.addView(Ui.text(a,"当前只能浏览。绑定学校邮箱后可发帖、评论、点赞与投稿。",14,Design.INK));
+      Ui.gap(guest,12);
+      TextView unlock=Ui.button(a,"去绑定学校邮箱",true,() -> a.go("bind-school-email",""));
+      unlock.setBackground(Ui.ripple(a,Design.RED,0,18));
+      guest.addView(unlock,new LinearLayout.LayoutParams(-1,-2));
+      page.addView(guest,new LinearLayout.LayoutParams(-1,-2));Ui.gap(page,20);
+    }
 
     TextView section=Ui.note(a,"翻一翻我的校园味道");section.setTextSize(22);section.setTextColor(Design.RED);page.addView(section);Ui.gap(page,12);
     LinearLayout tabs=Ui.row(a);tabs.setPadding(Ui.dp(a,4),Ui.dp(a,4),Ui.dp(a,4),Ui.dp(a,4));

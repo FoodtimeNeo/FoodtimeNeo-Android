@@ -583,6 +583,17 @@ public final class RemoteRepository implements FoodtimeRepository {
     if(url.startsWith("/")) url=origin.resolve(url).toString();
     return new AppRelease(code,text(data,"versionName"),url,text(data,"notes"),data.optInt("minVersionCode"));
   }
+  @Override public void sendSchoolEmailCode(String email){
+    String value=Validation.schoolEmail(email);
+    call("POST","auth/bind-email/email-code",json("email",value));
+  }
+  @Override public void bindSchoolEmail(String email,String code){
+    String value=Validation.schoolEmail(email);
+    String verification=code.trim();
+    if(!verification.matches("[0-9]{6}")) throw new IllegalArgumentException("验证码须为6位数字");
+    call("POST","users/me/bind-email",json("email",value,"verificationCode",verification));
+    profile();
+  }
   @Override public String communityCommentStatus(String commentId){
     try { return text(call("GET","community/comments/"+commentId+"/status",null),"status"); }
     catch(RepositoryException missing){ return null; }
