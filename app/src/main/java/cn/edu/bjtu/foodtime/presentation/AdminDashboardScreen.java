@@ -4,17 +4,26 @@ import android.graphics.*;
 import android.view.*;
 import android.widget.*;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
-import java.text.SimpleDateFormat;
+import java.time.*;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 
-/** Superadmin-only platform overview; data shape is ready for the future Backend endpoint. */
+/** Superadmin-only server snapshot with explicit refresh and business-date semantics. */
 final class AdminDashboardScreen {
   static void show(MainActivity a,LinearLayout page,MainActivity.Route route) {
     User actor=a.repo.currentUser();
     if(actor==null||!actor.role().equals("superadmin")) throw new IllegalStateException("需要平台管理员权限");
     AdminDashboard data=a.repo.adminDashboard();
+    if(data==null)throw new IllegalStateException("暂无有效统计快照，请重新加载");
     page.setBackground(new DashboardBackdrop(a));
     a.heading(page,"","数据看板","校园里的每一份热闹，都在这里慢慢长大。");
+    LinearLayout meta=Ui.row(a);meta.setGravity(Gravity.CENTER_VERTICAL);
+    String updated=DateTimeFormatter.ofPattern("M/d HH:mm",Locale.CHINA).withZone(ZoneId.of("Asia/Shanghai")).format(Instant.ofEpochMilli(data.generatedAt()));
+    TextView stamp=Ui.text(a,"更新于 "+updated+"（北京时间）",12,Design.MUTED);
+    meta.addView(stamp,new LinearLayout.LayoutParams(0,-2,1));
+    TextView refresh=Ui.button(a,"刷新数据",false,()->{if(!a.isPageLoading())a.render();});
+    refresh.setTag("dashboard-refresh");refresh.setContentDescription("刷新数据");refresh.setMinHeight(Ui.dp(a,48));meta.addView(refresh);
+    page.addView(meta);Ui.gap(page,12);
     overview(a,page,data);Ui.gap(page,20);
     page.addView(Ui.title(a,"平台总览",24));Ui.gap(page,12);
     metricGrid(a,page,data);Ui.gap(page,22);
@@ -27,14 +36,14 @@ final class AdminDashboardScreen {
     hero.setPadding(Ui.dp(a,20),Ui.dp(a,20),Ui.dp(a,18),Ui.dp(a,20));hero.setBackground(Ui.shape(a,Design.ALT,0,26));
     LinearLayout copy=Ui.col(a);copy.addView(Ui.text(a,"当前在线",14,Design.MUTED));Ui.gap(copy,5);
     TextView online=Ui.title(a,format(data.onlineUsers()),36);online.setTextColor(Design.RED);copy.addView(online);
-    Ui.gap(copy,7);copy.addView(Ui.text(a,"约占注册用户 "+percent(data.onlineUsers(),data.registeredUsers()),13,Design.GREEN));
+    Ui.gap(copy,7);copy.addView(Ui.text(a,"约占有效用户 "+percent(data.onlineUsers(),data.registeredUsers()),13,Design.GREEN));
     hero.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
     View doodle=Ui.foodDoodle(a,3,0x99c9341e);hero.addView(doodle,new LinearLayout.LayoutParams(Ui.dp(a,92),Ui.dp(a,74)));
     page.addView(hero,new LinearLayout.LayoutParams(-1,-2));
   }
 
   private static void metricGrid(MainActivity a,LinearLayout page,AdminDashboard d) {
-    String[] labels={"注册用户","评论","回复","社区食记","食堂","档口","菜品","在线用户"};
+    String[] labels={"有效用户","正式点评","正式回复","已发布食记","食堂","档口","菜品","在线用户"};
     long[] values={d.registeredUsers(),d.reviews(),d.replies(),d.posts(),d.halls(),d.stalls(),d.dishes(),d.onlineUsers()};
     int[] colors={Design.RED,Design.BLUE,Design.GREEN,Design.RED,Design.GREEN,Design.BLUE,Design.RED,Design.GREEN};
     for(int row=0;row<4;row++) {
@@ -56,21 +65,22 @@ final class AdminDashboardScreen {
     section.addView(Ui.title(a,"近 7 日趋势",22));Ui.gap(section,14);
     TrendChart chart=new TrendChart(a,data.trend());
     LinearLayout tabs=Ui.row(a);tabs.setPadding(Ui.dp(a,3),Ui.dp(a,3),Ui.dp(a,3),Ui.dp(a,3));tabs.setBackground(Ui.shape(a,Design.KRAFT_SOFT,0,20));
-    String[] labels={"新增用户","评论互动","社区食记"};TextView[] buttons=new TextView[3];int[] chosen={0};
-    Runnable refresh=()->{for(int i=0;i<3;i++){boolean active=i==chosen[0];buttons[i].setTextColor(active?Design.ON_RED:Design.INK);buttons[i].setBackground(Ui.ripple(a,active?Design.RED:Color.TRANSPARENT,0,18));}chart.setMetric(chosen[0]);};
-    for(int i=0;i<3;i++){int index=i;TextView button=Ui.text(a,labels[i],13,Design.INK);button.setGravity(Gravity.CENTER);button.setMinHeight(Ui.dp(a,40));button.setClickable(true);button.setFocusable(true);button.setOnClickListener(v->{chosen[0]=index;refresh.run();});buttons[i]=button;tabs.addView(button,new LinearLayout.LayoutParams(0,-2,1));}
-    section.addView(tabs);Ui.gap(section,14);section.addView(chart,new LinearLayout.LayoutParams(-1,Ui.dp(a,230)));refresh.run();page.addView(section);
+    String[] labels={"新增用户","点评互动","社区食记","日活用户"};TextView[] buttons=new TextView[labels.length];int[] chosen={0};
+    Runnable refresh=()->{for(int i=0;i<labels.length;i++){boolean active=i==chosen[0];buttons[i].setTextColor(active?Design.ON_RED:Design.INK);buttons[i].setBackground(Ui.ripple(a,active?Design.RED:Color.TRANSPARENT,0,18));}chart.setMetric(chosen[0]);};
+    for(int i=0;i<labels.length;i++){int index=i;TextView button=Ui.text(a,labels[i],13,Design.INK);button.setGravity(Gravity.CENTER);button.setMinHeight(Ui.dp(a,48));button.setClickable(true);button.setFocusable(true);button.setOnClickListener(v->{chosen[0]=index;refresh.run();});buttons[i]=button;tabs.addView(button,new LinearLayout.LayoutParams(0,-2,1));}
+    section.addView(tabs);Ui.gap(section,8);
+    section.addView(Ui.text(a,"点评互动=投稿+回复；日活为当日行为去重人数，含当日的7个自然日",12,Design.MUTED));Ui.gap(section,14);section.addView(chart,new LinearLayout.LayoutParams(-1,Ui.dp(a,230)));refresh.run();page.addView(section);
   }
 
   private static void activityTable(MainActivity a,LinearLayout page,AdminDashboard data) {
-    page.addView(Ui.title(a,"今日活跃",24));Ui.gap(page,12);
+    page.addView(Ui.title(a,"当日新增（"+data.trend().get(data.trend().size()-1).day().format(DateTimeFormatter.ofPattern("M/d"))+"）",24));Ui.gap(page,12);
     LinearLayout table=Ui.col(a);table.setPadding(Ui.dp(a,17),Ui.dp(a,16),Ui.dp(a,17),Ui.dp(a,12));table.setBackground(Ui.shape(a,Design.ALT,0,24));
-    DashboardPoint today=data.trend().isEmpty()?new DashboardPoint(0,0,0,0,0,0):data.trend().get(data.trend().size()-1);
+    DashboardPoint today=data.trend().get(data.trend().size()-1);
     table.addView(row(a,"内容","今日新增","累计",true));divider(a,table);
-    table.addView(row(a,"注册用户",format(today.newUsers()),format(data.registeredUsers()),false));divider(a,table);
-    table.addView(row(a,"评论",format(today.newReviews()),format(data.reviews()),false));divider(a,table);
-    table.addView(row(a,"社区食记",format(today.newPosts()),format(data.posts()),false));
-    page.addView(table);
+    table.addView(row(a,"注册 / 有效用户",format(today.newUsers()),format(data.registeredUsers()),false));divider(a,table);
+    table.addView(row(a,"投稿 / 正式点评",format(today.newReviews()),format(data.reviews()),false));divider(a,table);
+    table.addView(row(a,"新建 / 发布食记",format(today.newPosts()),format(data.posts()),false));
+    page.addView(table);Ui.gap(page,8);page.addView(Ui.text(a,"新增按创建/投稿记录计数（含待审等状态）；累计仅计有效用户、正式点评与已发布食记。",12,Design.MUTED));
   }
 
   private static LinearLayout row(MainActivity a,String name,String today,String total,boolean header) {
@@ -84,29 +94,35 @@ final class AdminDashboardScreen {
   private static String format(long value){return String.format(Locale.CHINA,"%,d",value);}
   private static String percent(long value,long total){return total<=0?"0%":Math.round(value*100.0/total)+"%";}
 
+  static void refreshing(LinearLayout page,boolean busy) {
+    if(page==null)return;
+    View action=page.findViewWithTag("dashboard-refresh");
+    if(action instanceof TextView button){button.setEnabled(!busy);button.setText(busy?"刷新中…":"刷新数据");}
+  }
+
   private static final class TrendChart extends View {
-    final List<DashboardPoint> points;final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);final SimpleDateFormat day=new SimpleDateFormat("M/d",Locale.CHINA);int metric;
+    final List<DashboardPoint> points;final Paint paint=new Paint(Paint.ANTI_ALIAS_FLAG);final DateTimeFormatter day=DateTimeFormatter.ofPattern("M/d");int metric;
     TrendChart(MainActivity a,List<DashboardPoint> points){super(a);this.points=points;paint.setTypeface(Design.body());setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_YES);}
-    void setMetric(int value){metric=value;setContentDescription(new String[]{"近七日新增用户趋势","近七日评论与回复趋势","近七日社区食记趋势"}[value]);invalidate();}
-    long value(DashboardPoint point){return metric==0?point.newUsers():metric==1?point.newReviews()+point.newReplies():point.newPosts();}
+    void setMetric(int value){metric=value;setContentDescription(new String[]{"近七日新增用户趋势","近七日点评投稿与回复趋势","近七日社区食记趋势","近七日日活用户趋势"}[value]);invalidate();}
+    double value(DashboardPoint point){return metric==0?point.newUsers():metric==1?(double)point.newReviews()+point.newReplies():metric==2?point.newPosts():point.onlinePeak();}
     @Override protected void onDraw(Canvas canvas){super.onDraw(canvas);if(points.isEmpty())return;
       float side=Ui.dp(getContext(),40),left=side,right=getWidth()-side,top=Ui.dp(getContext(),24),bottom=getHeight()-Ui.dp(getContext(),38);
-      long observed=1;for(DashboardPoint point:points)observed=Math.max(observed,value(point));long maximum=axisMaximum(observed);
+      double observed=1;for(DashboardPoint point:points)observed=Math.max(observed,value(point));double maximum=axisMaximum(observed);
       paint.setTypeface(Design.body());paint.setTextSize(Ui.dp(getContext(),10));paint.setTextAlign(Paint.Align.RIGHT);
-      for(int i=0;i<=4;i++){float y=bottom-(bottom-top)*i/4f;long tick=maximum*i/4;
+      for(int i=0;i<=4;i++){float y=bottom-(bottom-top)*i/4f;double tick=maximum*i/4;
         paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(Ui.dp(getContext(),1));paint.setColor(i==0?Design.BORDER:0x33d5ccbc);canvas.drawLine(left,y,right,y,paint);
-        paint.setStyle(Paint.Style.FILL);paint.setColor(Design.MUTED);canvas.drawText(format(tick),left-Ui.dp(getContext(),7),y+Ui.dp(getContext(),3.5f),paint);
+        paint.setStyle(Paint.Style.FILL);paint.setColor(Design.MUTED);canvas.drawText(java.text.NumberFormat.getIntegerInstance(Locale.CHINA).format(tick),left-Ui.dp(getContext(),7),y+Ui.dp(getContext(),3.5f),paint);
       }
       paint.setStyle(Paint.Style.STROKE);paint.setStrokeWidth(Ui.dp(getContext(),1.4f));paint.setColor(Design.BORDER);canvas.drawLine(left,top,left,bottom,paint);canvas.drawLine(left,bottom,right,bottom,paint);
       Path path=new Path();
-      for(int i=0;i<points.size();i++){float x=left+(right-left)*i/Math.max(1,points.size()-1);float y=bottom-(bottom-top)*value(points.get(i))/maximum;if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}
+      for(int i=0;i<points.size();i++){float x=left+(right-left)*i/Math.max(1,points.size()-1);float y=(float)(bottom-(bottom-top)*value(points.get(i))/maximum);if(i==0)path.moveTo(x,y);else path.lineTo(x,y);}
       paint.setColor(metric==0?Design.RED:metric==1?Design.BLUE:Design.GREEN);paint.setStrokeWidth(Ui.dp(getContext(),3));paint.setStrokeCap(Paint.Cap.ROUND);canvas.drawPath(path,paint);
-      paint.setStyle(Paint.Style.FILL);for(int i=0;i<points.size();i++){float x=left+(right-left)*i/Math.max(1,points.size()-1);float y=bottom-(bottom-top)*value(points.get(i))/maximum;canvas.drawCircle(x,y,Ui.dp(getContext(),4),paint);}
+      paint.setStyle(Paint.Style.FILL);for(int i=0;i<points.size();i++){float x=left+(right-left)*i/Math.max(1,points.size()-1);float y=(float)(bottom-(bottom-top)*value(points.get(i))/maximum);canvas.drawCircle(x,y,Ui.dp(getContext(),4),paint);}
       paint.setTextSize(Ui.dp(getContext(),10));paint.setTextAlign(Paint.Align.CENTER);paint.setTypeface(Design.title());Paint.FontMetrics metrics=paint.getFontMetrics();float inset=Ui.dp(getContext(),4),minBaseline=top+inset-metrics.top,maxBaseline=bottom-inset-metrics.bottom;
-      for(int i=0;i<points.size();i++){long amount=value(points.get(i));String label=format(amount);float x=left+(right-left)*i/Math.max(1,points.size()-1),y=bottom-(bottom-top)*amount/maximum;float labelY=y-Ui.dp(getContext(),9);if(labelY<minBaseline)labelY=y+Ui.dp(getContext(),17);labelY=Math.max(minBaseline,Math.min(maxBaseline,labelY));float half=paint.measureText(label)/2f,labelX=Math.max(left+inset+half,Math.min(right-inset-half,x));canvas.drawText(label,labelX,labelY,paint);}
-      paint.setColor(Design.MUTED);paint.setTypeface(Design.body());paint.setTextSize(Ui.dp(getContext(),9));paint.setTextAlign(Paint.Align.CENTER);for(int i=0;i<points.size();i++){float x=left+(right-left)*i/Math.max(1,points.size()-1);canvas.drawText(day.format(new Date(points.get(i).day())),x,bottom+Ui.dp(getContext(),19),paint);}
+      for(int i=0;i<points.size();i++){double amount=value(points.get(i));String label=java.text.NumberFormat.getIntegerInstance(Locale.CHINA).format(amount);float x=left+(right-left)*i/Math.max(1,points.size()-1),y=(float)(bottom-(bottom-top)*amount/maximum);float labelY=y-Ui.dp(getContext(),9);if(labelY<minBaseline)labelY=y+Ui.dp(getContext(),17);labelY=Math.max(minBaseline,Math.min(maxBaseline,labelY));float half=paint.measureText(label)/2f,labelX=Math.max(left+inset+half,Math.min(right-inset-half,x));canvas.drawText(label,labelX,labelY,paint);}
+      paint.setColor(Design.MUTED);paint.setTypeface(Design.body());paint.setTextSize(Ui.dp(getContext(),9));paint.setTextAlign(Paint.Align.CENTER);for(int i=0;i<points.size();i++){float x=left+(right-left)*i/Math.max(1,points.size()-1);canvas.drawText(day.format(points.get(i).day()),x,bottom+Ui.dp(getContext(),19),paint);}
     }
-    private long axisMaximum(long value){long raw=Math.max(1,(value+3)/4),magnitude=1;while(raw/magnitude>=10)magnitude*=10;long unit=(raw+magnitude-1)/magnitude;long nice=unit<=1?1:unit<=2?2:unit<=3?3:unit<=5?5:10;return Math.max(4,nice*magnitude*4);}
+    private double axisMaximum(double value){double raw=Math.max(1,value/4),magnitude=Math.pow(10,Math.floor(Math.log10(raw)));double unit=raw/magnitude;double nice=unit<=1?1:unit<=2?2:unit<=3?3:unit<=5?5:10;return Math.max(4,nice*magnitude*4);}
   }
 
   private static final class DashboardBackdrop extends android.graphics.drawable.Drawable {

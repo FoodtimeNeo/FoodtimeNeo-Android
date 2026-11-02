@@ -31,20 +31,13 @@ public final class Models {
     }
   }
 
-  /** One calendar-day bucket used by the platform data dashboard. */
-  public record DashboardPoint(long day,long newUsers,long newReviews,long newReplies,long newPosts,long onlinePeak) {}
+  /** Business calendar date; never interpreted in the device's timezone. */
+  public record DashboardPoint(java.time.LocalDate day,long newUsers,long newReviews,long newReplies,long newPosts,long onlinePeak) {}
 
-  /** Single Backend projection for the superadmin dashboard. */
+  /** A successful immutable Backend snapshot. No production preview/fallback values. */
   public record AdminDashboard(long registeredUsers,long onlineUsers,long reviews,long replies,long posts,
-      long halls,long stalls,long dishes,List<DashboardPoint> trend,long generatedAt,boolean preview) {
-    public AdminDashboard { trend=trend==null?List.of():List.copyOf(trend); }
-    public static AdminDashboard sample() {
-      long day=System.currentTimeMillis()/86_400_000L*86_400_000L;
-      long[] users={7,9,6,12,8,11,10},reviews={68,75,61,88,79,95,92},replies={104,118,97,143,126,158,151},posts={12,15,11,19,16,22,24},online={91,96,88,112,105,127,119};
-      java.util.ArrayList<DashboardPoint> points=new java.util.ArrayList<>();
-      for(int i=0;i<7;i++) points.add(new DashboardPoint(day-(6L-i)*86_400_000L,users[i],reviews[i],replies[i],posts[i],online[i]));
-      return new AdminDashboard(1248,86,3862,5917,742,7,46,618,points,System.currentTimeMillis(),true);
-    }
+      long halls,long stalls,long dishes,List<DashboardPoint> trend,long generatedAt) {
+    public AdminDashboard { trend=List.copyOf(trend); }
   }
 
   public record LikeState(boolean likedByMe, long likeCount, long counterVersion) {}

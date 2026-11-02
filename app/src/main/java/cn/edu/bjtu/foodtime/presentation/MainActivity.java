@@ -345,10 +345,11 @@ public class MainActivity extends Activity {
     int ticket=++generation;
     int epoch=navigationEpoch;
     String actor=actor();
-    Route target=route();boolean catalog=LoadingScreen.catalog(target);
-    boolean retain=catalog&&contentReady&&displayedLocation.equals(location())&&displayedActor.equals(actor);
+    Route target=route();boolean catalog=LoadingScreen.catalog(target);boolean dashboard=target.kind().equals("admin-dashboard");
+    boolean retain=(catalog||dashboard&&repo.adminDashboard()!=null)&&contentReady&&displayedLocation.equals(location())&&displayedActor.equals(actor);
     ContentRequest query=query(route());
     navigationLoading=true;
+    if(dashboard&&retain)AdminDashboardScreen.refreshing(content,true);
     LinearLayout body;
     if(retain) {body=Ui.col(this);refreshBanner=body;content.addView(body,0);TextView refresh=Ui.text(this,"更新中",12,Design.MUTED);body.addView(refresh);}
     else {
@@ -363,7 +364,7 @@ public class MainActivity extends Activity {
     navigationHandler.postDelayed(()->{
       if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
       cancelNavigation();contentReady=retain;pageFailed=true;
-      if(retain){refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body);}
+      if(retain){refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body,dashboard?"刷新失败，显示上次数据":"加载失败");}
       else if(catalog)LoadingScreen.failure(this,body);
       else LoadingScreen.failure(this,body);
     },15000);
@@ -377,7 +378,7 @@ public class MainActivity extends Activity {
         if(!actor.equals(actor())){Ui.clearImages();displayedActor="";}
         if(tab.equals("admin")&&!repo.currentUser().isAdmin()) {tab="dining";render();return;}
         if(tab.equals("dashboard")&&!repo.currentUser().role().equals("superadmin")) {tab="dining";render();return;}
-        if(failure!=null) {contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body);}else if(retain){content.removeAllViews();LoadingScreen.failure(this,LoadingScreen.begin(this,content,target));}else LoadingScreen.failure(this,body);return;}
+        if(failure!=null) {contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body,dashboard?"刷新失败，显示上次数据":"加载失败");}else if(retain){content.removeAllViews();LoadingScreen.failure(this,catalog?LoadingScreen.begin(this,content,target):LoadingScreen.general(this,content,target),dashboard?failure.getMessage():"加载失败");}else LoadingScreen.failure(this,body,dashboard&&failure instanceof RepositoryException?failure.getMessage():"加载失败");return;}
         renderContent();
         if(catalog&&!retain&&android.animation.ValueAnimator.areAnimatorsEnabled()){content.setAlpha(.5f);content.animate().alpha(1).setDuration(150).start();}
       });
@@ -385,7 +386,7 @@ public class MainActivity extends Activity {
     });
     worker.execute(navigationRead);
   }
-  private void cancelNavigation(){navigationEpoch++;navigationHandler.removeCallbacksAndMessages(null);if(navigationRead!=null){navigationRead.cancel(true);navigationRead=null;}navigationLoading=false;if(refreshBanner!=null&&refreshBanner.getParent() instanceof android.view.ViewGroup parent)parent.removeView(refreshBanner);refreshBanner=null;}
+  private void cancelNavigation(){navigationEpoch++;navigationHandler.removeCallbacksAndMessages(null);if(navigationRead!=null){navigationRead.cancel(true);navigationRead=null;}navigationLoading=false;AdminDashboardScreen.refreshing(content,false);if(refreshBanner!=null&&refreshBanner.getParent() instanceof android.view.ViewGroup parent)parent.removeView(refreshBanner);refreshBanner=null;}
   boolean isPageLoading(){return navigationLoading;}
 
   private ContentRequest query(Route route) {
@@ -749,7 +750,7 @@ public class MainActivity extends Activity {
     if(resumeNavigation&&repo!=null&&repo.currentUser()!=null){resumeNavigation=false;render();}
     noticeUi.post(this::drainNotices);
   }
-  @Override protected void onPause() { super.onPause();foreground=false;resumeNavigation=navigationLoading;cancelNavigation();Ui.pauseImages(); }
+  @Override protected void onPause() { super.onPause();foreground=false;resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)Ui.clearImages();}
   @Override protected void onDestroy() {if(passwordRecovery!=null)passwordRecovery.close();++generation;cancelNavigation();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }
