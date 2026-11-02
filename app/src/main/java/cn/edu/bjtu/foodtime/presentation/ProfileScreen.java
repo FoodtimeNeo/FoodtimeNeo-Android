@@ -157,8 +157,9 @@ final class ProfileScreen {
     LinearLayout avatarRow=Ui.row(a);avatarRow.setGravity(Gravity.CENTER);
     avatarRow.addView(avatarFrame,new LinearLayout.LayoutParams(Ui.dp(a,112),Ui.dp(a,112)));
     card.addView(avatarRow);Ui.gap(card,12);
-    TextView choose=Ui.button(a,image.isBlank()?"选择头像":"更换头像",false,() -> a.pickImage(imageKey));
+    TextView choose=Ui.button(a,"选择新头像",false,() -> a.pickAvatar(imageKey));
     choose.setBackground(Ui.ripple(a,Design.PAPER,Design.RED,18));choose.setTextColor(Design.RED);card.addView(choose);
+    Ui.gap(card,8);card.addView(Ui.text(a,"JPEG / PNG，原图不超过10MB。选择后进行1:1方形裁剪。",13,Design.MUTED));
     Ui.gap(card,18);
     String nameKey=a.draftKey("昵称");
     if(!a.drafts.containsKey(nameKey)) a.drafts.putString(nameKey,user.displayName());
