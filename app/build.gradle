@@ -64,6 +64,8 @@ dependencies {
     implementation 'io.noties.markwon:ext-tables:4.6.2'
     implementation 'io.noties.markwon:ext-strikethrough:4.6.2'
     implementation 'io.noties.markwon:image:4.6.2'
+    // bsdiff 补丁解压使用 bzip2；仅更新路径使用。
+    implementation 'org.apache.commons:commons-compress:1.27.1'
     testImplementation 'junit:junit:4.13.2'
     // Exercise the real JSON/HTTP mapping on the JVM; not packaged in the Android app.
     testImplementation 'org.json:json:20240303'

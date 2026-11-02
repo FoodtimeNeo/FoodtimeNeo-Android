@@ -138,9 +138,66 @@ jobs:
           (cd "$release_dir" && sha256sum app-release.apk > app-release.apk.sha256)
           echo "directory=$release_dir" >> "$GITHUB_OUTPUT"
           version_name=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk_path" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
+          version_code=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk_path" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")
           [[ "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          [[ "$version_code" =~ ^[0-9]+$ ]]
           echo "version=$version_name" >> "$GITHUB_OUTPUT"
+          echo "code=$version_code" >> "$GITHUB_OUTPUT"
           echo "tag=v$version_name" >> "$GITHUB_OUTPUT"
+
+      - name: Build delta patches and release manifest
+        id: delta
+        if: github.event_name == 'workflow_run' || github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.apk.outputs.tag }}
+          RELEASE_VERSION: ${{ steps.apk.outputs.version }}
+          RELEASE_CODE: ${{ steps.apk.outputs.code }}
+          RELEASE_DIRECTORY: ${{ steps.apk.outputs.directory }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq bsdiff
+          asset_base="https://github.com/$GH_REPO/releases/download/$RELEASE_TAG"
+          apk="$RELEASE_DIRECTORY/app-release.apk"
+          apk_sha=$(sha256sum "$apk" | cut -d' ' -f1)
+          apk_size=$(stat -c%s "$apk")
+          patches='[]'
+          old_root="$RUNNER_TEMP/foodtime-old-apk"
+          mkdir -p "$old_root"
+          # 只对最近三个正式版本生成补丁，控制构建时间与发布体积。
+          mapfile -t previous < <(gh release list --exclude-drafts --exclude-pre-releases --limit 6 \
+            --json tagName --jq '.[].tagName' | grep -vxF "$RELEASE_TAG" | head -n 3)
+          for tag in "${previous[@]:-}"; do
+            [[ -n "$tag" ]] || continue
+            mkdir -p "$old_root/$tag"
+            if ! gh release download "$tag" --pattern app-release.apk --dir "$old_root/$tag" --clobber >/dev/null 2>&1; then
+              echo "::warning::No APK in release $tag; skipping delta patch"
+              continue
+            fi
+            old_apk="$old_root/$tag/app-release.apk"
+            old_code=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$old_apk" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")
+            [[ "$old_code" =~ ^[0-9]+$ ]] || continue
+            patch="$RELEASE_DIRECTORY/app-release-${old_code}-${RELEASE_CODE}.patch"
+            bsdiff "$old_apk" "$apk" "$patch"
+            entry=$(jq -n --argjson base "$old_code" \
+              --arg url "$asset_base/$(basename "$patch")" \
+              --arg sha "$(sha256sum "$patch" | cut -d' ' -f1)" \
+              --argjson size "$(stat -c%s "$patch")" \
+              '{baseVersionCode:$base,url:$url,sha256:$sha,size:$size}')
+            patches=$(jq -n --argjson current "$patches" --argjson next "$entry" '$current + [$next]')
+            echo "Generated delta patch for v$old_code"
+          done
+          jq -n --argjson versionCode "$RELEASE_CODE" \
+            --arg versionName "$RELEASE_VERSION" \
+            --arg url "$asset_base/app-release.apk" \
+            --arg sha "$apk_sha" \
+            --argjson size "$apk_size" \
+            --argjson patches "$patches" \
+            '{versionCode:$versionCode,versionName:$versionName,apk:{url:$url,sha256:$sha,size:$size},patches:$patches}' \
+            > "$RELEASE_DIRECTORY/manifest.json"
+          cat "$RELEASE_DIRECTORY/manifest.json"
 
       - name: Upload release APK artifact
         uses: actions/upload-artifact@v4
@@ -168,9 +225,15 @@ jobs:
               --draft \
               --generate-notes
           fi
-          gh release upload "$RELEASE_TAG" \
-            "$RELEASE_DIRECTORY/app-release.apk" \
-            "$RELEASE_DIRECTORY/app-release.apk.sha256" --clobber
+          files=(
+            "$RELEASE_DIRECTORY/app-release.apk"
+            "$RELEASE_DIRECTORY/app-release.apk.sha256"
+            "$RELEASE_DIRECTORY/manifest.json"
+          )
+          for patch in "$RELEASE_DIRECTORY"/app-release-*-*.patch; do
+            [[ -e "$patch" ]] && files+=("$patch")
+          done
+          gh release upload "$RELEASE_TAG" "${files[@]}" --clobber
           gh release edit "$RELEASE_TAG" --draft=false
           echo "### Android Release APK" >> "$GITHUB_STEP_SUMMARY"
           gh release view "$RELEASE_TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
