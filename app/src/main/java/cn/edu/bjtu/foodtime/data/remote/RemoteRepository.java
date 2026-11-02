@@ -859,20 +859,9 @@ public final class RemoteRepository implements FoodtimeRepository {
     if(reference.startsWith("/api/v1/media/")) return reference;
     try {
       URI uri=URI.create(reference); if(!uri.getScheme().equals("file")) throw new IllegalArgumentException("请重新选择图片");
-      File file=new File(uri); if(file.length()>10*1024*1024) throw new IllegalArgumentException("图片不能超过10MB");
-      byte[] bytes;
-      try(var in=new FileInputStream(file);var buffer=new ByteArrayOutputStream()) {
-        byte[] block=new byte[8192];int length;
-        while((length=in.read(block))!=-1) {
-          if(buffer.size()+length>10*1024*1024) throw new IllegalArgumentException("图片不能超过10MB");
-          buffer.write(block,0,length);
-        }
-        bytes=buffer.toByteArray();
-      }
-      String boundary="foodtime"+UUID.randomUUID(); var out=new ByteArrayOutputStream();
-      out.write(("--"+boundary+"\r\nContent-Disposition: form-data; name=\"file\"; filename=\"photo.jpg\"\r\nContent-Type: image/jpeg\r\n\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
-      out.write(bytes); out.write(("\r\n--"+boundary+"--\r\n").getBytes(java.nio.charset.StandardCharsets.UTF_8));
-      return text(interpret(http.send("POST","uploads/images",out.toByteArray(),"multipart/form-data; boundary="+boundary,token())),"imageUrl");
+      File file=new File(uri); if(file.length()>50L*1024*1024) throw new IllegalArgumentException("图片不能超过50MB");
+      // 大图不再整包读入内存：由 HttpTransport 流式写入 multipart。
+      return text(interpret(http.sendFile("uploads/images",file,token())),"imageUrl");
     } catch(IOException e) { throw unavailable(); }
   }
   @Override public byte[] loadImage(String reference) {
