@@ -71,6 +71,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile NoticeFeed lastFeed=NoticeFeed.empty();
   private volatile boolean communityHasMore;
   private final Map<String,String> communityUploads=new ConcurrentHashMap<>();
+  private final Map<String,String> avatarUploads=new ConcurrentHashMap<>();
 
   public RemoteRepository(String baseUrl,HttpTransport http) {
     this(baseUrl,http,false);
@@ -193,9 +194,10 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   @Override public User updateProfile(String displayName,String avatarReference) {
     String name=Validation.text(displayName,50,"昵称");
-    if(name.length()<2) throw new IllegalArgumentException("昵称至少需要2个字");
+    User actor=user;if(actor==null)throw new RepositoryException(401,"UNAUTHENTICATED","请重新登录",0);
     String avatar=avatarReference==null||avatarReference.isBlank()?null:
-        avatarReference.startsWith("file:")?upload(avatarReference):avatarReference;
+        avatarReference.startsWith("file:")?avatarUploads.computeIfAbsent(actor.id()+":"+avatarReference,key->upload(avatarReference,true)):avatarReference;
+    if(user==null||!user.id().equals(actor.id()))throw new RepositoryException(401,"UNAUTHENTICATED","登录状态已变化，请重新登录",0);
     user=person(call("PUT","users/me/profile",json("displayName",name,"avatarUrl",avatar)));
     return user;
   }
@@ -873,14 +875,18 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public void removeReviewAsAdmin(String id,String reason) { call("DELETE","admin/reviews/"+id,json("reason",reason)); }
   @Override public void updateUser(String id,String role,boolean active) { call("PUT","admin/users/"+id,json("role",role,"status",active?"active":"disabled")); }
 
-  private String upload(String reference) {
+  private String upload(String reference) {return upload(reference,false);}
+  private String upload(String reference,boolean avatar) {
     if(reference==null||reference.isBlank()) throw new IllegalArgumentException("请选择图片");
     if(reference.startsWith("/api/v1/media/")) return reference;
     try {
       URI uri=URI.create(reference); if(!uri.getScheme().equals("file")) throw new IllegalArgumentException("请重新选择图片");
-      File file=new File(uri); if(file.length()>50L*1024*1024) throw new IllegalArgumentException("图片不能超过50MB");
-      // 大图不再整包读入内存：由 HttpTransport 流式写入 multipart。
-      return text(interpret(http.sendFile("uploads/images",file,token())),"imageUrl");
+      long limit=avatar?cn.edu.bjtu.foodtime.domain.validation.AvatarCropGeometry.MAX_BYTES:50L*1024*1024;
+      File file=new File(uri);if(file.length()>limit)throw new IllegalArgumentException(avatar?"头像不能超过10MB":"图片不能超过50MB");
+      String image=text(interpret(http.sendFile(avatar?"uploads/avatars":"uploads/images",file,token())),"imageUrl");
+      if(avatar&&!image.matches("/api/v1/media/[0-9a-fA-F-]{36}"))throw new RepositoryException(0,"INVALID_RESPONSE","头像上传响应异常，请重试",0);
+      return image;
+
     } catch(IOException e) { throw unavailable(); }
   }
   @Override public byte[] loadImage(String reference) {
@@ -1010,7 +1016,8 @@ public final class RemoteRepository implements FoodtimeRepository {
     venues.clear();
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(true);}
     synchronized(dashboardLock) {user=null;dashboardSnapshot=null;dashboardRequest++;resetFollows();}
-    csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
+    avatarUploads.clear();csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
+
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
     communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();communityAudit=CommunityAuditPage.empty();communityAuditDetail=null;communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
     dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();
