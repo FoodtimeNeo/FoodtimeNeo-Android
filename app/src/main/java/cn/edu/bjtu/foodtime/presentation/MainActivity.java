@@ -140,6 +140,9 @@ public class MainActivity extends Activity {
   }
 
   void registerScreens() {
+    screens.put("venue-reviews",VenueScreen::reviews);
+    screens.put("venue-write",VenueScreen::write);
+    screens.put("venue-mine",VenueScreen::mine);
     screens.put("dining", DiningScreen::halls);
     screens.put("community", CommunityScreen::feed);
     screens.put("community-detail", CommunityScreen::detail);
@@ -448,6 +451,8 @@ public class MainActivity extends Activity {
 
   private ContentRequest query(Route route) {
     ContentRequest.Query q=switch(route.kind()) {
+      case "venue-reviews","venue-write" -> ContentRequest.Query.VENUE_REVIEWS;
+      case "venue-mine" -> ContentRequest.Query.VENUE_PERSONAL;
       case "dining" -> ContentRequest.Query.HALLS;
       case "stalls","submit-stall" -> ContentRequest.Query.STALLS;
       case "dishes","submit-dish" -> ContentRequest.Query.DISHES;
@@ -601,6 +606,11 @@ public class MainActivity extends Activity {
       scrollPositions.putInt(location(), scroll.getScrollY());
   }
 
+  void finishVenueWrite(String type,String id) {
+    var stack=stacks.get(tab);
+    if(stack.size()>1&&stack.get(stack.size()-2).kind().equals("venue-reviews")&&stack.get(stack.size()-2).id().startsWith(type+"~"+id+"~"))back();
+    else replaceRoute("venue-reviews",type+"~"+id+"~all");
+  }
   public void message(String text) {
     if(currentToast!=null) currentToast.cancel();
     currentToast=Toast.makeText(this,text,Toast.LENGTH_SHORT);currentToast.show();

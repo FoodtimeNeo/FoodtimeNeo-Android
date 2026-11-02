@@ -83,6 +83,7 @@ final class DiningScreen {
     TextView number=Ui.text(a,String.format("第 %02d 站",index+1),11,index%3==1?Design.GREEN:Design.RED);
     number.setLetterSpacing(.08f);body.addView(number);Ui.gap(body,6);
     TextView name=Ui.title(a,hall.name(),20);name.setMaxLines(2);body.addView(name);
+    body.addView(Ui.text(a,VenueScreen.scoreLabel(hall.averageScore(),hall.reviewCount()),12,Design.RED));
     Ui.gap(body,8);body.addView(Ui.text(a,CARD_NOTES[index%CARD_NOTES.length],12,Design.MUTED));
     card.addView(body,new LinearLayout.LayoutParams(-1,-2));
     card.setFocusable(true);card.setClickable(true);
@@ -108,6 +109,7 @@ final class DiningScreen {
     Hall hall = a.repo.hall(route.id());
     if (hall == null || !hall.active()) throw new IllegalArgumentException("食堂不存在或已停用");
     a.heading(page, "01.1", hall.name(), "");
+    VenueScreen.summary(a,page,"hall",hall.id());
     if (a.repo.stalls(hall.id()).isEmpty()) {
       Ui.empty(page, "暂无档口", "");
       Ui.action(page, "投稿一个新档口", true, () -> a.go("submit-stall", hall.id()));
@@ -146,6 +148,7 @@ final class DiningScreen {
     }
     LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,14));
     TextView name=Ui.title(a,stall.name(),19);name.setMaxLines(2);body.addView(name);Ui.gap(body,7);
+    body.addView(Ui.text(a,VenueScreen.scoreLabel(stall.averageScore(),stall.reviewCount()),12,Design.RED));
     card.addView(body);card.setClickable(true);card.setFocusable(true);card.setContentDescription(stall.name()+"，查看菜品");
     card.setOnClickListener(v -> a.go("dishes",stall.id()));
     LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=Ui.dp(a,12);column.addView(card,lp);

@@ -32,11 +32,15 @@ final class AdminScreen {
     String key=a.draftKey("audit-status");
     String[] states={"pending","approved","rejected"};
     Spinner status=SubmissionScreen.filter(a,page,"审核状态",new String[]{"待审核","已通过","已驳回"},a.drafts.getInt(key,0));
+    String typeKey=a.draftKey("audit-type");
+    String[] types={"","dish","photo","review","dish-review-reply","hall","stall","hall-review","stall-review","hall-review-reply","stall-review-reply"};
+    Spinner type=SubmissionScreen.filter(a,page,"投稿类型",new String[]{"全部","新菜品","菜品图片","菜品点评","菜品回复","新餐厅","新档口","餐厅点评","档口点评","餐厅点评回复","档口点评回复"},a.drafts.getInt(typeKey,0));
     LinearLayout list=Ui.col(a);page.addView(list);
     Runnable update=() -> {
-      int index=status.getSelectedItemPosition();a.drafts.putInt(key,index);list.removeAllViews();int count=0;
-      for(Submission s:all) if(s.status().equals(states[index])) {
+      int index=status.getSelectedItemPosition(),typeIndex=type.getSelectedItemPosition();a.drafts.putInt(key,index);a.drafts.putInt(typeKey,typeIndex);list.removeAllViews();int count=0;
+      for(Submission s:all) if(s.status().equals(states[index])&&(typeIndex==0||s.type().equals(types[typeIndex]))) {
         count++;LinearLayout card=SubmissionScreen.card(a,list,s);
+        if(venue(s)) {Ui.gap(card,12);Ui.action(card,"查看原评价与本次提交",false,()->venueDetail(a,s));}
         if(s.status().equals("pending")) {
           Ui.gap(card,16);Ui.action(card,"通过",false,() -> decision(a,s,true));Ui.gap(card,8);
           Ui.action(card,"驳回",false,() -> decision(a,s,false));
@@ -50,8 +54,29 @@ final class AdminScreen {
       public void onNothingSelected(AdapterView<?> parent) {}
       public void onItemSelected(AdapterView<?> parent,android.view.View view,int position,long id) {update.run();}
     });update.run();
+    type.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+      public void onNothingSelected(AdapterView<?> parent) {}
+      public void onItemSelected(AdapterView<?> parent,android.view.View view,int position,long id) {update.run();}
+    });
+  }
+  private static boolean venue(Submission s){return Set.of("hall-review","stall-review","hall-review-reply","stall-review-reply").contains(s.type());}
+  private static void venueDetail(MainActivity a,Submission s){
+    LinearLayout content=Ui.col(a);content.setPadding(Ui.dp(a,20),Ui.dp(a,16),Ui.dp(a,20),Ui.dp(a,16));TextView error=Ui.text(a,"正在读取完整内容…",14,Design.MUTED);content.addView(error);ScrollView scroll=new ScrollView(a);scroll.addView(content);
+    AlertDialog dialog=new AlertDialog.Builder(a).setTitle("原评价与本次提交").setView(scroll).setNegativeButton("关闭",null).create();dialog.show();
+    cn.edu.bjtu.foodtime.domain.model.VenueModels.AuditDetail[] result={null};
+    a.read("venue-audit:"+s.id(),null,error,()->result[0]=a.repo.venueAuditDetail(s.type(),s.id()),()->{
+      if(!dialog.isShowing())return;content.removeAllViews();var detail=result[0];
+      content.addView(Ui.title(a,"当前公开评价",20));var old=detail.publicVersion();
+      content.addView(Ui.text(a,old==null?"暂无公开评价":old.rating()+" / 5\n"+old.content()+"\n首次公开："+SubmissionScreen.date(old.createdAt()),16,Design.INK));Ui.gap(content,16);
+      content.addView(Ui.title(a,"本次提交",20));var row=detail.submission();if(row!=null)content.addView(Ui.text(a,(row.rating()>0?row.rating()+" / 5\n":"")+row.content()+"\n提交时间："+SubmissionScreen.date(s.createdAt()),16,Design.INK));
+      if(s.status().equals("pending")){Ui.action(content,"通过",false,()->{dialog.dismiss();decisionForm(a,s,true);});Ui.action(content,"驳回",false,()->{dialog.dismiss();decisionForm(a,s,false);});}
+      else if(s.status().equals("approved")&&row!=null)Ui.action(content,"下架违规内容",false,()->{dialog.dismiss();VenueScreen.removeAdmin(a,s.type().endsWith("-reply")?s.id():row.reviewId(),s.type().endsWith("-reply"),a::render);});
+    },()->{});
   }
   private static void decision(MainActivity a,Submission s,boolean approve) {
+    if(venue(s)){venueDetail(a,s);return;}decisionForm(a,s,approve);
+  }
+  private static void decisionForm(MainActivity a,Submission s,boolean approve) {
     LinearLayout form=Ui.col(a);form.setPadding(Ui.dp(a,20),Ui.dp(a,16),Ui.dp(a,20),Ui.dp(a,8));
     EditText price=approve&&s.type().equals("dish")&&s.price()==null?Ui.field(form,"补齐价格（元）",false,false):null;
     if(price!=null) price.setInputType(8194);
@@ -173,7 +198,7 @@ final class AdminScreen {
   static void logs(MainActivity a,LinearLayout page,MainActivity.Route route) {
     guard(a);a.heading(page,"","审核日志","");List<Audit> all=a.repo.audits();if(all.isEmpty()) Ui.empty(page,"暂无审核记录","");
     for(Audit audit:all) {
-      LinearLayout card=Ui.card(page);card.addView(Ui.stamp(a,audit.action().equals("approve")?"通过":"驳回",audit.action().equals("approve")?Design.GREEN:Design.RED));Ui.gap(card,12);
+      LinearLayout card=Ui.card(page);card.addView(Ui.stamp(a,audit.action().equals("approve")?"通过":audit.action().equals("remove")?"下架":"驳回",audit.action().equals("approve")?Design.GREEN:Design.RED));Ui.gap(card,12);
       if(!audit.type().isBlank())card.addView(Ui.title(a,SubmissionScreen.type(audit.type()),20));
       card.addView(Ui.text(a,"日志 ID："+audit.id(),12,Design.MUTED));
       card.addView(Ui.text(a,"投稿 ID："+audit.submissionId(),12,Design.MUTED));

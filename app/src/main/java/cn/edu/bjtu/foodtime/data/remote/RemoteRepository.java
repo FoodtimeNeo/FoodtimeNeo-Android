@@ -17,6 +17,7 @@ import java.util.function.Function;
 /** Network writes/refreshes run on a worker; screen-facing reads never initiate requests. */
 public final class RemoteRepository implements FoodtimeRepository {
   private final HttpTransport http;
+  private final VenueRemote venues;
   private final URI origin;
   private ImageDiskCache imageCache;
   private final java.util.concurrent.atomic.AtomicLong imageEpoch=new java.util.concurrent.atomic.AtomicLong();
@@ -76,9 +77,25 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   public RemoteRepository(String baseUrl,HttpTransport http,boolean communityPrototypeEnabled) {
     this.http=http;
+    this.venues=new VenueRemote(this::call,()->user==null?"guest:"+http.sessionKey():user.id()+":"+user.role()+":"+http.sessionKey());
     this.communityPrototype=communityPrototypeEnabled?new CommunityPrototype():null;
     URI base=URI.create(baseUrl); origin=URI.create(base.getScheme()+"://"+base.getAuthority()+"/");
   }
+  @Override public cn.edu.bjtu.foodtime.domain.model.VenueModels.Target venueSummary(String type,String id){return venues.summary(type,id);}
+  @Override public void loadVenueSummary(String type,String id){venues.loadSummary(type,id);}
+  @Override public cn.edu.bjtu.foodtime.domain.model.VenueModels.Snapshot venue(String type,String id){return venues.snapshot(type,id);}
+  @Override public void loadVenue(String type,String id,String rating,boolean more){venues.load(type,id,rating,more);}
+  @Override public cn.edu.bjtu.foodtime.domain.model.VenueModels.Row submitVenue(String type,String id,int rating,String content,String request){return venues.submit(type,id,rating,content,request);}
+  @Override public cn.edu.bjtu.foodtime.domain.model.VenueModels.Page venueReplies(String review,boolean mine){return venues.replies(review,mine);}
+  @Override public void loadVenueReplies(String review,boolean more,boolean mineMore){venues.loadReplies(review,more,mineMore);}
+  @Override public cn.edu.bjtu.foodtime.domain.model.VenueModels.Row submitVenueReply(String review,String content,String target,String request){return venues.submitReply(review,content,target,request);}
+  @Override public void refreshVenuePending(String type,String id){venues.refreshPending(type,id);}
+  @Override public void refreshVenueRepliesPending(String id){venues.refreshReplies(id);}
+  @Override public LikeState likeVenue(String id,boolean liked,boolean reply){return venues.like(id,liked,reply);}
+  @Override public void deleteVenue(String id,boolean reply,boolean admin,String reason){venues.delete(id,reply,admin,reason);}
+  @Override public cn.edu.bjtu.foodtime.domain.model.VenueModels.Page myVenueReviews(){return venues.personal();}
+  @Override public void loadMyVenueReviews(String type,boolean replies,int page){venues.loadPersonal(type,replies,page);}
+  @Override public cn.edu.bjtu.foodtime.domain.model.VenueModels.AuditDetail venueAuditDetail(String type,String id){return venues.auditDetail(type,id);}
   @Override public User currentUser() { return user; }
   public RemoteRepository withImageCache(File directory) { imageCache=new ImageDiskCache(directory,200L*1024*1024);return this; }
   @Override public String imageIdentity() {var actor=user;return origin+":"+(actor==null?"guest":actor.id()+":"+actor.role())+":"+http.sessionKey()+":"+imageEpoch.get();}
@@ -186,6 +203,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public void refresh(ContentRequest request) {
     profile(); // Restore current server role/status on every screen load.
     switch(request.query()) {
+      case VENUE_REVIEWS -> {String[] p=request.id().split("~",-1);venues.load(p[0],p[1],p.length>2&&!p[2].isBlank()?p[2]:"all",false);}
+      case VENUE_PERSONAL -> {String[] p=request.id().split("~",-1);venues.loadPersonal(p.length>0?p[0]:"",p.length>1&&p[1].equals("replies"),p.length>2?Integer.parseInt(p[2]):1);}
       case HALLS -> fetchHalls();
       case STALLS -> { fetchHalls(); fetchStalls(request.id()); }
       case DISHES -> { ensureStall(request.id()); fetchDishes(request.id()); }
@@ -270,11 +289,11 @@ public final class RemoteRepository implements FoodtimeRepository {
     }
   }
   private void fetchHalls() {
-    var items=list("dining-halls",j -> new Hall(text(j,"id"),text(j,"name"),text(j,"coverImageUrl"),true));
+    var items=list("dining-halls",j -> new Hall(text(j,"id"),text(j,"name"),text(j,"coverImageUrl"),true,j.isNull("averageScore")?null:new BigDecimal(j.opt("averageScore").toString()),j.optLong("reviewCount")));
     halls.clear(); for(Hall h:items) halls.put(h.id(),h); hallList=items;
   }
   private void fetchStalls(String id) {
-    var items=list("dining-halls/"+id+"/stalls",j -> new Stall(text(j,"id"),id,text(j,"name"),text(j,"coverImageUrl"),true));
+    var items=list("dining-halls/"+id+"/stalls",j -> new Stall(text(j,"id"),id,text(j,"name"),text(j,"coverImageUrl"),true,j.isNull("averageScore")?null:new BigDecimal(j.opt("averageScore").toString()),j.optLong("reviewCount")));
     stalls.entrySet().removeIf(e -> e.getValue().diningHallId().equals(id));
     for(Stall s:items) stalls.put(s.id(),s); stallLists.put(id,items);
   }
@@ -988,6 +1007,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private RepositoryException missing(String message) { return new RepositoryException(404,"NOT_FOUND",message,0); }
   private RepositoryException unavailable() { return new RepositoryException(0,"NETWORK_UNAVAILABLE","连接失败，请检查服务后重试",0); }
   private void clear() {
+    venues.clear();
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(true);}
     synchronized(dashboardLock) {user=null;dashboardSnapshot=null;dashboardRequest++;resetFollows();}
     csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();

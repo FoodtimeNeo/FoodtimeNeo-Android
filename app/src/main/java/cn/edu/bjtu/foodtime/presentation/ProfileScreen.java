@@ -181,6 +181,8 @@ final class ProfileScreen {
 
   static void reviews(MainActivity a, LinearLayout page, MainActivity.Route route) {
     a.heading(page, "02.1", "我的评论", "");
+    Ui.action(page,"餐厅与档口点评及回复",false,()->a.go("venue-mine","~reviews~1"));
+    Ui.gap(page,16);
     List<Review> reviews = a.repo.myReviews();
     if (reviews.isEmpty()) {
       Ui.empty(page, "暂无已发布评论", "刚提交的点评需要先审核，可在“我的提交”查看进度和驳回原因。");
