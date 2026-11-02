@@ -21,8 +21,8 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default String imageIdentity() { var user=currentUser();return user==null?"guest":user.id()+":"+user.role(); }
   default long imageCacheBytes() { return 0; }
   default void clearImageCache() {}
-  /** Cached superadmin overview. Remote implementations can replace the preview after ADMIN_DASHBOARD refresh. */
-  default AdminDashboard adminDashboard() { return AdminDashboard.sample(); }
+  /** Cached, account-scoped superadmin overview; null until a real refresh succeeds. */
+  default AdminDashboard adminDashboard() { return null; }
 
   default List<CommunityPost> communityPosts() { return List.of(); }
   default boolean communityPrototypeEnabled() { return false; }
@@ -76,6 +76,8 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   /** My follow lists, refreshed by ContentRequest FOLLOWING / FOLLOWERS on a worker. */
   default FollowPage following() { return FollowPage.empty(); }
   default FollowPage followers() { return FollowPage.empty(); }
+  default void loadFollows(boolean followers) { throw new UnsupportedOperationException(); }
+  default void loadMoreFollows(boolean followers) { throw new UnsupportedOperationException(); }
   /** Cached relation state for one author; null when it has not been loaded yet. */
   default FollowState followState(String userId) { return null; }
   default FollowState setFollow(String userId, boolean follow) { throw new UnsupportedOperationException("此数据源不支持关注"); }
@@ -84,6 +86,9 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   /** Combined unread badge: unread announcements plus unread personal messages. */
   /** 应用内更新检查；返回 null 表示后端未配置或无更新。 */
   default AppRelease appRelease() { return null; }
+  /** 访客绑定学校邮箱：先发验证码，再带验证码绑定并刷新当前用户。 */
+  default void sendSchoolEmailCode(String email) { throw new UnsupportedOperationException("此数据源不支持绑定学校邮箱"); }
+  default void bindSchoolEmail(String email, String code) { throw new UnsupportedOperationException("此数据源不支持绑定学校邮箱"); }
   default long unreadCount() { return 0; }
   /** Incremental announcement feed for background polling; does not reset page caches. */
   default NoticeFeed noticeFeed(long sinceSeq, int limit) { return NoticeFeed.empty(); }

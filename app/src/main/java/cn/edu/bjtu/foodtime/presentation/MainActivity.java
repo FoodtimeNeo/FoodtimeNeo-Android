@@ -19,7 +19,9 @@ import java.util.function.*;
 
 public class MainActivity extends Activity {
   public FoodtimeRepository repo;
-  private boolean releaseChecked;
+  private boolean releaseChecked, releaseChecking, updateCheckPending;
+  private AlertDialog updatePrompt, updateProgress;
+  private UpdateDownloader activeDownloader;
 
   public record Route(String kind, String id) {}
 
@@ -60,7 +62,7 @@ public class MainActivity extends Activity {
   private String noticeErrorShown="";
   private String actor(){var user=repo==null?null:repo.currentUser();return user==null?"":user.id()+":"+user.role();}
   private void drainNotices() {
-    if(loginNotices==null)return;
+    if(loginNotices==null||updateCheckPending)return;
     if(loginNotices.pending==null) {
       if(loginNoticeDialog!=null){loginNoticeDialog.dialog.dismiss();loginNoticeDialog=null;}
       if(foreground&&!loginNotices.checkError.isEmpty()&&!noticeErrorShown.equals(loginNotices.checkError)) {
@@ -132,7 +134,7 @@ public class MainActivity extends Activity {
         if(isDestroyed()||ticket!=generation) return;
         if(failure!=null) {content.removeAllViews();Ui.empty(content,"连接失败",safeMessage(failure));Ui.action(content,"重试",true,this::restore);}
         else if(pendingOperation!=0) recoverOperation();
-        else if(repo.currentUser()==null) showAuth(authRegistration);else openApp();
+        else if(repo.currentUser()==null) {showAuth(authRegistration);checkAppRelease(false);}else openApp();
       });
     });
   }
@@ -158,6 +160,7 @@ public class MainActivity extends Activity {
     screens.put("followers", FollowListScreen::followers);
     screens.put("profile", ProfileScreen::profile);
     screens.put("profile-edit", ProfileScreen::edit);
+    screens.put("bind-school-email", SchoolEmailScreen::binder);
     screens.put("mine-reviews", ProfileScreen::reviews);
     screens.put("password", PasswordScreen::show);
     screens.put("detail", DishScreen::detail);
@@ -203,12 +206,15 @@ public class MainActivity extends Activity {
     if (tab.equals("dashboard") && !repo.currentUser().role().equals("superadmin")) tab = "dining";
     loginNotices.check(repo,inboxWorker);
     render();
+    updateCheckPending = true;
     checkAppRelease(false);
   }
 
-  /** 应用内更新检查：启动后自动一次，个人页可手动再次触发。 */
+  /** 应用内更新检查：开屏自动一次，个人页可手动再次触发。 */
   void checkAppRelease(boolean manual) {
-    if (!manual && releaseChecked) return;
+    if (releaseChecking) return;
+    if (!manual && releaseChecked) { maybeReleaseUpdateGate(); return; }
+    releaseChecking = true;
     final AppRelease[] release = {null};
     final RuntimeException[] failure = {null};
     read("app-release", null, null,
@@ -217,43 +223,94 @@ public class MainActivity extends Activity {
           catch (RuntimeException error) { failure[0] = error; }
         },
         () -> {
+          releaseChecking = false;
           releaseChecked = true;
           if (failure[0] != null) {
             if (manual) message(safeMessage(failure[0]));
+            if (!manual) maybeReleaseUpdateGate();
             return;
           }
           AppRelease info = release[0];
           if (info == null || info.versionCode() <= cn.edu.bjtu.foodtime.BuildConfig.VERSION_CODE) {
             if (manual) message("已是最新版本 v" + cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME);
+            if (!manual) maybeReleaseUpdateGate();
             return;
           }
           showUpdateDialog(info);
         }, () -> {});
   }
 
+  /** 更新提示优先于公告：更新弹窗和下载进度都结束前，不弹公告。 */
+  private void maybeReleaseUpdateGate() {
+    if (updatePrompt != null || updateProgress != null) return;
+    updateCheckPending = false;
+    drainNotices();
+  }
+
   private void showUpdateDialog(AppRelease info) {
-    if (isFinishing() || isDestroyed()) return;
+    if (isFinishing() || isDestroyed()) { maybeReleaseUpdateGate(); return; }
     boolean forced = info.minVersionCode() > cn.edu.bjtu.foodtime.BuildConfig.VERSION_CODE;
     String notes = info.notes() == null || info.notes().isBlank()
         ? "建议更新到最新版本，获得最新功能与修复。" : info.notes();
-    AlertDialog.Builder builder = new AlertDialog.Builder(this)
+    AlertDialog dialog = new AlertDialog.Builder(this)
         .setTitle("发现新版本 v" + info.versionName())
         .setMessage(notes)
         .setCancelable(!forced)
-        .setPositiveButton("去下载", (dialog, which) -> openReleaseUrl(info.apkUrl()));
-    if (!forced) builder.setNegativeButton("稍后更新", null);
-    AlertDialog dialog = builder.create();
+        .setPositiveButton("立即更新", (prompt, which) -> startUpdate(info, forced))
+        .setNegativeButton("稍后更新", null)
+        .create();
+    dialog.setOnDismissListener(closed -> { updatePrompt = null; maybeReleaseUpdateGate(); });
     dialog.setCanceledOnTouchOutside(!forced);
+    updatePrompt = dialog;
     dialog.show();
   }
 
-  private void openReleaseUrl(String url) {
-    if (url == null || url.isBlank()) {
-      message("下载地址暂不可用");
-      return;
-    }
-    try { startActivity(new Intent(Intent.ACTION_VIEW, Uri.parse(url))); }
-    catch (RuntimeException error) { message("无法打开下载页面"); }
+  private void startUpdate(AppRelease info, boolean forced) {
+    final UpdateDownloader downloader = new UpdateDownloader(this, worker);
+    activeDownloader = downloader;
+    final ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
+    bar.setMax(100); bar.setIndeterminate(true);
+    LinearLayout body = new LinearLayout(this);
+    body.setOrientation(LinearLayout.VERTICAL);
+    int padding = Ui.dp(this, 20);
+    body.setPadding(padding, padding, padding, 0);
+    TextView label = Ui.text(this, "正在准备更新…", 14, Design.MUTED);
+    body.addView(label); Ui.gap(body, 8); body.addView(bar);
+    AlertDialog.Builder builder = new AlertDialog.Builder(this)
+        .setTitle("正在更新到 v" + info.versionName())
+        .setView(body)
+        .setCancelable(!forced);
+    if (!forced) builder.setNegativeButton("取消", (progress, which) -> downloader.cancel());
+    AlertDialog dialog = builder.create();
+    dialog.setOnDismissListener(closed -> { updateProgress = null; maybeReleaseUpdateGate(); });
+    updateProgress = dialog;
+    dialog.show();
+    downloader.start(info, new UpdateDownloader.Listener() {
+      @Override public void progress(int percent, String text) {
+        if (updateProgress != dialog) return;
+        if (percent < 0) bar.setIndeterminate(true);
+        else { bar.setIndeterminate(false); bar.setProgress(percent); }
+        label.setText(percent < 0 ? text : text + " " + percent + "%");
+      }
+      @Override public void ready(java.io.File apk) {
+        if (isFinishing() || isDestroyed() || updateProgress != dialog) return;
+        updateProgress = null;
+        dialog.dismiss();
+        try { UpdateDownloader.install(MainActivity.this, apk); }
+        catch (RuntimeException unavailable) {
+          message("无法启动安装器，请允许本应用安装未知来源应用后重试");
+        }
+      }
+      @Override public void failed(String text) {
+        if (isFinishing() || isDestroyed() || updateProgress != dialog) return;
+        updateProgress = null;
+        dialog.dismiss();
+        new AlertDialog.Builder(MainActivity.this)
+            .setTitle("更新失败").setMessage(text)
+            .setPositiveButton("重试", (retry, which) -> startUpdate(info, forced))
+            .setNegativeButton("关闭", null).show();
+      }
+    });
   }
 
   public void go(String kind, String id) {
@@ -345,10 +402,11 @@ public class MainActivity extends Activity {
     int ticket=++generation;
     int epoch=navigationEpoch;
     String actor=actor();
-    Route target=route();boolean catalog=LoadingScreen.catalog(target);
-    boolean retain=catalog&&contentReady&&displayedLocation.equals(location())&&displayedActor.equals(actor);
+    Route target=route();boolean catalog=LoadingScreen.catalog(target);boolean dashboard=target.kind().equals("admin-dashboard");
+    boolean retain=(catalog||dashboard&&repo.adminDashboard()!=null)&&contentReady&&displayedLocation.equals(location())&&displayedActor.equals(actor);
     ContentRequest query=query(route());
     navigationLoading=true;
+    if(dashboard&&retain)AdminDashboardScreen.refreshing(content,true);
     LinearLayout body;
     if(retain) {body=Ui.col(this);refreshBanner=body;content.addView(body,0);TextView refresh=Ui.text(this,"更新中",12,Design.MUTED);body.addView(refresh);}
     else {
@@ -363,7 +421,7 @@ public class MainActivity extends Activity {
     navigationHandler.postDelayed(()->{
       if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
       cancelNavigation();contentReady=retain;pageFailed=true;
-      if(retain){refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body);}
+      if(retain){refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body,dashboard?"刷新失败，显示上次数据":"加载失败");}
       else if(catalog)LoadingScreen.failure(this,body);
       else LoadingScreen.failure(this,body);
     },15000);
@@ -377,7 +435,7 @@ public class MainActivity extends Activity {
         if(!actor.equals(actor())){Ui.clearImages();displayedActor="";}
         if(tab.equals("admin")&&!repo.currentUser().isAdmin()) {tab="dining";render();return;}
         if(tab.equals("dashboard")&&!repo.currentUser().role().equals("superadmin")) {tab="dining";render();return;}
-        if(failure!=null) {contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body);}else if(retain){content.removeAllViews();LoadingScreen.failure(this,LoadingScreen.begin(this,content,target));}else LoadingScreen.failure(this,body);return;}
+        if(failure!=null) {contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body,dashboard?"刷新失败，显示上次数据":"加载失败");}else if(retain){content.removeAllViews();LoadingScreen.failure(this,catalog?LoadingScreen.begin(this,content,target):LoadingScreen.general(this,content,target),dashboard?failure.getMessage():"加载失败");}else LoadingScreen.failure(this,body,dashboard&&failure instanceof RepositoryException?failure.getMessage():"加载失败");return;}
         renderContent();
         if(catalog&&!retain&&android.animation.ValueAnimator.areAnimatorsEnabled()){content.setAlpha(.5f);content.animate().alpha(1).setDuration(150).start();}
       });
@@ -385,7 +443,7 @@ public class MainActivity extends Activity {
     });
     worker.execute(navigationRead);
   }
-  private void cancelNavigation(){navigationEpoch++;navigationHandler.removeCallbacksAndMessages(null);if(navigationRead!=null){navigationRead.cancel(true);navigationRead=null;}navigationLoading=false;if(refreshBanner!=null&&refreshBanner.getParent() instanceof android.view.ViewGroup parent)parent.removeView(refreshBanner);refreshBanner=null;}
+  private void cancelNavigation(){navigationEpoch++;navigationHandler.removeCallbacksAndMessages(null);if(navigationRead!=null){navigationRead.cancel(true);navigationRead=null;}navigationLoading=false;AdminDashboardScreen.refreshing(content,false);if(refreshBanner!=null&&refreshBanner.getParent() instanceof android.view.ViewGroup parent)parent.removeView(refreshBanner);refreshBanner=null;}
   boolean isPageLoading(){return navigationLoading;}
 
   private ContentRequest query(Route route) {
@@ -749,7 +807,7 @@ public class MainActivity extends Activity {
     if(resumeNavigation&&repo!=null&&repo.currentUser()!=null){resumeNavigation=false;render();}
     noticeUi.post(this::drainNotices);
   }
-  @Override protected void onPause() { super.onPause();foreground=false;resumeNavigation=navigationLoading;cancelNavigation();Ui.pauseImages(); }
+  @Override protected void onPause() { super.onPause();foreground=false;resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)Ui.clearImages();}
-  @Override protected void onDestroy() {if(passwordRecovery!=null)passwordRecovery.close();++generation;cancelNavigation();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override protected void onDestroy() {if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();++generation;cancelNavigation();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }

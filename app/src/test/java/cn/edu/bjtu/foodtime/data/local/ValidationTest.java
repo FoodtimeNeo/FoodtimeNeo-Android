@@ -12,13 +12,32 @@ public class ValidationTest {
   }
 
   @Test
-  public void emailRejectsLookalikeDomains() {
+  public void emailAcceptsMainstreamMailboxesAndRejectsMalformedOrLookalikeDomains() {
+    // 注册只允许主流邮箱；畸形地址与域名伪装仍然拒绝。
+    assertEquals("20260001@bjtu.edu.cn", Validation.email(" 20260001@BJTU.EDU.CN "));
+    assertEquals("someone@gmail.com", Validation.email("someone@gmail.com"));
+    assertEquals("someone@vip.qq.com", Validation.email("someone@vip.qq.com"));
+    assertEquals("someone@163.com", Validation.email("someone@163.com"));
+    assertEquals("someone@outlook.com", Validation.email("someone@outlook.com"));
     for (String s :
         new String[] {
-          "abc@bjtu.edu.cn", "123@bjtu.edu.cn.evil.com", "123@example.com", "１２３@bjtu.edu.cn"
+          "student@example.com", "student@qq.com.evil.com", "student@evilqq.com",
+          "123@.com", "a b@example.com", "１２３@bjtu.edu.cn"
         }) {
       try {
         Validation.email(s);
+        fail(s);
+      } catch (IllegalArgumentException expected) {
+      }
+    }
+  }
+
+  @Test
+  public void schoolEmailBindingStillRequiresTheNumericCampusMailbox() {
+    assertEquals("20260001@bjtu.edu.cn", Validation.schoolEmail(" 20260001@bjtu.edu.cn "));
+    for (String s : new String[] {"student@bjtu.edu.cn", "123@example.com", "123@bjtu.edu.cn.evil.com"}) {
+      try {
+        Validation.schoolEmail(s);
         fail(s);
       } catch (IllegalArgumentException expected) {
       }

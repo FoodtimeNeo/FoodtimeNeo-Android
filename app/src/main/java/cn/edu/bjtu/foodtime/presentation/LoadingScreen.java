@@ -77,9 +77,10 @@ final class LoadingScreen {
     view.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener(){public void onViewAttachedToWindow(View v){animator.start();}public void onViewDetachedFromWindow(View v){animator.cancel();}});
     if(view.isAttachedToWindow())animator.start();
   }
-  static void failure(MainActivity a,LinearLayout body) {
+  static void failure(MainActivity a,LinearLayout body) {failure(a,body,"加载失败");}
+  static void failure(MainActivity a,LinearLayout body,String message) {
     body.removeAllViews();body.setContentDescription(null);Ui.gap(body,40);
-    TextView error=Ui.text(a,"加载失败",16,Design.MUTED);error.setGravity(Gravity.CENTER);error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);body.addView(error);Ui.gap(body,18);
+    TextView error=Ui.text(a,message,16,Design.MUTED);error.setGravity(Gravity.CENTER);error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);body.addView(error);Ui.gap(body,18);
     LinearLayout row=Ui.row(a);row.setGravity(Gravity.CENTER);row.addView(Ui.button(a,"重试",true,a::render));body.addView(row);
   }
   private LoadingScreen(){}
