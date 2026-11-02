@@ -56,6 +56,11 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile CommunityAuditDetail communityAuditDetail;
   private volatile String communityCursor="";
   private volatile FollowPage followingPage=FollowPage.empty(),followersPage=FollowPage.empty();
+  // Share the identity lock: account changes and private-list publication are atomic.
+  private final Object followLock=dashboardLock;
+  private String followOwner="";
+  private long followEpoch,followingRequest,followersRequest;
+  private boolean followingNeedsRebase;
   private final Map<String,FollowState> followStates=new ConcurrentHashMap<>();
   private volatile NoticePage noticePage=NoticePage.empty();
   private volatile int noticeNumber=1;
@@ -89,9 +94,10 @@ public final class RemoteRepository implements FoodtimeRepository {
       synchronized(dashboardLock) {
         if(!dashboardOwner(user).equals(dashboardOwner(next))) {dashboardSnapshot=null;dashboardRequest++;}
         user=next;
+        syncFollowOwner();
       }
     } catch(RepositoryException denied) {
-      if(denied.status()==401||denied.status()==403)invalidateDashboard();
+      if(denied.status()==401||denied.status()==403){invalidateDashboard();synchronized(followLock){resetFollows();}}
       throw denied;
     }
   }
@@ -220,8 +226,8 @@ public final class RemoteRepository implements FoodtimeRepository {
           communityCommentCache.put(post.id(),communityPrototype.comments(post.id()));
         }
       }
-      case FOLLOWING -> followingPage=followPage("users/me/following");
-      case FOLLOWERS -> followersPage=followPage("users/me/followers");
+      case FOLLOWING -> ensureFollows(false);
+      case FOLLOWERS -> ensureFollows(true);
       case MY_REVIEWS -> ownReviews=reviewPage("users/me/reviews");
       case MY_SUBMISSIONS -> fetchOwnSubmissions();
       case REVIEW_REPLIES -> {
@@ -679,15 +685,84 @@ public final class RemoteRepository implements FoodtimeRepository {
     }
     messageNumber=number;
   }
-  @Override public FollowPage following() { return followingPage; }
-  @Override public FollowPage followers() { return followersPage; }
-  @Override public FollowState followState(String userId) { return userId==null?null:followStates.get(userId); }
+  private void syncFollowOwner() {
+    String owner=user!=null&&user.active()?user.id()+":"+user.role():"";
+    if(!owner.equals(followOwner)) {resetFollows();followOwner=owner;}
+  }
+  private void resetFollows() {
+    followOwner="";followEpoch++;followingRequest++;followersRequest++;followingNeedsRebase=false;
+    followingPage=FollowPage.empty();followersPage=FollowPage.empty();followStates.clear();
+  }
+  @Override public FollowPage following() { synchronized(followLock){syncFollowOwner();return followingPage;} }
+  @Override public FollowPage followers() { synchronized(followLock){syncFollowOwner();return followersPage;} }
+  @Override public FollowState followState(String userId) { synchronized(followLock){syncFollowOwner();return userId==null?null:followStates.get(userId);} }
+  private void ensureFollows(boolean fans) {
+    boolean needed;synchronized(followLock){syncFollowOwner();needed=(fans?followersPage:followingPage).page()==0||!fans&&followingNeedsRebase;}
+    if(needed)fetchFollows(fans,false,true);
+  }
+  @Override public void loadFollows(boolean fans) {profile();fetchFollows(fans,false,false);}
+  @Override public void loadMoreFollows(boolean fans) {
+    profile();FollowPage page=fans?followers():following();
+    if(page.page()==0)fetchFollows(fans,false,false);else if(page.hasMore())fetchFollows(fans,true,false);
+  }
+  private void fetchFollows(boolean fans,boolean append,boolean keepPages) {
+    final String owner,id;final long ticket,epoch;final int last,first;final FollowPage before;
+    synchronized(followLock) {
+      syncFollowOwner();owner=followOwner;epoch=followEpoch;
+      if(owner.isEmpty())throw new RepositoryException(401,"AUTH_REQUIRED","请先登录",0);
+      id=user.id();before=fans?followersPage:followingPage;
+      ticket=fans?++followersRequest:++followingRequest;
+      last=append?before.page()+1:keepPages?Math.max(1,before.page()):1;
+      first=append&&!(!fans&&followingNeedsRebase)?last:1;
+    }
+    var rows=new LinkedHashMap<String,FollowUser>();
+    if(first>1)for(var row:before.items())rows.put(row.id(),row);
+    FollowPage response=null;
+    for(int number=first;number<=last;number++) {
+      response=FollowJson.page(call("GET","users/"+id+(fans?"/followers":"/following")+"?page="+number+"&size="+FollowJson.SIZE,null),number);
+      for(var row:response.items())rows.put(row.id(),row);
+      if(!response.hasMore())break;
+    }
+    synchronized(followLock) {
+      syncFollowOwner();
+      if(Thread.currentThread().isInterrupted()||epoch!=followEpoch||!owner.equals(followOwner)||ticket!=(fans?followersRequest:followingRequest))throw staleFollow();
+      var next=new FollowPage(new ArrayList<>(rows.values()),response.total(),response.page(),response.hasMore());
+      if(fans)followersPage=next;else{followingPage=next;followingNeedsRebase=false;}
+      for(var row:next.items())followStates.computeIfPresent(row.id(),(key,known)->new FollowState(row.followedByMe(),known.followerCount()));
+      updateFollowCount(fans,next.total());
+    }
+  }
+  private RepositoryException staleFollow(){return new RepositoryException(0,"STALE_RESPONSE","请求已失效，请重试",0);}
+  private void updateFollowCount(boolean fans,long count) {
+    User u=user;if(u!=null)user=new User(u.id(),u.email(),u.displayName(),u.role(),u.active(),u.avatarUrl(),u.createdAt(),u.reviewCount(),fans?u.followingCount():count,fans?count:u.followerCount());
+  }
   @Override public FollowState setFollow(String userId,boolean follow) {
-    JSONObject state=call(follow?"PUT":"DELETE","users/"+userId+"/follow",null);
-    FollowState result=new FollowState(state.optBoolean("followed"),state.optLong("followerCount"));
-    followStates.put(userId,result);
-    followingPage=withFollowState(followingPage,userId,result.followed());
-    followersPage=withFollowState(followersPage,userId,result.followed());
+    final String owner;final long epoch;final Boolean previous;
+    synchronized(followLock){
+      syncFollowOwner();owner=followOwner;epoch=followEpoch;
+      FollowState known=followStates.get(userId);
+      FollowUser row=java.util.stream.Stream.concat(followingPage.items().stream(),followersPage.items().stream()).filter(item->item.id().equals(userId)).findFirst().orElse(null);
+      previous=row!=null?row.followedByMe():known==null?null:known.followed();
+      if(owner.isEmpty())throw new RepositoryException(401,"AUTH_REQUIRED","请先登录",0);
+    }
+    FollowState result=FollowJson.state(call(follow?"PUT":"DELETE","users/"+userId+"/follow",null));
+    // The write response only carries the target's fan count. Re-read our own canonical count
+    // without reloading either list; a transient read failure must not report a successful write as failed.
+    boolean counted=false;
+    try{profile();counted=true;}catch(RepositoryException failure){if(failure.status()==401||failure.status()==403)throw failure;}
+    synchronized(followLock) {
+      syncFollowOwner();if(epoch!=followEpoch||!owner.equals(followOwner))throw staleFollow();
+      followingRequest++;followersRequest++;followingNeedsRebase=true;
+      followStates.put(userId,result);
+      if(!counted&&previous!=null&&previous!=result.followed())updateFollowCount(false,Math.max(0,user.followingCount()+(result.followed()?1:-1)));
+      List<FollowUser> rows=new ArrayList<>(followingPage.items());
+      if(!result.followed())rows.removeIf(row->row.id().equals(userId));
+      else if(rows.stream().noneMatch(row->row.id().equals(userId))&&followingPage.page()>0) {
+        followersPage.items().stream().filter(row->row.id().equals(userId)).findFirst().ifPresent(row->rows.add(0,new FollowUser(row.id(),row.displayName(),row.avatarUrl(),true)));
+      }
+      followingPage=new FollowPage(rows,user.followingCount(),followingPage.page(),followingPage.hasMore()||rows.size()<user.followingCount());
+      followersPage=withFollowState(followersPage,userId,result.followed());
+    }
     return result;
   }
   @Override public long unreadCount() { return noticeUnread+messageUnread; }
@@ -885,18 +960,7 @@ public final class RemoteRepository implements FoodtimeRepository {
       if(row.id().equals(userId))
         rows.set(i,new FollowUser(row.id(),row.displayName(),row.avatarUrl(),followed));
     }
-    return new FollowPage(rows,page.total());
-  }
-
-  private FollowPage followPage(String path) {
-    JSONObject data=call("GET",path+"?page=1&size=100",null);
-    JSONArray items=data.optJSONArray("items");
-    List<FollowUser> rows=new ArrayList<>();
-    if(items!=null) for(int i=0;i<items.length();i++) {
-      JSONObject j=items.optJSONObject(i);
-      rows.add(new FollowUser(text(j,"id"),text(j,"displayName"),text(j,"avatarUrl"),j.optBoolean("followedByMe")));
-    }
-    return new FollowPage(rows,data.optLong("total"));
+    return new FollowPage(rows,page.total(),page.page(),page.hasMore());
   }
 
   private FollowState fetchFollowState(String userId) {
@@ -925,7 +989,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private RepositoryException unavailable() { return new RepositoryException(0,"NETWORK_UNAVAILABLE","连接失败，请检查服务后重试",0); }
   private void clear() {
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(true);}
-    synchronized(dashboardLock) {user=null;dashboardSnapshot=null;dashboardRequest++;}
+    synchronized(dashboardLock) {user=null;dashboardSnapshot=null;dashboardRequest++;resetFollows();}
     csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
     communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();communityAudit=CommunityAuditPage.empty();communityAuditDetail=null;communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
