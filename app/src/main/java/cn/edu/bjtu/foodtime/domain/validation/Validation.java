@@ -10,12 +10,25 @@ public final class Validation {
       throw new IllegalArgumentException("请输入账号绑定的完整邮箱");
     return value;
   }
+  /** 与后端注册白名单一致；子域（如 vip.qq.com）同样允许。 */
+  private static final java.util.Set<String> REGISTRATION_EMAIL_DOMAINS = java.util.Set.of(
+      "qq.com", "foxmail.com", "163.com", "126.com", "yeah.net",
+      "sina.com", "sina.cn", "sohu.com", "139.com", "189.cn", "wo.cn", "aliyun.com", "21cn.com",
+      "gmail.com", "outlook.com", "hotmail.com", "live.com", "msn.com",
+      "icloud.com", "me.com", "mac.com", "yahoo.com", "proton.me", "protonmail.com",
+      "bjtu.edu.cn");
   public static String email(String s) {
     String value = s.trim().toLowerCase(Locale.ROOT);
-    // 与服务端一致：任意可用邮箱；校园邮箱注册可直接发布内容。
+    // 与服务端一致：只允许主流邮箱白名单；校园邮箱注册可直接发布内容。
     if (value.length() > 254 || !value.matches(
         "[A-Za-z0-9._%+-]{1,64}@[A-Za-z0-9-]{1,63}(\\.[A-Za-z0-9-]{1,63})+"))
       throw new IllegalArgumentException("请输入有效邮箱");
+    String domain=value.substring(value.lastIndexOf('@')+1);
+    boolean allowed=false;
+    for(String candidate:REGISTRATION_EMAIL_DOMAINS) {
+      if(domain.equals(candidate)||domain.endsWith("."+candidate)) {allowed=true;break;}
+    }
+    if(!allowed) throw new IllegalArgumentException("请使用主流邮箱注册，如 QQ、163、126、Gmail、Outlook 或学校邮箱");
     return value;
   }
 
