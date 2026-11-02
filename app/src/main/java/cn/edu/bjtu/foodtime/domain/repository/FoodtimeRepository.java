@@ -76,6 +76,8 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   /** My follow lists, refreshed by ContentRequest FOLLOWING / FOLLOWERS on a worker. */
   default FollowPage following() { return FollowPage.empty(); }
   default FollowPage followers() { return FollowPage.empty(); }
+  default void loadFollows(boolean followers) { throw new UnsupportedOperationException(); }
+  default void loadMoreFollows(boolean followers) { throw new UnsupportedOperationException(); }
   /** Cached relation state for one author; null when it has not been loaded yet. */
   default FollowState followState(String userId) { return null; }
   default FollowState setFollow(String userId, boolean follow) { throw new UnsupportedOperationException("此数据源不支持关注"); }

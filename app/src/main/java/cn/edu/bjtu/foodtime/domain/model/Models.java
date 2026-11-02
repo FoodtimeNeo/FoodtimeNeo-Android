@@ -159,9 +159,11 @@ public final class Models {
   public record AppRelease(int versionCode, String versionName, String apkUrl, String notes, int minVersionCode) {}
 
   public record FollowUser(String id, String displayName, String avatarUrl, boolean followedByMe) {}
-  public record FollowPage(List<FollowUser> items, long total) {
+  public record FollowPage(List<FollowUser> items, long total, int page, boolean hasMore) {
     public FollowPage { items=List.copyOf(items); }
-    public static FollowPage empty() { return new FollowPage(List.of(),0); }
+    public FollowPage(List<FollowUser> items,long total) { this(items,total,1,false); }
+    /** page=0 means not loaded; a successfully loaded empty list has page=1. */
+    public static FollowPage empty() { return new FollowPage(List.of(),0,0,false); }
   }
   /** Follow relation state plus the target's follower count. */
   public record FollowState(boolean followed, long followerCount) {}

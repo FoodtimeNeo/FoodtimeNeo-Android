@@ -8,6 +8,7 @@
 | --- | --- |
 | CSRF、登录、注册验证码、注册、退出 | /auth/csrf、/auth/login、/auth/register/email-code、/auth/register、/auth/logout |
 | 当前资料与改密 | /users/me/profile、/users/me/password |
+| 关注／粉丝 | GET /users/{当前用户UUID}/following、/followers，page/size 分页；PUT/DELETE /users/{目标UUID}/follow |
 | 三级目录 | /dining-halls、/dining-halls/{id}/stalls、/stalls/{id}/dishes；data为数组 |
 | 菜品详情、实时评分、评论、图册 | /dishes/{id}及/rating、/reviews、/images；评论/图册分页 |
 | 社区动态 | /community/feed/cursor、/community/posts/{id}；发帖POST /community/posts，提交title、content、imageUrls、clientRequestId |
