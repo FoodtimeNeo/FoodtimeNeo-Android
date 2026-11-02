@@ -8,7 +8,8 @@ final class AuthScreen {
     LinearLayout card=Ui.card(page);card.addView(Ui.title(a,register?"注册":"登录",24));Ui.gap(card,20);
     EditText email=Ui.field(card,"邮箱",false,false);
     email.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
-    email.setHint("20260001@bjtu.edu.cn 或其他邮箱");
+    email.setHint("QQ/163/Gmail/Outlook 或学校邮箱");
+    if(register) card.addView(Ui.text(a,"支持 QQ、163、126、Gmail、Outlook 等主流邮箱；学校邮箱可直接发布内容。",13,Design.MUTED));
     EditText code=register?Ui.field(card,"邮箱验证码",false,false):null;
     EditText password=Ui.field(card,"密码",true,false);
     EditText confirm=register?Ui.field(card,"确认密码",true,false):null;

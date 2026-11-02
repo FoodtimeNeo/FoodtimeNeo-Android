@@ -12,12 +12,16 @@ public class ValidationTest {
   }
 
   @Test
-  public void emailAcceptsAnyUsableMailboxButRejectsMalformedAddresses() {
-    // 注册放宽：任意可用邮箱都可以，但畸形地址仍然拒绝。
+  public void emailAcceptsMainstreamMailboxesAndRejectsMalformedOrLookalikeDomains() {
+    // 注册只允许主流邮箱；畸形地址与域名伪装仍然拒绝。
     assertEquals("20260001@bjtu.edu.cn", Validation.email(" 20260001@BJTU.EDU.CN "));
-    assertEquals("student@example.com", Validation.email("student@example.com"));
+    assertEquals("someone@gmail.com", Validation.email("someone@gmail.com"));
+    assertEquals("someone@vip.qq.com", Validation.email("someone@vip.qq.com"));
+    assertEquals("someone@163.com", Validation.email("someone@163.com"));
+    assertEquals("someone@outlook.com", Validation.email("someone@outlook.com"));
     for (String s :
         new String[] {
+          "student@example.com", "student@qq.com.evil.com", "student@evilqq.com",
           "123@.com", "a b@example.com", "１２３@bjtu.edu.cn"
         }) {
       try {
