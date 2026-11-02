@@ -12,13 +12,28 @@ public class ValidationTest {
   }
 
   @Test
-  public void emailRejectsLookalikeDomains() {
+  public void emailAcceptsAnyUsableMailboxButRejectsMalformedAddresses() {
+    // 注册放宽：任意可用邮箱都可以，但畸形地址仍然拒绝。
+    assertEquals("20260001@bjtu.edu.cn", Validation.email(" 20260001@BJTU.EDU.CN "));
+    assertEquals("student@example.com", Validation.email("student@example.com"));
     for (String s :
         new String[] {
-          "abc@bjtu.edu.cn", "123@bjtu.edu.cn.evil.com", "123@example.com", "１２３@bjtu.edu.cn"
+          "123@.com", "a b@example.com", "１２３@bjtu.edu.cn"
         }) {
       try {
         Validation.email(s);
+        fail(s);
+      } catch (IllegalArgumentException expected) {
+      }
+    }
+  }
+
+  @Test
+  public void schoolEmailBindingStillRequiresTheNumericCampusMailbox() {
+    assertEquals("20260001@bjtu.edu.cn", Validation.schoolEmail(" 20260001@bjtu.edu.cn "));
+    for (String s : new String[] {"student@bjtu.edu.cn", "123@example.com", "123@bjtu.edu.cn.evil.com"}) {
+      try {
+        Validation.schoolEmail(s);
         fail(s);
       } catch (IllegalArgumentException expected) {
       }

@@ -6,9 +6,9 @@ final class AuthScreen {
   static void show(MainActivity a,LinearLayout page,boolean register) {
     page.addView(Ui.title(a,"北交干饭吧",32));Ui.gap(page,24);
     LinearLayout card=Ui.card(page);card.addView(Ui.title(a,register?"注册":"登录",24));Ui.gap(card,20);
-    EditText email=Ui.field(card,"学号邮箱",false,false);
+    EditText email=Ui.field(card,"邮箱",false,false);
     email.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
-    email.setHint("20260001@bjtu.edu.cn");
+    email.setHint("20260001@bjtu.edu.cn 或其他邮箱");
     EditText code=register?Ui.field(card,"邮箱验证码",false,false):null;
     EditText password=Ui.field(card,"密码",true,false);
     EditText confirm=register?Ui.field(card,"确认密码",true,false):null;
