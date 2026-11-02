@@ -56,18 +56,18 @@ adb shell am instrument -w cn.edu.bjtu.foodtime.ipcheck.test/cn.edu.bjtu.foodtim
 .\scripts\verify.ps1 -Device -ApplicationSuffix .integration
 ```
 
-可用 `-AdbPath` 指定ADB位置、`-Serial` 指定设备。[脚本](../scripts/verify.ps1) 会构建测试包、显式覆盖为本机API、检查电脑8080readiness、建立映射、安装并运行 `RemoteUiRunner`。它不会代替你启动Backend，也不接受“默认线上地址”作为写入验收目标。
+可用 `-AdbPath` 指定ADB位置、`-Serial` 指定设备。[脚本](../../scripts/verify.ps1) 会构建测试包、显式覆盖为本机API、检查电脑8080readiness、建立映射、安装并运行 `RemoteUiRunner`。它不会代替你启动Backend，也不接受“默认线上地址”作为写入验收目标。
 
 也可通过 `-UserAccount`、`-AdminAccount`、`-SuperadminAccount`、`-TestPassword` 提供同名参数。Device模式只接受 `.integration` 后缀；缺少参数会在构建前停止，不再使用硬编码账号。测试需要“联调示例食堂 / 档口 / 菜品”样例，账号密码必须属于当前专用测试库。
 
-设备验收会创建、审核、删除测试内容并调整样例账号；必须使用专用本地库，不在154.9.252.201线上库运行。普通构建及JVM测试不需要执行这些写操作。历史运行结果见 [验收记录](verification.md)。
+设备验收会创建、审核、删除测试内容并调整样例账号；必须使用专用本地库，不在154.9.252.201线上库运行。普通构建及JVM测试不需要执行这些写操作。历史运行结果见 [验收记录](../releases/verification.md)。
 
 注册发送邮件仍取决于Backend配置。所有环境均须使用真实邮件验证码；固定测试验证码已移除，客户端不生成验证码、不伪造成功响应。真实SMTP尚未完成正式验收。
 
 ## GitHub CI与Release
 
-- [CI](../.github/workflows/ci.yml) 在main/dev的PR及push时运行架构、JVM测试、Lint、Debug与测试包构建；构建测试包不等于运行设备测试。PR进入main时要求来源为dev。
-- [CD](../.github/workflows/cd.yml) 在 main 合并提交的 Android CI 成功后运行，检出通过 CI 的同一 SHA，再执行架构、JVM 测试、Release Lint 和签名构建。支持 PR 合并与明确授权的本地合并推送，跳过过期、非合并和带 `skip-release` 的发布提交。支持在 Actions 选择 main 手动执行；dev 手动运行仅生成验收制品。
+- [CI](../../.github/workflows/ci.yml) 在main/dev的PR及push时运行架构、JVM测试、Lint、Debug与测试包构建；构建测试包不等于运行设备测试。PR进入main时要求来源为dev。
+- [CD](../../.github/workflows/cd.yml) 在 main 合并提交的 Android CI 成功后运行，检出通过 CI 的同一 SHA，再执行架构、JVM 测试、Release Lint 和签名构建。支持 PR 合并与明确授权的本地合并推送，跳过过期、非合并和带 `skip-release` 的发布提交。支持在 Actions 选择 main 手动执行；dev 手动运行仅生成验收制品。
 - 产物为真正的release变体 `app-release.apk`，使用固定发布证书签名，并以 `apksigner verify` 校验。同步生成 `app-release.apk.sha256`；两份文件上传Actions artifact（保留30天）及GitHub Release。Release先以草稿创建，附件完整上传后公开；失败重跑可覆盖同一次运行的附件，不重复创建标签。
 - Release需要 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 四个Actions Secrets，缺少任何一项会停止发布。本文不读取或保存它们的实际值。
 - 自动标签为 `android-main-<运行编号>-<短SHA>`。仅同步dev或推送文档功能分支不会触发这条main发布流程；实际发布结果以Actions与Release为准，不能从YAML存在推断已经发布成功。

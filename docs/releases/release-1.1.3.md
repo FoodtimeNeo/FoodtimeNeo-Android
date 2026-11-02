@@ -9,6 +9,6 @@ versionName 为 `1.1.3`，versionCode 为 `8`，包名仍为 `cn.edu.bjtu.foodti
 - 核查既有公告创建、编辑、当前公告设置、Markdown 渲染和个人昵称、头像编辑。公告管理仍限 `superadmin`，个人资料面向所有登录用户。
 - 保留 v1.1.2 的官方客户端请求头及 500 字输入限制。
 
-权限与接口见 [社区管理与个人资料](community-management.md)。发布前运行架构检查、JVM 单元测试、Lint 和 Debug 构建，CI 另行验证。正式 APK 由本次 main 合并触发的 CD 构建并验证签名、版本和 SHA-256；Web 下载制品须使用此 APK，不能只更改旧包元数据。
+权限与接口见 [社区管理与个人资料](../modules/community-management.md)。发布前运行架构检查、JVM 单元测试、Lint 和 Debug 构建，CI 另行验证。正式 APK 由本次 main 合并触发的 CD 构建并验证签名、版本和 SHA-256；Web 下载制品须使用此 APK，不能只更改旧包元数据。
 
 GitHub 发布和 APK 构建不代表云服务器上的 Backend 已部署更新；本轮没有执行生产数据写入验收。
