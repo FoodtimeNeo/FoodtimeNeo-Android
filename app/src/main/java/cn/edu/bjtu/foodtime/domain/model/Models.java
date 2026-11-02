@@ -4,10 +4,14 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public final class Models {
-  public record Hall(String id, String name, String coverImageUrl, boolean active) {}
+  public record Hall(String id, String name, String coverImageUrl, boolean active, BigDecimal averageScore, long reviewCount) {
+    public Hall(String id,String name,String coverImageUrl,boolean active){this(id,name,coverImageUrl,active,null,0);}
+  }
 
   public record Stall(
-      String id, String diningHallId, String name, String coverImageUrl, boolean active) {}
+      String id, String diningHallId, String name, String coverImageUrl, boolean active, BigDecimal averageScore, long reviewCount) {
+    public Stall(String id,String diningHallId,String name,String coverImageUrl,boolean active){this(id,diningHallId,name,coverImageUrl,active,null,0);}
+  }
 
   public record Dish(
       String id,

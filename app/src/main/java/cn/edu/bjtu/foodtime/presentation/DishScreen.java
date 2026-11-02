@@ -11,6 +11,7 @@ final class DishScreen {
     Stall stall = a.repo.stall(route.id());
     if (stall == null || !stall.active()) throw new IllegalArgumentException("档口不存在或已停用");
     a.heading(page, "01.2", stall.name(), "");
+    VenueScreen.summary(a,page,"stall",stall.id());
     List<Dish> all = a.repo.dishes(stall.id());
     if (all.isEmpty()) Ui.empty(page, "还没有菜品", "");
     else CatalogList.showGallery(a,page,"搜索菜品","道菜品",all,Dish::name,
