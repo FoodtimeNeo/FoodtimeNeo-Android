@@ -65,6 +65,8 @@ dependencies {
     implementation 'io.noties.markwon:ext-strikethrough:4.6.2'
     implementation 'io.noties.markwon:image:4.6.2'
     testImplementation 'junit:junit:4.13.2'
+    // Exercise the real JSON/HTTP mapping on the JVM; not packaged in the Android app.
+    testImplementation 'org.json:json:20240303'
 }
 
 def verifyArchitecture = tasks.register('verifyArchitecture') {

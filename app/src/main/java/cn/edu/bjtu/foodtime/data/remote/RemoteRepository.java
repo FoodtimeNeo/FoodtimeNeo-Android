@@ -23,6 +23,10 @@ public final class RemoteRepository implements FoodtimeRepository {
   private final CommunityPrototype communityPrototype;
   private volatile String csrf;
   private volatile User user;
+  private final Object dashboardLock=new Object();
+  private long dashboardRequest;
+  private DashboardSnapshot dashboardSnapshot;
+  private record DashboardSnapshot(String owner, AdminDashboard value) {}
   private volatile List<Hall> hallList=List.of();
   private final Map<String,Hall> halls=new ConcurrentHashMap<>();
   private final Map<String,Stall> stalls=new ConcurrentHashMap<>();
@@ -79,7 +83,49 @@ public final class RemoteRepository implements FoodtimeRepository {
     try { profile(); }
     catch(RepositoryException e) { if(e.status()!=401) throw e; }
   }
-  private void profile() { user=person(call("GET","users/me/profile",null)); }
+  private void profile() {
+    try {
+      User next=person(call("GET","users/me/profile",null));
+      synchronized(dashboardLock) {
+        if(!dashboardOwner(user).equals(dashboardOwner(next))) {dashboardSnapshot=null;dashboardRequest++;}
+        user=next;
+      }
+    } catch(RepositoryException denied) {
+      if(denied.status()==401||denied.status()==403)invalidateDashboard();
+      throw denied;
+    }
+  }
+  private static String dashboardOwner(User actor) {
+    return actor!=null&&actor.active()&&actor.role().equals("superadmin")?actor.id()+":"+actor.role():"";
+  }
+  @Override public AdminDashboard adminDashboard() {
+    synchronized(dashboardLock) {
+      return dashboardSnapshot!=null&&dashboardSnapshot.owner().equals(dashboardOwner(user))?dashboardSnapshot.value():null;
+    }
+  }
+  private void invalidateDashboard() {
+    synchronized(dashboardLock) {dashboardSnapshot=null;dashboardRequest++;}
+  }
+  private void fetchDashboard() {
+    final long request;
+    final String owner;
+    synchronized(dashboardLock) {
+      owner=dashboardOwner(user);
+      if(owner.isEmpty()) {dashboardSnapshot=null;dashboardRequest++;throw new RepositoryException(403,"ACCESS_DENIED","需要平台管理员权限",0);}
+      request=++dashboardRequest;
+    }
+    try {
+      AdminDashboard data=DashboardJson.parse(call("GET","admin/dashboard?days=7",null),7);
+      synchronized(dashboardLock) {
+        if(Thread.currentThread().isInterrupted()||request!=dashboardRequest||!owner.equals(dashboardOwner(user)))
+          throw new RepositoryException(0,"STALE_RESPONSE","请求已失效，请重试",0);
+        dashboardSnapshot=new DashboardSnapshot(owner,data);
+      }
+    } catch(RepositoryException failure) {
+      if(failure.status()==401||failure.status()==403)invalidateDashboard();
+      throw failure;
+    }
+  }
   @Override public User login(String account,String password) {
     Validation.accountEmail(account); Validation.password(password,false);
     csrf=null; token();
@@ -203,7 +249,7 @@ public final class RemoteRepository implements FoodtimeRepository {
       }
       case ADMIN_REVIEWS -> reviews.put("admin",reviewPage("admin/reviews"));
       case ADMIN_USERS -> userList=page("admin/users",this::person);
-      case ADMIN_DASHBOARD -> { /* Frontend contract ready; Backend endpoint will populate this projection. */ }
+      case ADMIN_DASHBOARD -> fetchDashboard();
       case AUDITS -> auditList=page("admin/moderation/logs",j -> new Audit(text(j,"id"),text(j,"submissionId"),text(j,"moderatorId"),text(j,"action"),text(j,"reason"),time(j,"createdAt"),text(j,"type"),text(j,"actor"),text(j,"aiModel"),text(j,"userId"),text(j,"userDisplayName"),text(j,"userEmail"),text(j,"name"),text(j,"content"),text(j,"imageUrl"),time(j,"submittedAt")));
       case NOTICE_FEED -> {
         NoticeFeed polled=getNoticeFeed(0,20); lastFeed=polled; noticeUnread=polled.unreadCount();
@@ -879,7 +925,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   private RepositoryException unavailable() { return new RepositoryException(0,"NETWORK_UNAVAILABLE","连接失败，请检查服务后重试",0); }
   private void clear() {
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(true);}
-    user=null;csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
+    synchronized(dashboardLock) {user=null;dashboardSnapshot=null;dashboardRequest++;}
+    csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
     communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();communityAudit=CommunityAuditPage.empty();communityAuditDetail=null;communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
     dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();
