@@ -12,6 +12,6 @@ versionName 为 `1.3.0`，versionCode 为 `10`，包名仍为 `cn.edu.bjtu.foodt
 - **管理看板**：接入真实统计接口，不再使用 mock 数据。
 - **其他**：点评点赞图标、公告 Markdown、信箱刷新等交互修复。
 
-权限与接口见 [后端集成](backend-integration.md)。发布前运行架构检查、JVM 单元测试、Lint 和 Debug 构建，CI 另行验证。正式 APK 由本次 main 合并触发的 CD 构建并验证签名、版本和 SHA-256；Web 下载制品须使用此 APK，不能只更改旧包元数据。
+权限与接口见 [后端集成](../ops/backend-integration.md)。发布前运行架构检查、JVM 单元测试、Lint 和 Debug 构建，CI 另行验证。正式 APK 由本次 main 合并触发的 CD 构建并验证签名、版本和 SHA-256；Web 下载制品须使用此 APK，不能只更改旧包元数据。
 
-GitHub 发布和 APK 构建不代表云服务器上的 Backend 已部署更新；本轮新增的注册域名白名单、50MB 上传与增量更新配置见 Backend `docs/release-1.3.0.md`。
+GitHub 发布和 APK 构建不代表云服务器上的 Backend 已部署更新；本轮新增的注册域名白名单、50MB 上传与增量更新配置见 Backend `docs/releases/release-1.3.0.md`。
