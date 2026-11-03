@@ -36,7 +36,7 @@ public class DashboardRepositoryTest {
       String line;while((line=in.readLine())!=null&&!line.isEmpty()){}
       String path=first.split(" ")[1],body="{}";int code=200;
       if(path.equals("/api/v1/users/me/profile")){body=new JSONObject().put("id",actor.get()).put("email","123@bjtu.edu.cn").put("displayName","test").put("role",role.get()).put("status",status.get()).toString();code=profileStatus.get();}
-      else if(path.equals("/api/v1/admin/dashboard?days=7")) {
+      else if(path.equals("/api/v1/admin/dashboard?days=30")) {
         int index=requests.incrementAndGet();body=response.get();code=responseStatus.get();
         if(index==1&&slowStarted!=null){slowStarted.countDown();try{releaseSlow.await(10,TimeUnit.SECONDS);}catch(InterruptedException e){Thread.currentThread().interrupt();}}
       } else code=404;
@@ -49,23 +49,35 @@ public class DashboardRepositoryTest {
   private void refresh(){repo.refresh(new ContentRequest(ContentRequest.Query.ADMIN_DASHBOARD,""));}
   static JSONObject valid() throws JSONException {
     var data=new JSONObject();for(String f:new String[]{"registeredUsers","onlineUsers","reviews","replies","posts","halls","stalls","dishes"})data.put(f,271);
+    data.put("totalUsers",1000);
     data.put("generatedAt","2026-11-02T03:04:05.123456Z");var trend=new JSONArray();
-    for(int i=0;i<7;i++)trend.put(new JSONObject().put("day",LocalDate.parse("2026-10-27").plusDays(i).toString()).put("newUsers",i).put("newReviews",i+2).put("newReplies",i+3).put("newPosts",i+4).put("onlinePeak",i+5));
+    for(int i=0;i<30;i++)trend.put(new JSONObject().put("day",LocalDate.parse("2026-10-04").plusDays(i).toString()).put("totalUsers",565+i*(i+1)/2).put("newUsers",i).put("newReviews",i+2).put("newReplies",i+3).put("newPosts",i+4).put("onlinePeak",i+5));
     return data.put("trend",trend);
   }
   @Test public void readsTheEndpointAndAllFieldsWithoutPreview(){
     assertNull(repo.adminDashboard());refresh();var d=repo.adminDashboard();assertEquals(1,requests.get());
     assertEquals(271,d.registeredUsers());assertEquals(271,d.onlineUsers());assertEquals(271,d.reviews());assertEquals(271,d.replies());assertEquals(271,d.posts());assertEquals(271,d.halls());assertEquals(271,d.stalls());assertEquals(271,d.dishes());
-    assertEquals(LocalDate.parse("2026-11-02"),d.trend().get(6).day());assertEquals(11,d.trend().get(6).onlinePeak());assertEquals(Instant.parse("2026-11-02T03:04:05.123456Z").toEpochMilli(),d.generatedAt());
+    assertEquals(1000,d.totalUsers());assertEquals(30,d.trend().size());
+    assertEquals(LocalDate.parse("2026-11-02"),d.trend().get(29).day());assertEquals(34,d.trend().get(29).onlinePeak());assertEquals(Instant.parse("2026-11-02T03:04:05.123456Z").toEpochMilli(),d.generatedAt());
   }
-  @Test public void timezoneCannotMoveBusinessDate(){TimeZone old=TimeZone.getDefault();try{TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));refresh();assertEquals("2026-11-02",repo.adminDashboard().trend().get(6).day().toString());}finally{TimeZone.setDefault(old);}}
-  @Test public void actualZeroValuesRemainZero() throws Exception {var d=valid();for(String f:new String[]{"registeredUsers","onlineUsers","reviews","replies","posts","halls","stalls","dishes"})d.put(f,0);response.set(d.toString());refresh();assertEquals(0,repo.adminDashboard().registeredUsers());}
+  @Test public void timezoneCannotMoveBusinessDate(){TimeZone old=TimeZone.getDefault();try{TimeZone.setDefault(TimeZone.getTimeZone("America/Los_Angeles"));refresh();assertEquals("2026-11-02",repo.adminDashboard().trend().get(29).day().toString());}finally{TimeZone.setDefault(old);}}
+  @Test public void actualZeroValuesRemainZero() throws Exception {var d=valid();for(String f:new String[]{"totalUsers","registeredUsers","onlineUsers","reviews","replies","posts","halls","stalls","dishes"})d.put(f,0);for(int i=0;i<30;i++)d.getJSONArray("trend").getJSONObject(i).put("totalUsers",0).put("newUsers",0);response.set(d.toString());refresh();assertEquals(0,repo.adminDashboard().registeredUsers());}
   @Test public void malformedFieldsNeverBecomeZeroes() throws Exception {
     var invalid=new ArrayList<JSONObject>();var missing=valid();missing.remove("registeredUsers");invalid.add(missing);
     invalid.add(valid().put("onlineUsers",-1));invalid.add(valid().put("posts",1.5));invalid.add(valid().put("halls","2"));invalid.add(valid().put("generatedAt","bad"));invalid.add(valid().put("trend",new JSONArray()));
     var duplicate=valid();duplicate.getJSONArray("trend").getJSONObject(1).put("day","2026-10-27");invalid.add(duplicate);
     var badDay=valid();badDay.getJSONArray("trend").getJSONObject(0).put("day","2026-02-30");invalid.add(badDay);
-    for(var d:invalid)assertEquals("DASHBOARD_INVALID_RESPONSE",assertThrows(RepositoryException.class,()->DashboardJson.parse(d,7)).code());
+    var missingTotal=valid();missingTotal.remove("totalUsers");invalid.add(missingTotal);
+    var missingDailyTotal=valid();missingDailyTotal.getJSONArray("trend").getJSONObject(0).remove("totalUsers");invalid.add(missingDailyTotal);
+    var wrongCumulative=valid();wrongCumulative.getJSONArray("trend").getJSONObject(1).put("totalUsers",1);invalid.add(wrongCumulative);
+    invalid.add(valid().put("totalUsers",1001));invalid.add(valid().put("registeredUsers",1001));
+    for(var d:invalid)assertEquals("DASHBOARD_INVALID_RESPONSE",assertThrows(RepositoryException.class,()->DashboardJson.parse(d,30)).code());
+  }
+  @Test public void rangeSwitchesAndSummariesKeepOneSnapshot() {
+    refresh();var snapshot=repo.adminDashboard();
+    assertEquals(7,snapshot.trend(7).size());assertEquals(30,snapshot.trend(30).size());
+    assertEquals(29,snapshot.additions(1).newUsers());assertEquals(182,snapshot.additions(7).newUsers());assertEquals(435,snapshot.additions(30).newUsers());
+    assertEquals(525,snapshot.additions(30).newReplies());assertSame(snapshot,repo.adminDashboard());assertEquals(1,requests.get());
   }
   @Test public void failedRefreshRetainsOnlyTheLastSuccessfulSnapshot(){refresh();var old=repo.adminDashboard();responseStatus.set(503);assertThrows(RepositoryException.class,this::refresh);assertSame(old,repo.adminDashboard());}
   @Test public void firstFailureHasNoSnapshot(){responseStatus.set(404);assertThrows(RepositoryException.class,this::refresh);assertNull(repo.adminDashboard());}
