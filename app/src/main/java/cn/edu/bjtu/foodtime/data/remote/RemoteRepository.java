@@ -139,7 +139,7 @@ public final class RemoteRepository implements FoodtimeRepository {
       request=++dashboardRequest;
     }
     try {
-      AdminDashboard data=DashboardJson.parse(call("GET","admin/dashboard?days=7",null),7);
+      AdminDashboard data=DashboardJson.parse(call("GET","admin/dashboard?days=30",null),30);
       synchronized(dashboardLock) {
         if(Thread.currentThread().isInterrupted()||request!=dashboardRequest||!owner.equals(dashboardOwner(user)))
           throw new RepositoryException(0,"STALE_RESPONSE","请求已失效，请重试",0);

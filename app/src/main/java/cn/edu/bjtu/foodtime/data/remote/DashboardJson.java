@@ -21,17 +21,23 @@ final class DashboardJson {
       if (rows.length() != days) throw new IllegalArgumentException();
       var points = new ArrayList<DashboardPoint>();
       LocalDate previous = null;
+      Long previousTotal = null;
       for (int i = 0; i < rows.length(); i++) {
         JSONObject row = rows.getJSONObject(i);
         Object rawDay = row.get("day");
         if (!(rawDay instanceof String dayText) || !dayText.matches("[0-9]{4}-[0-9]{2}-[0-9]{2}")) throw new IllegalArgumentException();
         LocalDate day = LocalDate.parse(dayText);
         if (previous != null && !previous.plusDays(1).equals(day)) throw new IllegalArgumentException();
-        points.add(new DashboardPoint(day, count(row,"newUsers"), count(row,"newReviews"),
+        long total=count(row,"totalUsers"),added=count(row,"newUsers");
+        if(total<added||(previousTotal!=null&&total!=Math.addExact(previousTotal,added)))throw new IllegalArgumentException();
+        points.add(new DashboardPoint(day,total,added,count(row,"newReviews"),
             count(row,"newReplies"), count(row,"newPosts"), count(row,"onlinePeak")));
         previous = day;
+        previousTotal = total;
       }
-      return new AdminDashboard(count(data,"registeredUsers"), count(data,"onlineUsers"),
+      long total=count(data,"totalUsers"),active=count(data,"registeredUsers");
+      if(total<active||points.get(points.size()-1).totalUsers()!=total)throw new IllegalArgumentException();
+      return new AdminDashboard(total,active,count(data,"onlineUsers"),
           count(data,"reviews"), count(data,"replies"), count(data,"posts"),
           count(data,"halls"), count(data,"stalls"), count(data,"dishes"), points, generatedAt);
     } catch (Exception invalid) {

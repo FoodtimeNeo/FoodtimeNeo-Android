@@ -36,12 +36,26 @@ public final class Models {
   }
 
   /** Business calendar date; never interpreted in the device's timezone. */
-  public record DashboardPoint(java.time.LocalDate day,long newUsers,long newReviews,long newReplies,long newPosts,long onlinePeak) {}
+  public record DashboardPoint(java.time.LocalDate day,long totalUsers,long newUsers,long newReviews,long newReplies,long newPosts,long onlinePeak) {}
+
+  public record DashboardAdditions(long newUsers,long newReviews,long newReplies,long newPosts) {}
 
   /** A successful immutable Backend snapshot. No production preview/fallback values. */
-  public record AdminDashboard(long registeredUsers,long onlineUsers,long reviews,long replies,long posts,
+  public record AdminDashboard(long totalUsers,long registeredUsers,long onlineUsers,long reviews,long replies,long posts,
       long halls,long stalls,long dishes,List<DashboardPoint> trend,long generatedAt) {
     public AdminDashboard { trend=List.copyOf(trend); }
+    public List<DashboardPoint> trend(int days) {
+      if ((days!=1&&days!=7&&days!=30)||trend.size()<days) throw new IllegalArgumentException("统计周期缺少完整数据");
+      return trend.subList(trend.size()-days,trend.size());
+    }
+    public DashboardAdditions additions(int days) {
+      long users=0,reviews=0,replies=0,posts=0;
+      for (var point:trend(days)) {
+        users=Math.addExact(users,point.newUsers());reviews=Math.addExact(reviews,point.newReviews());
+        replies=Math.addExact(replies,point.newReplies());posts=Math.addExact(posts,point.newPosts());
+      }
+      return new DashboardAdditions(users,reviews,replies,posts);
+    }
   }
 
   public record LikeState(boolean likedByMe, long likeCount, long counterVersion) {}
