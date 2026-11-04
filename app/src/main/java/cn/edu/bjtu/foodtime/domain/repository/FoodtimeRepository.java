@@ -23,6 +23,7 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default void clearImageCache() {}
   /** Cached, account-scoped superadmin overview; null until a real refresh succeeds. */
   default AdminDashboard adminDashboard() { return null; }
+  default DailyRecommendations dailyRecommendations() { return null; }
 
   default List<CommunityPost> communityPosts() { return List.of(); }
   default boolean communityPrototypeEnabled() { return false; }
