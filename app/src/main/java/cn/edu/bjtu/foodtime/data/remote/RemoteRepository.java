@@ -28,6 +28,26 @@ public final class RemoteRepository implements FoodtimeRepository {
   private long dashboardRequest;
   private DashboardSnapshot dashboardSnapshot;
   private record DashboardSnapshot(String owner, AdminDashboard value) {}
+  private long recommendationRequest;
+  private DailyRecommendations recommendations;
+  private String recommendationActor="";
+  private String recommendationOwner() {return user!=null&&user.active()?user.id()+":"+user.role()+":"+http.sessionKey():"";}
+  @Override public DailyRecommendations dailyRecommendations() {
+    synchronized(dashboardLock){return recommendationActor.equals(recommendationOwner())?recommendations:null;}
+  }
+  private void clearRecommendations(){recommendations=null;recommendationActor="";recommendationRequest++;}
+  private void fetchRecommendations() {
+    final String owner;final long request;
+    synchronized(dashboardLock){owner=recommendationOwner();request=++recommendationRequest;recommendations=null;recommendationActor="";}
+    if(owner.isEmpty())throw new RepositoryException(401,"UNAUTHENTICATED","请重新登录",0);
+    DailyRecommendations result;
+    try {result=RecommendationJson.parse(call("GET","recommendations/daily",null));}
+    catch(RepositoryException failure){synchronized(dashboardLock){if(request==recommendationRequest)clearRecommendations();}throw failure;}
+    synchronized(dashboardLock){
+      if(Thread.currentThread().isInterrupted()||request!=recommendationRequest||!owner.equals(recommendationOwner()))throw new RepositoryException(0,"STALE_RESPONSE","请求已失效，请重试",0);
+      recommendations=result;recommendationActor=owner;
+    }
+  }
   private volatile List<Hall> hallList=List.of();
   private final Map<String,Hall> halls=new ConcurrentHashMap<>();
   private final Map<String,Stall> stalls=new ConcurrentHashMap<>();
@@ -110,12 +130,13 @@ public final class RemoteRepository implements FoodtimeRepository {
     try {
       User next=person(call("GET","users/me/profile",null));
       synchronized(dashboardLock) {
+        if(user==null||!user.id().equals(next.id())||!user.role().equals(next.role())||user.active()!=next.active())clearRecommendations();
         if(!dashboardOwner(user).equals(dashboardOwner(next))) {dashboardSnapshot=null;dashboardRequest++;}
         user=next;
         syncFollowOwner();
       }
     } catch(RepositoryException denied) {
-      if(denied.status()==401||denied.status()==403){invalidateDashboard();synchronized(followLock){resetFollows();}}
+      if(denied.status()==401||denied.status()==403){invalidateDashboard();synchronized(followLock){resetFollows();clearRecommendations();}}
       throw denied;
     }
   }
@@ -205,6 +226,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public void refresh(ContentRequest request) {
     profile(); // Restore current server role/status on every screen load.
     switch(request.query()) {
+      case DAILY_RECOMMENDATIONS -> fetchRecommendations();
       case VENUE_REVIEWS -> {String[] p=request.id().split("~",-1);venues.load(p[0],p[1],p.length>2&&!p[2].isBlank()?p[2]:"all",false);}
       case VENUE_PERSONAL -> {String[] p=request.id().split("~",-1);venues.loadPersonal(p.length>0?p[0]:"",p.length>1&&p[1].equals("replies"),p.length>2?Integer.parseInt(p[2]):1);}
       case HALLS -> fetchHalls();
@@ -1015,7 +1037,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private void clear() {
     venues.clear();
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(true);}
-    synchronized(dashboardLock) {user=null;dashboardSnapshot=null;dashboardRequest++;resetFollows();}
+    synchronized(dashboardLock) {user=null;dashboardSnapshot=null;dashboardRequest++;resetFollows();clearRecommendations();}
     avatarUploads.clear();csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
 
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();

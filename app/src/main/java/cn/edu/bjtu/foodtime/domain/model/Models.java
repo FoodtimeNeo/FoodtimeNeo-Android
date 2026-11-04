@@ -4,6 +4,13 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public final class Models {
+  public record DailyRecommendations(java.time.LocalDate date, String algorithmVersion, List<RecommendedDish> items) {
+    public DailyRecommendations { items=List.copyOf(items); }
+  }
+  public record RecommendedDish(String dishId,String dishName,String diningHallId,String diningHallName,
+      String stallId,String stallName,BigDecimal averageRating,long reviewCount,String imageUrl,
+      String recommendationType,double recommendationScore,String reasonCode,String reason) {}
+
   public record Hall(String id, String name, String coverImageUrl, boolean active, BigDecimal averageScore, long reviewCount) {
     public Hall(String id,String name,String coverImageUrl,boolean active){this(id,name,coverImageUrl,active,null,0);}
   }

@@ -19,6 +19,7 @@ final class DiningScreen {
     page.setBackground(new FoodDoodleDrawable(a));
     a.heading(page,"01","食堂手账","今天的好心情，从一顿热饭开始。");
     hero(a,page);
+    RecommendationSection.show(a,page);
     if (a.repo.halls().isEmpty()) {
       Ui.empty(page, "暂无食堂", "");
       return;
