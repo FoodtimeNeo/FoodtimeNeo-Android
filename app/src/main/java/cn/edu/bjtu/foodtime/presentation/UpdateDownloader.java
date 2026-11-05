@@ -5,6 +5,7 @@ import android.content.Intent;
 import android.net.Uri;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 
 import cn.edu.bjtu.foodtime.BuildConfig;
 import cn.edu.bjtu.foodtime.domain.model.Models.AppRelease;
@@ -27,8 +28,10 @@ import java.util.concurrent.FutureTask;
  */
 final class UpdateDownloader {
   interface Listener {
+    /** Called once the update mode and download size are known. */
+    void plan(boolean patch, long size);
     /** percent < 0 means the total size is unknown. */
-    void progress(int percent, String label);
+    void progress(int percent, String label, long downloaded, long total, long bytesPerSecond);
     void ready(File apk);
     void failed(String message);
   }
@@ -39,6 +42,7 @@ final class UpdateDownloader {
   private Future<?> job;
   private volatile boolean cancelled;
   private int lastPercent = -2;
+  private long lastReportAt;
 
   UpdateDownloader(Context context, Executor executor) {
     this.context = context;
@@ -49,6 +53,7 @@ final class UpdateDownloader {
     cancel();
     cancelled = false;
     lastPercent = -2;
+    lastReportAt = 0;
     FutureTask<Void> task = new FutureTask<>(() -> { run(release, listener); return null; });
     job = task;
     executor.execute(task);
@@ -79,6 +84,7 @@ final class UpdateDownloader {
       ReleaseManifest.Patch patch = manifest == null || manifest.apkSha256() == null
           ? null : manifest.patchFor(BuildConfig.VERSION_CODE);
       if (patch != null) {
+        post(() -> listener.plan(true, patch.size()));
         try {
           built = fromPatch(release, manifest, patch, directory, listener);
         } catch (IOException deltaFailure) {
@@ -88,8 +94,10 @@ final class UpdateDownloader {
         }
       }
       if (built == null) {
+        long fullSize = manifest == null ? 0 : manifest.apkSize();
+        post(() -> listener.plan(false, fullSize));
         File part = new File(directory, "foodtime-" + release.versionCode() + ".apk.part");
-        download(release.apkUrl(), part, manifest == null ? 0 : manifest.apkSize(),
+        download(release.apkUrl(), part, fullSize,
             0, 90, "正在下载完整安装包", listener);
         if (manifest != null && manifest.apkSha256() != null
             && !sha256(part).equals(manifest.apkSha256())) {
@@ -118,7 +126,7 @@ final class UpdateDownloader {
       part.delete();
       throw new IOException("增量补丁校验失败");
     }
-    post(() -> listener.progress(60, "正在应用增量补丁"));
+    post(() -> listener.progress(60, "正在应用增量补丁", patch.size(), patch.size(), 0));
     File target = new File(directory, "foodtime-" + release.versionCode() + ".apk");
     File temporary = new File(directory, target.getName() + ".tmp");
     BsPatch.apply(new File(context.getPackageCodePath()), part, temporary);
@@ -138,7 +146,7 @@ final class UpdateDownloader {
     long offset = part.isFile() ? part.length() : 0;
     if (expectedSize > 0 && offset > expectedSize) { part.delete(); offset = 0; }
     if (expectedSize > 0 && offset == expectedSize) {
-      listener.progress(to, label);
+      report(to, label, offset, expectedSize, 0, listener);
       return;
     }
     HttpURLConnection connection = (HttpURLConnection) new URL(address).openConnection();
@@ -157,6 +165,8 @@ final class UpdateDownloader {
       } else {
         throw new IOException("下载失败（HTTP " + status + "）");
       }
+      long startedAt = SystemClock.elapsedRealtime();
+      long startedBytes = offset;
       long total = expectedSize > 0 ? expectedSize
           : connection.getContentLengthLong() > 0 ? offset + connection.getContentLengthLong() : -1;
       try (InputStream input = connection.getInputStream();
@@ -169,20 +179,27 @@ final class UpdateDownloader {
           out.write(buffer, 0, count);
           written += count;
           int percent = total > 0 ? from + (int) ((to - from) * written / total) : -1;
-          report(percent, label, listener);
+          long elapsed = SystemClock.elapsedRealtime() - startedAt;
+          long speed = elapsed >= 300 ? (written - startedBytes) * 1000 / elapsed : 0;
+          report(percent, label, written, total, speed, listener);
         }
         if (total > 0 && written != total) throw new IOException("下载不完整，请重试");
-        report(to, label, listener);
+        long elapsed = SystemClock.elapsedRealtime() - startedAt;
+        long speed = elapsed >= 300 ? (written - startedBytes) * 1000 / elapsed : 0;
+        report(to, label, total > 0 ? total : written, total > 0 ? total : 0, speed, listener);
       }
     } finally {
       connection.disconnect();
     }
   }
 
-  private void report(int percent, String label, Listener listener) {
-    if (percent == lastPercent) return;
+  private void report(int percent, String label, long downloaded, long total,
+                      long bytesPerSecond, Listener listener) {
+    long now = SystemClock.elapsedRealtime();
+    if (percent == lastPercent && now - lastReportAt < 500) return;
     lastPercent = percent;
-    post(() -> listener.progress(percent, label));
+    lastReportAt = now;
+    post(() -> listener.progress(percent, label, downloaded, total, bytesPerSecond));
   }
 
   private void ready(Listener listener, File apk) {

@@ -285,7 +285,9 @@ public class MainActivity extends Activity {
     int padding = Ui.dp(this, 20);
     body.setPadding(padding, padding, padding, 0);
     TextView label = Ui.text(this, "正在准备更新…", 14, Design.MUTED);
-    body.addView(label); Ui.gap(body, 8); body.addView(bar);
+    TextView detail = Ui.text(this, "正在检查可用补丁…", 12, Design.MUTED);
+    detail.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+    body.addView(label); Ui.gap(body, 8); body.addView(bar); Ui.gap(body, 6); body.addView(detail);
     AlertDialog.Builder builder = new AlertDialog.Builder(this)
         .setTitle("正在更新到 v" + info.versionName())
         .setView(body)
@@ -295,12 +297,29 @@ public class MainActivity extends Activity {
     dialog.setOnDismissListener(closed -> { updateProgress = null; maybeReleaseUpdateGate(); });
     updateProgress = dialog;
     dialog.show();
+    final boolean[] patchPlan = {false};
+    final long[] planSize = {0};
     downloader.start(info, new UpdateDownloader.Listener() {
-      @Override public void progress(int percent, String text) {
+      @Override public void plan(boolean patch, long size) {
+        if (updateProgress != dialog) return;
+        patchPlan[0] = patch;
+        planSize[0] = size;
+        bar.setIndeterminate(true);
+        bar.setProgress(0);
+        label.setText(patch ? "正在下载增量补丁" : "正在下载完整安装包");
+        detail.setText((patch ? "增量补丁" : "完整安装包") + (size > 0 ? " · " + formatBytes(size) : ""));
+      }
+      @Override public void progress(int percent, String text, long downloaded, long total, long bytesPerSecond) {
         if (updateProgress != dialog) return;
         if (percent < 0) bar.setIndeterminate(true);
         else { bar.setIndeterminate(false); bar.setProgress(percent); }
         label.setText(percent < 0 ? text : text + " " + percent + "%");
+        long knownTotal = total > 0 ? total : planSize[0];
+        StringBuilder info = new StringBuilder(patchPlan[0] ? "增量补丁" : "完整安装包");
+        if (knownTotal > 0) info.append(" ").append(formatBytes(downloaded)).append(" / ").append(formatBytes(knownTotal));
+        else if (downloaded > 0) info.append(" 已下载 ").append(formatBytes(downloaded));
+        if (bytesPerSecond > 0) info.append(" · ").append(formatSpeed(bytesPerSecond));
+        detail.setText(info);
       }
       @Override public void ready(java.io.File apk) {
         if (isFinishing() || isDestroyed() || updateProgress != dialog) return;
@@ -454,10 +473,9 @@ public class MainActivity extends Activity {
       // Static/cached shell paints first; live data is merged in after the read completes.
       renderContent();
       if(dashboard)AdminDashboardScreen.refreshing(content,true);
-      else {
-        String label=target.kind().equals("profile")?"正在更新关注与粉丝数…":target.kind().equals("admin")?"正在统计待审核…":"正在更新…";
+      else if(community) {
         navigationHandler.postDelayed(()->{
-          if(ticket==generation&&epoch==navigationEpoch&&navigationLoading)showRefreshBanner(label);
+          if(ticket==generation&&epoch==navigationEpoch&&navigationLoading)showRefreshBanner("正在刷新社区…");
         },150);
       }
       navigationHandler.postDelayed(()->{
@@ -940,6 +958,16 @@ public class MainActivity extends Activity {
   private String safeMessage(RuntimeException e) {
     String message=e.getMessage()==null?"操作失败，请重试":e.getMessage();
     return e instanceof RepositoryException failure&&failure.retryAfterSeconds()>0?message+"；"+failure.retryAfterSeconds()+"秒后重试":message;
+  }
+  private static String formatBytes(long bytes) {
+    if(bytes<1024)return bytes+" B";
+    if(bytes<1024*1024)return String.format(Locale.CHINA,"%.1f KB",bytes/1024.0);
+    return String.format(Locale.CHINA,"%.1f MB",bytes/1048576.0);
+  }
+  private static String formatSpeed(long bytesPerSecond) {
+    if(bytesPerSecond<1024)return bytesPerSecond+" B/s";
+    if(bytesPerSecond<1024*1024)return String.format(Locale.CHINA,"%.0f KB/s",bytesPerSecond/1024.0);
+    return String.format(Locale.CHINA,"%.1f MB/s",bytesPerSecond/1048576.0);
   }
   public void clearDraft(Route route) {
     String prefix=route.kind()+":"+route.id()+":";
