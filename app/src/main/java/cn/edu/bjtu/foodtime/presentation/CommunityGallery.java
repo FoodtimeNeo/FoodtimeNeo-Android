@@ -44,7 +44,7 @@ final class CommunityGallery extends LinearLayout {
     addView(viewport,new LinearLayout.LayoutParams(-1,-2));
     int initial=activity.getResources().getDisplayMetrics().widthPixels-Ui.dp(activity,48);
     for(int i=0;i<images.size();i++){
-      final int page=i;FrameLayout frame=(FrameLayout)Ui.image(activity,images.get(i),"食记图片 "+(i+1)+" / "+images.size()+"，点击放大",false);
+      final int page=i;FrameLayout frame=(FrameLayout)Ui.image(activity,Ui.thumb(images.get(i)),"食记图片 "+(i+1)+" / "+images.size()+"，点击放大",false);
       ((ImageView)frame.getChildAt(0)).setScaleType(ImageView.ScaleType.FIT_CENTER);
       frame.setClickable(true);frame.setFocusable(true);frame.setOnClickListener(v->open(page));
       strip.addView(frame,new LinearLayout.LayoutParams(initial,-2));
@@ -56,6 +56,11 @@ final class CommunityGallery extends LinearLayout {
     controls.addView(previous);controls.addView(dots,new LinearLayout.LayoutParams(0,-2,1));controls.addView(next);
     if(images.size()>1)addView(controls);update();
   }
+  /** Open a single full-size image without loading it in the preview list. */
+  static void openFull(MainActivity activity,String image){
+    new CommunityGallery(activity,List.of(image)).open(0);
+  }
+
   private void show(int page){index=Math.max(0,Math.min(images.size()-1,page));viewport.smoothScrollTo(index*width,0);update();}
   private void update(){
     StringBuilder value=new StringBuilder();for(int i=0;i<images.size();i++)value.append(i==index?"● ":"○ ");
