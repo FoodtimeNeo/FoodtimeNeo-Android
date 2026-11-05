@@ -37,6 +37,7 @@ public class MainActivity extends Activity {
   final Bundle drafts = new Bundle();
   final Bundle scrollPositions = new Bundle();
   String pickingKey;
+  private String avatarPickingActor="";
   private Executor worker;
   private Executor inboxWorker;
   private java.util.concurrent.FutureTask<Void> navigationRead;
@@ -118,6 +119,7 @@ public class MainActivity extends Activity {
       Bundle saved = state.getBundle("drafts");
       if (saved != null) drafts.putAll(saved);
       pickingKey = state.getString("pickingKey");
+      avatarPickingActor = state.getString("avatarPickingActor", "");
       Bundle positions = state.getBundle("scrollPositions");
       if (positions != null) scrollPositions.putAll(positions);
     }
@@ -140,6 +142,9 @@ public class MainActivity extends Activity {
   }
 
   void registerScreens() {
+    screens.put("venue-reviews",VenueScreen::reviews);
+    screens.put("venue-write",VenueScreen::write);
+    screens.put("venue-mine",VenueScreen::mine);
     screens.put("dining", DiningScreen::halls);
     screens.put("community", CommunityScreen::feed);
     screens.put("community-detail", CommunityScreen::detail);
@@ -161,6 +166,8 @@ public class MainActivity extends Activity {
     screens.put("profile", ProfileScreen::profile);
     screens.put("profile-edit", ProfileScreen::edit);
     screens.put("bind-school-email", SchoolEmailScreen::binder);
+    screens.put("avatar-crop", AvatarCropScreen::show);
+
     screens.put("mine-reviews", ProfileScreen::reviews);
     screens.put("password", PasswordScreen::show);
     screens.put("detail", DishScreen::detail);
@@ -350,6 +357,11 @@ public class MainActivity extends Activity {
   public void back() {
     if(writeInFlight) {message("正在提交，请稍候");return;}
     if(passwordRecovery!=null){passwordRecovery.back();return;}
+    if(route().kind().equals("avatar-crop")){
+      discardPhoto(route().id());
+      for(String key:List.of("cropZoom","cropX","cropY","cropRotation"))drafts.remove(draftKey(key));
+      drafts.remove("avatarCropTarget");
+    }
     if (repo.currentUser() == null) {
       finish();
       return;
@@ -381,6 +393,7 @@ public class MainActivity extends Activity {
     state.putBundle("drafts", drafts);
     state.putBundle("scrollPositions", scrollPositions);
     state.putString("pickingKey", pickingKey);
+    state.putString("avatarPickingActor", avatarPickingActor);
     state.putLong("pendingOperation",pendingOperation);
     state.putBoolean("authRegistration",authRegistration);
     state.putString("tab", tab);
@@ -448,6 +461,8 @@ public class MainActivity extends Activity {
 
   private ContentRequest query(Route route) {
     ContentRequest.Query q=switch(route.kind()) {
+      case "venue-reviews","venue-write" -> ContentRequest.Query.VENUE_REVIEWS;
+      case "venue-mine" -> ContentRequest.Query.VENUE_PERSONAL;
       case "dining" -> ContentRequest.Query.HALLS;
       case "stalls","submit-stall" -> ContentRequest.Query.STALLS;
       case "dishes","submit-dish" -> ContentRequest.Query.DISHES;
@@ -601,6 +616,11 @@ public class MainActivity extends Activity {
       scrollPositions.putInt(location(), scroll.getScrollY());
   }
 
+  void finishVenueWrite(String type,String id) {
+    var stack=stacks.get(tab);
+    if(stack.size()>1&&stack.get(stack.size()-2).kind().equals("venue-reviews")&&stack.get(stack.size()-2).id().startsWith(type+"~"+id+"~"))back();
+    else replaceRoute("venue-reviews",type+"~"+id+"~all");
+  }
   public void message(String text) {
     if(currentToast!=null) currentToast.cancel();
     currentToast=Toast.makeText(this,text,Toast.LENGTH_SHORT);currentToast.show();
@@ -613,6 +633,17 @@ public class MainActivity extends Activity {
   public void pickImage(String key) {
     pickingKey = key;
     startActivityForResult(imagePickerIntent(), 101);
+  }
+  public void pickAvatar(String key){
+    if(repo.currentUser()==null||writeInFlight)return;
+    pickingKey=key;avatarPickingActor=repo.currentUser().id();
+    android.content.Intent intent=imagePickerIntent();intent.putExtra(android.content.Intent.EXTRA_MIME_TYPES,new String[]{"image/jpeg","image/png"});
+    startActivityForResult(intent,103);
+  }
+  void finishAvatarCrop(View trigger,TextView error,String target,Supplier<String> encode){
+    startOperation(trigger,error,"裁剪头像",target,encode,path->{
+      String previous=drafts.getString(target,"");drafts.putString(target,path);discardPhoto(previous);back();
+    });
   }
 
   public void pickCommunityPhotos() {
@@ -640,6 +671,16 @@ public class MainActivity extends Activity {
   @Override
   protected void onActivityResult(int request, int result, android.content.Intent data) {
     super.onActivityResult(request, result, data);
+    if(request==103){
+      String target=pickingKey,actor=avatarPickingActor;pickingKey=null;avatarPickingActor="";
+      if(result!=RESULT_OK||data==null||data.getData()==null||target==null)return;
+      if(repo.currentUser()==null||!repo.currentUser().id().equals(actor)||!route().kind().equals("profile-edit")||!target.equals(draftKey("image"))){message("登录状态或页面已变化，请重新选择头像");return;}
+      android.net.Uri selected=data.getData();
+      startOperation(null,null,"导入头像",target,()->PhotoImport.prepareAvatar(this,selected),path->{
+        if(repo.currentUser()==null||!repo.currentUser().id().equals(actor)){discardPhoto(path);message("登录状态已变化，请重新选择头像");return;}
+        drafts.putString("avatarCropTarget",target);go("avatar-crop",path);
+      });return;
+    }
     if(request==102 && result==RESULT_OK && data!=null && pickingKey!=null){
       String prefix=pickingKey;String base=prefix.substring(0,prefix.length()-"photos".length());
       int count=0;for(int i=0;i<9;i++)if(!drafts.getString(base+"photo:"+i+":image","").isBlank())count++;
@@ -749,6 +790,9 @@ public class MainActivity extends Activity {
     }
     if(task.action().equals("注册")) {showAuth(false);message("注册成功，请登录");return;}
     if(repo.currentUser()==null) {signedOut();return;}
+    if(task.action().equals("导入头像")){
+      drafts.putString("avatarCropTarget",task.imageDraft());go("avatar-crop",outcome.value());return;
+    }
     if(task.origin().kind().equals("community-detail")&&Set.of("提交评论","提交回复").contains(task.action())){
       String prefix=task.origin().kind()+":"+task.origin().id()+":";
       for(String key:List.of("评论内容","replyRoot","replyTarget","replyName","commentPayload","commentRequestId"))drafts.remove(prefix+key);
@@ -759,6 +803,7 @@ public class MainActivity extends Activity {
     else if(task.imageDraft()!=null) {
       String previous=drafts.getString(task.imageDraft(),"");drafts.putString(task.imageDraft(),outcome.value());
       worker.execute(() -> PhotoImport.discard(this,previous));
+      if(task.action().equals("裁剪头像")&&route().equals(task.origin())){back();return;}
     }
     else if(Set.of("review","upload-photo","submit-dish","submit-stall","community-create","admin-new","admin-edit").contains(task.origin().kind())) {
       clearDraft(task.origin());if(route().equals(task.origin())&&stacks.get(tab).size()>1) stacks.get(tab).remove(stacks.get(tab).size()-1);
@@ -782,6 +827,8 @@ public class MainActivity extends Activity {
   }
   public void signedOut() {clearNavigation();showAuth(false);}
   private void clearNavigation() {
+    for(var stack:stacks.values())for(Route item:stack)if(item.kind().equals("avatar-crop"))discardPhoto(item.id());
+    pickingKey=null;avatarPickingActor="";
     cancelNavigation();contentReady=false;displayedActor="";
     if(loginNoticeDialog!=null){loginNoticeDialog.dialog.dismiss();loginNoticeDialog=null;}
     loginNotices.reset();noticeErrorShown="";

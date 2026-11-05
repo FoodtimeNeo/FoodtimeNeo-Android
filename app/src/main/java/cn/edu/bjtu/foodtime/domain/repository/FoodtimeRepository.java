@@ -5,7 +5,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /** Screen-facing contract. Network implementations should load/cache off the main thread. */
-public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
+public interface FoodtimeRepository extends AuthRepository, CatalogRepository, VenueRepository {
   /** Run on a worker. Read methods below return immutable cached snapshots. */
   default void restoreSession() {}
   default void refresh(ContentRequest request) {}
@@ -23,6 +23,7 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository {
   default void clearImageCache() {}
   /** Cached, account-scoped superadmin overview; null until a real refresh succeeds. */
   default AdminDashboard adminDashboard() { return null; }
+  default DailyRecommendations dailyRecommendations() { return null; }
 
   default List<CommunityPost> communityPosts() { return List.of(); }
   default boolean communityPrototypeEnabled() { return false; }

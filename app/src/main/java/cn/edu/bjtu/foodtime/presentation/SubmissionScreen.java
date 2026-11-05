@@ -17,7 +17,11 @@ final class SubmissionScreen {
   static String type(String value) {
     return switch (value) {
       case "photo" -> "图片提交";
-      case "review" -> "评论提交";
+      case "review" -> "菜品评论提交";
+      case "hall-review" -> "餐厅点评";
+      case "stall-review" -> "档口点评";
+      case "hall-review-reply" -> "餐厅点评回复";
+      case "stall-review-reply" -> "档口点评回复";
       case "dish-review-reply" -> "点评回复";
       case "community-post" -> "社区食记";
       case "community-comment" -> "社区评论／回复";

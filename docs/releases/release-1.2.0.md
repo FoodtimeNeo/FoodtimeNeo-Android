@@ -14,6 +14,6 @@ versionName 为 `1.2.0`，versionCode 为 `9`，包名仍为 `cn.edu.bjtu.foodti
 - **认证**：支持邮箱找回密码。
 - 默认服务地址为 `https://bjtufoodtime.top/api/v1/`。
 
-权限与接口见 [后端集成](backend-integration.md)。发布前运行架构检查、JVM 单元测试、Lint 和 Debug 构建，CI 另行验证。正式 APK 由本次 main 合并触发的 CD 构建并验证签名、版本和 SHA-256；Web 下载制品须使用此 APK，不能只更改旧包元数据。
+权限与接口见 [后端集成](../ops/backend-integration.md)。发布前运行架构检查、JVM 单元测试、Lint 和 Debug 构建，CI 另行验证。正式 APK 由本次 main 合并触发的 CD 构建并验证签名、版本和 SHA-256；Web 下载制品须使用此 APK，不能只更改旧包元数据。
 
 GitHub 发布和 APK 构建不代表云服务器上的 Backend 已部署更新。

@@ -1,10 +1,10 @@
 # FoodtimeNeo Android · 北交干饭吧
 
-当前版本 **1.3.0**（versionCode 10）；更新范围与交付流程见 [1.3.0 发布说明](docs/release-1.3.0.md)，管理功能与权限见 [社区管理与个人资料](docs/community-management.md)。固定签名与历史验收见 [1.0.0 发布验收](docs/release-1.0.0.md)。
+当前版本 **1.3.1**（versionCode 11）；更新范围与交付流程见 [1.3.1 发布说明](docs/releases/release-1.3.1.md)，管理功能与权限见 [社区管理与个人资料](docs/modules/community-management.md)。固定签名与历史验收见 [1.0.0 发布验收](docs/releases/release-1.0.0.md)。
 
 原生 Java 17 / Android View 应用，默认访问真实 Backend。视觉沿用所给 Web 风格的纸张底色、墨棕描边、实色阴影与中文字体。
 
-完整入口见 [文档导航](docs/README.md)；构建参数、专用设备验收和Release说明见 [构建与测试](docs/build-and-test.md)。
+完整入口见 [文档导航](docs/README.md)；构建参数、专用设备验收和Release说明见 [构建与测试](docs/ops/build-and-test.md)。
 
 正式安装包由CD生成并使用固定发布证书签名：[下载最新 app-release.apk](https://github.com/FoodtimeNeo/FoodtimeNeo-Android/releases/latest/download/app-release.apk)。各版本和SHA-256校验文件见[GitHub Releases](https://github.com/FoodtimeNeo/FoodtimeNeo-Android/releases)。
 
@@ -23,12 +23,12 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 正式邮箱投递按用户要求暂不验收，注册页面不生成或自动填入验证码。Backend已移除固定测试验证码；开发和生产环境均须使用真实邮件验证码。仅在Backend显式启用本地联调样例时，才可使用其文档中的测试账号；应用不会预设管理员身份。
 
-- [本地连接](docs/local-backend.md)
-- [架构](docs/architecture.md)
-- [功能与文档裁决](docs/implementation-plan.md)
-- [接口映射](docs/backend-integration.md)
-- [真实数据源](docs/remote-repository.md)
-- [验收记录](docs/verification.md)
+- [本地连接](docs/ops/local-backend.md)
+- [架构](docs/architecture/architecture.md)
+- [功能与文档裁决](docs/architecture/implementation-plan.md)
+- [接口映射](docs/ops/backend-integration.md)
+- [真实数据源](docs/ops/remote-repository.md)
+- [验收记录](docs/releases/verification.md)
 - [分支协作](CONTRIBUTING.md)
 
 本地设备验收脚本使用专用Backend和ADB端口映射，并显式将被测应用构建为本机地址，不会将会写入数据的集成测试指向线上库：
@@ -39,4 +39,4 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 按最新dev建立功能分支，使用中文提交，并以一次非快进合并回dev；复用旧功能分支时先让其指针指向最新dev。正式发布默认通过dev → main的PR；负责人明确授权本地合并推送时保留合并历史。main合并提交的CI通过后，CD检出同一SHA验证、构建并发布签名release APK，也支持在main手动执行。
 
-点评已支持点赞、回复、回复点赞和“我的回复”审核记录，具体交互见[点评互动](docs/review-interactions.md)。
+点评已支持点赞、回复、回复点赞和“我的回复”审核记录，具体交互见[点评互动](docs/modules/review-interactions.md)。
