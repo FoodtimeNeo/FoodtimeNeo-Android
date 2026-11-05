@@ -230,20 +230,36 @@ final class CommunityScreen {
       if(created[0]!=null)watchApproval(a,post.id(),rootId,created[0],0);
     });
 
-    String focus=a.drafts.getString("community-detail:"+post.id()+":focusComment","");
+    String focusPrefix="community-detail:"+post.id()+":";
+    String focus=a.drafts.getString(focusPrefix+"focusComment","");
     if(!focus.isBlank()) {
-      a.drafts.remove("community-detail:"+post.id()+":focusComment");
-      a.scroll.post(()->{
-        android.view.View target=a.content.findViewWithTag("community-comment:"+focus);
-        if(target==null)return;
-        target.setBackground(Ui.shape(a,Design.ALT,Design.RED,12));
-        int[] targetPos=new int[2],scrollPos=new int[2];
-        target.getLocationOnScreen(targetPos);a.scroll.getLocationOnScreen(scrollPos);
-        int y=a.scroll.getScrollY()+targetPos[1]-scrollPos[1]-Ui.dp(a,80);
-        a.scroll.smoothScrollTo(0,Math.max(0,y));
-        a.getWindow().getDecorView().postDelayed(()->target.setBackground(null),2600);
-      });
+      String focusRoot=a.drafts.getString(focusPrefix+"focusRoot","");
+      android.view.View target=a.content.findViewWithTag("community-comment:"+focus);
+      if(target!=null) {
+        clearFocusDrafts(a,focusPrefix);
+        a.scroll.post(()->highlightComment(a,target));
+      } else if(!focusRoot.isBlank()&&!a.drafts.getBoolean(focusPrefix+"focusTried",false)) {
+        a.drafts.putBoolean(focusPrefix+"focusTried",true);
+        a.read("community-focus:"+post.id()+":"+focus,null,null,
+            () -> a.repo.ensureCommunityCommentVisible(post.id(),focusRoot,focus),
+            a::redraw,() -> {});
+      } else {
+        clearFocusDrafts(a,focusPrefix);
+      }
     }
+  }
+
+  private static void clearFocusDrafts(MainActivity a,String prefix) {
+    a.drafts.remove(prefix+"focusComment");a.drafts.remove(prefix+"focusRoot");a.drafts.remove(prefix+"focusTried");
+  }
+
+  private static void highlightComment(MainActivity a,android.view.View target) {
+    target.setBackground(Ui.shape(a,Design.ALT,Design.RED,12));
+    int[] targetPos=new int[2],scrollPos=new int[2];
+    target.getLocationOnScreen(targetPos);a.scroll.getLocationOnScreen(scrollPos);
+    int y=a.scroll.getScrollY()+targetPos[1]-scrollPos[1]-Ui.dp(a,80);
+    a.scroll.smoothScrollTo(0,Math.max(0,y));
+    a.getWindow().getDecorView().postDelayed(()->target.setBackground(null),2600);
   }
 
   /** 提交后短轮询：仍待审则 2 秒后再查，通过/驳回后刷新一次列表。最多约 24 秒。 */

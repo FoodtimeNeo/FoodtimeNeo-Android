@@ -230,7 +230,11 @@ final class InboxScreen {
             () -> a.repo.readMessage(message.id()), () -> {}, () -> {});
       }
       if (message.refCommentId() != null && !message.refCommentId().isBlank()) {
-        a.drafts.putString("community-detail:" + message.refId() + ":focusComment", message.refCommentId());
+        String prefix = "community-detail:" + message.refId() + ":";
+        a.drafts.putString(prefix + "focusComment", message.refCommentId());
+        a.drafts.putString(prefix + "focusRoot",
+            message.refRootCommentId() == null ? "" : message.refRootCommentId());
+        a.drafts.remove(prefix + "focusTried");
       }
       a.go("community-detail", message.refId());
       return;
