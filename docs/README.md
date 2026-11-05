@@ -2,7 +2,7 @@
 
 本文档是 `FoodtimeNeo-Android` 原生应用工程的系统级技术导航与构建运维速查中心。
 
-当前客户端工程版本：**v1.3.3**（`versionCode 13`；日常开发主分支为 `dev`，生产发布基线为 `main`）。
+当前客户端工程版本：**v1.3.4**（`versionCode 14`；日常开发主分支为 `dev`，生产发布基线为 `main`）。
 
 ---
 
@@ -50,6 +50,7 @@ docs/
 | 1.3.1 版本与更新范围 | [1.3.1 发布说明](releases/release-1.3.1.md) |
 | 1.3.2 版本与更新范围 | [1.3.2 发布说明](releases/release-1.3.2.md) |
 | 1.3.3 版本与更新范围 | [1.3.3 发布说明](releases/release-1.3.3.md) |
+| 1.3.4 版本与更新范围 | [1.3.4 发布说明](releases/release-1.3.4.md) |
 | | [历史工程验收记录](releases/verification.md) | 真实环境端到端验证证据与设备适配覆盖报告 |
 
 ---
