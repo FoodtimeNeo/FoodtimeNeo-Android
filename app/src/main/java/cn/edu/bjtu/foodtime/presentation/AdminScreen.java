@@ -13,8 +13,7 @@ final class AdminScreen {
   }
   static void home(MainActivity a,LinearLayout page,MainActivity.Route route) {
     guard(a);a.heading(page,"","管理","");LinearLayout card=Ui.card(page);
-    long pending=a.repo.submissions(null).stream().filter(s -> s.status().equals("pending")).count();
-    card.addView(Ui.title(a,pending+" 条待审核",24));Ui.gap(card,16);
+    TextView pending=Ui.title(a,pendingLabel(a),24);pending.setTag("admin-pending-count");card.addView(pending);Ui.gap(card,16);
     Ui.action(card,"审核投稿",true,() -> a.go("admin-audit",""));Ui.gap(card,12);
     Ui.action(card,"社区食记审核",false,()->a.go("admin-community","posts~pending~1"));Ui.gap(card,12);
     Ui.action(card,"社区评论与回复审核",false,()->a.go("admin-community","comments~pending~1"));Ui.gap(card,12);
@@ -26,6 +25,14 @@ final class AdminScreen {
       Ui.gap(card,12);Ui.action(card,"用户管理",false,() -> a.go("admin-users",""));
     }
   }
+  static String pendingLabel(MainActivity a) {
+    List<Submission> all=a.repo.submissions(null);
+    long pending=all.stream().filter(s -> s.status().equals("pending")).count();
+    if(all.isEmpty()&&a.isPageLoading())return "正在统计待审核…";
+    if(all.isEmpty()&&a.pageFailed())return "待审核";
+    return pending+" 条待审核";
+  }
+
   static void audit(MainActivity a,LinearLayout page,MainActivity.Route route) {
     guard(a);a.heading(page,"","审核投稿","");
     List<Submission> all=a.repo.submissions(null);

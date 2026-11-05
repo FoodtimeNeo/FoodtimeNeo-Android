@@ -21,7 +21,11 @@ final class DiningScreen {
     hero(a,page);
     RecommendationSection.show(a,page);
     if (a.repo.halls().isEmpty()) {
-      Ui.empty(page, "暂无食堂", "");
+      if (a.isPageLoading()) Ui.empty(page, "正在准备食堂…", "热乎的档口马上就来。");
+      else if (a.pageFailed()) {
+        Ui.empty(page, "食堂暂时无法加载", "检查网络后重试。");
+        Ui.action(page, "重新加载", true, a::render);
+      } else Ui.empty(page, "暂无食堂", "");
       return;
     }
     CatalogList.showGallery(a,page,"想去哪家食堂？","个食堂",a.repo.halls(),Hall::name,

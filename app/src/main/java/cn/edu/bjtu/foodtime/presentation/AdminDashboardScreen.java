@@ -25,7 +25,7 @@ final class AdminDashboardScreen {
     User actor=a.repo.currentUser();
     if(actor==null||!actor.active()||!actor.role().equals("superadmin"))throw new IllegalStateException("需要平台管理员权限");
     AdminDashboard data=a.repo.adminDashboard();
-    if(data==null||data.trend().size()!=30)throw new IllegalStateException("暂无完整统计快照，请重新加载");
+    if(data==null||data.trend().size()!=30) {placeholder(a,page);return;}
     String owner=actor.id()+":"+actor.role();
     if(!owner.equals(a.drafts.getString(OWNER,""))) {
       a.drafts.putString(OWNER,owner);a.drafts.putInt(DAYS,7);a.drafts.putInt(METRIC,0);
@@ -43,6 +43,27 @@ final class AdminDashboardScreen {
     metricGrid(a,page,data);Ui.gap(page,22);
     trend(a,page,data);Ui.gap(page,22);
     activityTable(a,page,data);Ui.gap(page,28);
+  }
+
+  /** Static shell while the first statistics snapshot is still on its way. */
+  private static void placeholder(MainActivity a,LinearLayout page) {
+    page.setBackgroundColor(Design.PAPER);
+    a.heading(page,"","数据看板","");
+    boolean loading=a.isPageLoading();
+    LinearLayout meta=Ui.col(a);
+    meta.addView(Ui.text(a,loading?"正在汇总平台数据…":a.pageFailed()?"数据加载失败，请重试":"暂无完整统计快照",12,Design.MUTED));
+    Ui.gap(meta,8);
+    TextView refresh=Ui.button(a,loading?"加载中…":"刷新数据",false,()->{if(!a.isPageLoading())a.render();});
+    refresh.setTag("dashboard-refresh");refresh.setContentDescription("刷新数据");refresh.setMinHeight(Ui.dp(a,48));
+    refresh.setEnabled(!loading);meta.addView(refresh);page.addView(meta);Ui.gap(page,14);
+    LinearLayout total=card(a,Design.ALT,16);
+    total.addView(Ui.text(a,"总用户量",14,Design.INK));Ui.gap(total,6);
+    TextView totalValue=Ui.title(a,"—",38);totalValue.setTextColor(Design.RED);total.addView(totalValue);Ui.gap(total,6);
+    total.addView(Ui.text(a,"正在读取服务端统计快照",12,Design.MUTED));page.addView(total);Ui.gap(page,12);
+    LinearLayout online=card(a,Design.ALT,16);
+    online.addView(Ui.text(a,"当前在线",14,Design.INK));Ui.gap(online,6);
+    TextView onlineValue=Ui.title(a,"—",38);onlineValue.setTextColor(Design.GREEN);online.addView(onlineValue);Ui.gap(online,6);
+    online.addView(Ui.text(a,"数据就绪后自动更新，无需停留在加载页",12,Design.MUTED));page.addView(online);
   }
 
   private static LinearLayout card(MainActivity a,int color,int padding) {
