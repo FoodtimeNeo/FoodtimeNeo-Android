@@ -288,6 +288,7 @@ public final class RemoteRepository implements FoodtimeRepository {
           items.addAll(page("admin/moderation?status="+status,j -> submission(j,text(j,"type"),true)));
         items.sort(Comparator.comparingLong(Submission::createdAt).reversed()); queue=List.copyOf(items);
       }
+      case ADMIN_SUMMARY -> queue=page("admin/moderation?status=pending",j -> submission(j,text(j,"type"),true));
       case CATALOG -> {
         String[] parts=request.id().split("~",-1); fetchCatalog(parts[0],parts.length>1?parts[1]:"");
       }

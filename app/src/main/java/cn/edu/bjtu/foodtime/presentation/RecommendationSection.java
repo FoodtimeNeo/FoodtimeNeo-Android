@@ -14,12 +14,19 @@ final class RecommendationSection {
     TextView error=Ui.text(a,"",14,Design.RED);error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);section.addView(error);
     TextView retry=Ui.button(a,"重试今日推荐",false,()->{});retry.setTag("daily-recommendation-retry");section.addView(retry);retry.setVisibility(View.GONE);
     Runnable load=()->{
-      body.removeAllViews();TextView loading=Ui.text(a,"正在加载今日推荐…",14,Design.MUTED);
-      loading.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);body.addView(loading);retry.setVisibility(View.GONE);
+      body.removeAllViews();retry.setVisibility(View.GONE);
+      DailyRecommendations cached=a.repo.dailyRecommendations();
+      TextView loading=null;
+      if(cached!=null)render(a,body,cached);
+      else {
+        loading=Ui.text(a,"正在加载今日推荐…",14,Design.MUTED);
+        loading.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);body.addView(loading);
+      }
+      final TextView pending=loading;
       a.read("daily-recommendations",retry,error,
           ()->a.repo.refresh(new ContentRequest(ContentRequest.Query.DAILY_RECOMMENDATIONS,"")),
           ()->{retry.setVisibility(View.GONE);body.removeAllViews();render(a,body,a.repo.dailyRecommendations());},
-          ()->{body.removeView(loading);retry.setVisibility(View.VISIBLE);});
+          ()->{if(pending!=null)body.removeView(pending);retry.setVisibility(View.VISIBLE);});
     };
     retry.setOnClickListener(v->load.run());
     page.addView(section,new LinearLayout.LayoutParams(-1,-2));Ui.gap(page,24);load.run();

@@ -25,11 +25,13 @@ final class ProfileScreen {
     person.addView(copy,copyLp);identity.addView(person);Ui.gap(identity,16);
     LinearLayout stats=Ui.row(a);
     TextView followingCount=Ui.button(a,"关注 "+user.followingCount(),false,() -> a.go("following",""));
+    followingCount.setTag("profile-following-count");
     followingCount.setContentDescription("我的关注，"+user.followingCount()+"人");
     followingCount.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,19));
     followingCount.setTextColor(Design.INK);
     stats.addView(followingCount,new LinearLayout.LayoutParams(0,-2,1));
     TextView followerCount=Ui.button(a,"粉丝 "+user.followerCount(),false,() -> a.go("followers",""));
+    followerCount.setTag("profile-follower-count");
     followerCount.setContentDescription("关注我的，"+user.followerCount()+"人");
     followerCount.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,19));
     followerCount.setTextColor(Design.INK);
