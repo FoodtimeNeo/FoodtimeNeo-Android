@@ -13,42 +13,55 @@ import java.util.*;
 final class InboxScreen {
   static void inbox(MainActivity a, LinearLayout page, MainActivity.Route route) {
     a.heading(page, "04", "通知信箱", "公告与系统消息都在这里，点开即标为已读。");
-    long unread = a.repo.unreadCount();
-    if (unread > 0) {
-      page.addView(Ui.text(a, "还有 " + unread + " 条未读", 14, Design.RED));
-      Ui.gap(page, 12);
-    }
+    LinearLayout unreadArea = Ui.col(a);
+    page.addView(unreadArea,new LinearLayout.LayoutParams(-1,-2));
     if(a.loginNoticeFailed()) Ui.action(page,"重试登录公告",false,a::retryLoginNotice);
 
     String tabKey = a.draftKey("tab");
     String tab = a.drafts.getString(tabKey, "notice");
+    TextView[] segments = new TextView[3];
+    java.util.function.Consumer<String> select = next -> {
+      if(next.equals(a.drafts.getString(tabKey,"notice")))return;
+      a.drafts.putString(tabKey,next);
+      for(int index=0;index<segments.length;index++)
+        styleSegment(a,segments[index],List.of("notice","message","chat").get(index).equals(next));
+      a.refreshContent();
+      ContentRequest.Query query=switch(next) {
+        case "message" -> ContentRequest.Query.MESSAGES;
+        case "chat" -> ContentRequest.Query.CONVERSATIONS;
+        default -> ContentRequest.Query.NOTICES;
+      };
+      a.read("inbox-tab:"+next,null,null,()->a.repo.refresh(new ContentRequest(query,"")),
+          a::refreshContent,()->{});
+    };
     LinearLayout tabs = Ui.row(a);
     tabs.setPadding(Ui.dp(a, 4), Ui.dp(a, 4), Ui.dp(a, 4), Ui.dp(a, 4));
     tabs.setBackground(Ui.shape(a, Design.KRAFT_SOFT, 0, 24));
-    TextView noticeTab = segment(a, "公告", tab.equals("notice"), () -> {
-      a.drafts.putString(tabKey, "notice");
-      a.redraw();
-    });
-    TextView messageTab = segment(a, "系统消息", tab.equals("message"), () -> {
-      a.drafts.putString(tabKey, "message");
-      a.redraw();
-    });
+    TextView noticeTab = segment(a, "公告", tab.equals("notice"), () -> select.accept("notice"));
+    TextView messageTab = segment(a, "系统消息", tab.equals("message"), () -> select.accept("message"));
     long directUnread = a.repo.directUnreadCount();
-    TextView chatTab = segment(a, directUnread > 0 ? "私信 " + directUnread : "私信", tab.equals("chat"), () -> {
-      a.drafts.putString(tabKey, "chat");
-      a.read("inbox-chats", null, null,
-          () -> a.repo.refresh(new ContentRequest(ContentRequest.Query.CONVERSATIONS, "")),
-          a::redraw, () -> {});
-      a.redraw();
-    });
+    TextView chatTab = segment(a, directUnread > 0 ? "私信 " + directUnread : "私信", tab.equals("chat"), () -> select.accept("chat"));
+    segments[0]=noticeTab;segments[1]=messageTab;segments[2]=chatTab;
     tabs.addView(noticeTab, new LinearLayout.LayoutParams(0, -2, 1));
     tabs.addView(messageTab, new LinearLayout.LayoutParams(0, -2, 1));
     tabs.addView(chatTab, new LinearLayout.LayoutParams(0, -2, 1));
     page.addView(tabs, new LinearLayout.LayoutParams(-1, -2));
     Ui.gap(page, 12);
-    if (tab.equals("message")) messages(a, page);
-    else if (tab.equals("chat")) chats(a, page);
-    else notices(a, page);
+    LinearLayout body=Ui.col(a);
+    page.addView(body,new LinearLayout.LayoutParams(-1,-2));
+    Runnable refresh=()->{
+      unreadArea.removeAllViews();
+      long unread=a.repo.unreadCount();
+      if(unread>0){unreadArea.addView(Ui.text(a,"还有 "+unread+" 条未读",14,Design.RED));Ui.gap(unreadArea,12);}
+      long count=a.repo.directUnreadCount();chatTab.setText(count>0?"私信 "+count:"私信");
+      body.removeAllViews();
+      String selected=a.drafts.getString(tabKey,"notice");
+      if(selected.equals("message"))messages(a,body);
+      else if(selected.equals("chat"))chats(a,body);
+      else notices(a,body);
+    };
+    a.onContentRefresh(refresh);
+    refresh.run();
   }
 
   private static TextView segment(MainActivity a, String label, boolean active, Runnable run) {
@@ -60,6 +73,11 @@ final class InboxScreen {
     tab.setBackground(Ui.ripple(a, active ? Design.RED : 0x00000000, 0, 20));
     tab.setOnClickListener(v -> run.run());
     return tab;
+  }
+
+  private static void styleSegment(MainActivity a,TextView tab,boolean active) {
+    tab.setTextColor(active?Design.ON_RED:Design.INK);
+    tab.setBackground(Ui.ripple(a,active?Design.RED:0x00000000,0,20));
   }
 
   private static void notices(MainActivity a, LinearLayout page) {
@@ -91,7 +109,7 @@ final class InboxScreen {
     if (result.hasMore()) {
       TextView more = Ui.button(a, "加载更多公告", false, () -> {});
       page.addView(more);
-      more.setOnClickListener(v -> a.read("inbox-notices", v, null, () -> a.repo.loadMoreNotices(), a::redraw, () -> {}));
+      more.setOnClickListener(v -> a.read("inbox-notices", v, null, () -> a.repo.loadMoreNotices(), a::refreshContent, () -> {}));
     }
   }
 
@@ -146,7 +164,7 @@ final class InboxScreen {
     if (result.hasMore()) {
       TextView more = Ui.button(a, "加载更多私信", false, () -> {});
       page.addView(more);
-      more.setOnClickListener(v -> a.read("inbox-chats-more", v, null, () -> a.repo.loadMoreConversations(), a::redraw, () -> {}));
+      more.setOnClickListener(v -> a.read("inbox-chats-more", v, null, () -> a.repo.loadMoreConversations(), a::refreshContent, () -> {}));
     }
   }
 
@@ -157,7 +175,7 @@ final class InboxScreen {
     toolbar.addView(Ui.text(a, "共 " + result.total() + " 条", 13, Design.MUTED),
         new LinearLayout.LayoutParams(0, -2, 1));
     TextView all = Ui.button(a, "全部标为已读", false, () -> {});
-    all.setOnClickListener(v -> a.request(v, null, () -> a.repo.readAllMessages(), a::redraw));
+    all.setOnClickListener(v -> a.request(v, null, () -> a.repo.readAllMessages(), a::refreshContent));
     toolbar.addView(all, new LinearLayout.LayoutParams(-2, -2));
     page.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
     Ui.gap(page, 12);
@@ -234,7 +252,7 @@ final class InboxScreen {
     if (result.hasMore()) {
       TextView more = Ui.button(a, "加载更多消息", false, () -> {});
       page.addView(more);
-      more.setOnClickListener(v -> a.read("inbox-messages", v, null, () -> a.repo.loadMoreMessages(), a::redraw, () -> {}));
+      more.setOnClickListener(v -> a.read("inbox-messages", v, null, () -> a.repo.loadMoreMessages(), a::refreshContent, () -> {}));
     }
   }
 
@@ -287,7 +305,7 @@ final class InboxScreen {
   private static void openNotice(MainActivity a, Notice notice) {
     String body = notice.content() == null ? "" : notice.content();
     openFull(a, "系统公告", body, true);
-    a.request(null, null, () -> a.repo.markNoticeRead(notice.id()), a::redraw);
+    a.request(null, null, () -> a.repo.markNoticeRead(notice.id()), a::refreshContent);
   }
 
   private static void openMessage(MainActivity a, Message message) {
@@ -308,7 +326,7 @@ final class InboxScreen {
     }
     String body = message.body() == null ? "" : message.body();
     showDetail(a, message.title(), body);
-    if (!message.isRead()) a.request(null, null, () -> a.repo.readMessage(message.id()), a::redraw);
+    if (!message.isRead()) a.request(null, null, () -> a.repo.readMessage(message.id()), a::refreshContent);
   }
 
   /** Short bodies reuse the Ui.confirm AlertDialog pattern; long bodies get a full-screen reader. */
