@@ -84,6 +84,8 @@ public class CommunityNotificationRepositoryTest {
             .put("total",1).put("page",1).put("size",20);
       } else if(path.equals("/api/v1/users/me/messages/unread-count")) {
         data=new JSONObject().put("unreadCount",1);
+      } else if(path.equals("/api/v1/users/me/conversations/unread-count")) {
+        data=new JSONObject().put("unreadCount",0);
       } else if(path.contains("/comments/cursor?size=20")&&!path.contains("cursor=")) {
         data=page(new JSONArray(),true,"c1");
       } else if(path.contains("/comments/cursor?size=20&cursor=c1")) {

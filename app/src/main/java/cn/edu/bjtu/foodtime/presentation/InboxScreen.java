@@ -1,9 +1,11 @@
 package cn.edu.bjtu.foodtime.presentation;
 
 import android.app.Dialog;
+import android.graphics.Color;
 import android.view.Gravity;
 import android.widget.*;
 import cn.edu.bjtu.foodtime.domain.model.CommunityText;
+import cn.edu.bjtu.foodtime.domain.repository.ContentRequest;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import java.util.*;
 
@@ -31,11 +33,21 @@ final class InboxScreen {
       a.drafts.putString(tabKey, "message");
       a.redraw();
     });
+    long directUnread = a.repo.directUnreadCount();
+    TextView chatTab = segment(a, directUnread > 0 ? "私信 " + directUnread : "私信", tab.equals("chat"), () -> {
+      a.drafts.putString(tabKey, "chat");
+      a.read("inbox-chats", null, null,
+          () -> a.repo.refresh(new ContentRequest(ContentRequest.Query.CONVERSATIONS, "")),
+          a::redraw, () -> {});
+      a.redraw();
+    });
     tabs.addView(noticeTab, new LinearLayout.LayoutParams(0, -2, 1));
     tabs.addView(messageTab, new LinearLayout.LayoutParams(0, -2, 1));
+    tabs.addView(chatTab, new LinearLayout.LayoutParams(0, -2, 1));
     page.addView(tabs, new LinearLayout.LayoutParams(-1, -2));
     Ui.gap(page, 12);
     if (tab.equals("message")) messages(a, page);
+    else if (tab.equals("chat")) chats(a, page);
     else notices(a, page);
   }
 
@@ -80,6 +92,61 @@ final class InboxScreen {
       TextView more = Ui.button(a, "加载更多公告", false, () -> {});
       page.addView(more);
       more.setOnClickListener(v -> a.read("inbox-notices", v, null, () -> a.repo.loadMoreNotices(), a::redraw, () -> {}));
+    }
+  }
+
+  private static void chats(MainActivity a, LinearLayout page) {
+    ConversationPage result = a.repo.conversations();
+    if (result.items().isEmpty()) {
+      Ui.empty(page, "还没有私信", "在社区食记或关注列表找到同学，点击「私信」开始聊天。");
+      return;
+    }
+    for (Conversation conversation : result.items()) {
+      LinearLayout card = Ui.card(page);
+      card.setPadding(Ui.dp(a, 14), Ui.dp(a, 14), Ui.dp(a, 14), Ui.dp(a, 14));
+      card.setBackground(Ui.ripple(a, conversation.unreadCount() > 0 ? Design.ALT : Design.PAPER, Design.BORDER, 18));
+      LinearLayout row = Ui.row(a);
+      row.setGravity(Gravity.CENTER_VERTICAL);
+      ChatUser other = conversation.other();
+      if (!other.avatarUrl().isBlank()) {
+        android.view.View avatar = Ui.image(a, other.avatarUrl(), "头像", false);
+        avatar.setBackground(Ui.shape(a, Design.ALT, 0, 999)); avatar.setClipToOutline(true);
+        row.addView(avatar, new LinearLayout.LayoutParams(Ui.dp(a, 44), Ui.dp(a, 44)));
+      } else {
+        TextView initial = Ui.text(a, other.displayName().isBlank() ? "饭" : other.displayName().substring(0, 1), 16, Design.MUTED);
+        initial.setGravity(Gravity.CENTER);
+        initial.setBackground(Ui.shape(a, Design.ALT, 0, 999));
+        row.addView(initial, new LinearLayout.LayoutParams(Ui.dp(a, 44), Ui.dp(a, 44)));
+      }
+      LinearLayout copy = Ui.col(a);
+      LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(0, -2, 1);
+      copyLp.leftMargin = Ui.dp(a, 12);
+      row.addView(copy, copyLp);
+      TextView name = Ui.text(a, other.displayName().isBlank() ? "同学" : other.displayName(), 16, Design.INK);
+      name.setTypeface(Design.title());
+      copy.addView(name);
+      Ui.gap(copy, 4);
+      TextView preview = Ui.text(a, conversation.lastMessage().isBlank() ? "还没有消息" : conversation.lastMessage(), 13, Design.MUTED);
+      preview.setSingleLine(true);
+      preview.setEllipsize(android.text.TextUtils.TruncateAt.END);
+      copy.addView(preview);
+      if (conversation.unreadCount() > 0) {
+        TextView badge = Ui.text(a, conversation.unreadCount() > 99 ? "99+" : String.valueOf(conversation.unreadCount()), 11, Color.WHITE);
+        badge.setGravity(Gravity.CENTER);
+        badge.setBackground(Ui.shape(a, Design.RED, 0, 999));
+        LinearLayout.LayoutParams badgeLp = new LinearLayout.LayoutParams(-2, -2);
+        badgeLp.leftMargin = Ui.dp(a, 8);
+        row.addView(badge, badgeLp);
+      }
+      card.addView(row, new LinearLayout.LayoutParams(-1, -2));
+      card.setClickable(true); card.setFocusable(true);
+      card.setContentDescription(other.displayName() + " 的私信" + (conversation.unreadCount() > 0 ? "，未读" + conversation.unreadCount() : ""));
+      card.setOnClickListener(v -> a.go("direct-chat", conversation.id()));
+    }
+    if (result.hasMore()) {
+      TextView more = Ui.button(a, "加载更多私信", false, () -> {});
+      page.addView(more);
+      more.setOnClickListener(v -> a.read("inbox-chats-more", v, null, () -> a.repo.loadMoreConversations(), a::redraw, () -> {}));
     }
   }
 

@@ -138,6 +138,18 @@ final class CommunityScreen {
           () -> { a.message(!followed?"已关注作者":"已取消关注"); a.render(); }));
       LinearLayout.LayoutParams followLp=new LinearLayout.LayoutParams(-2,-2);followLp.leftMargin=Ui.dp(a,8);
       author.addView(followButton,followLp);
+      TextView chatButton=Ui.button(a,"私信",false,()->{});
+      chatButton.setContentDescription("给作者发私信");
+      chatButton.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,19));
+      chatButton.setTextColor(Design.INK);
+      chatButton.setOnClickListener(v -> {
+        final Conversation[] started={null};
+        a.read("start-chat:"+post.userId(),v,null,
+            () -> started[0]=a.repo.startConversation(post.userId()),
+            () -> {if(started[0]!=null)a.go("direct-chat",started[0].id());},() -> {});
+      });
+      LinearLayout.LayoutParams chatLp=new LinearLayout.LayoutParams(-2,-2);chatLp.leftMargin=Ui.dp(a,6);
+      author.addView(chatButton,chatLp);
     }
     page.addView(author);
     Ui.gap(page,16);

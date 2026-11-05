@@ -154,6 +154,7 @@ public class MainActivity extends Activity {
     screens.put("community-create", CommunityScreen::create);
     screens.put("community-mine", CommunityScreen::collection);
     screens.put("inbox", InboxScreen::inbox);
+    screens.put("direct-chat", ChatScreen::chat);
     screens.put("community-favorites", CommunityScreen::collection);
     screens.put("admin-community", CommunityAdminScreen::queue);
     screens.put("admin-community-detail", CommunityAdminScreen::detail);
@@ -601,6 +602,7 @@ public class MainActivity extends Activity {
       case "community-mine" -> ContentRequest.Query.MY_COMMUNITY_POSTS;
       case "community-favorites" -> ContentRequest.Query.MY_COMMUNITY_FAVORITES;
       case "inbox" -> ContentRequest.Query.NOTICES;
+      case "direct-chat" -> ContentRequest.Query.CONVERSATIONS;
       case "admin-community" -> ContentRequest.Query.COMMUNITY_MODERATION;
       case "admin-community-detail" -> ContentRequest.Query.COMMUNITY_MODERATION_DETAIL;
       case "following" -> ContentRequest.Query.FOLLOWING;
@@ -680,6 +682,7 @@ public class MainActivity extends Activity {
       case "community-mine" -> "我的食记";
       case "community-favorites" -> "我的收藏";
       case "inbox" -> "通知信箱";
+      case "direct-chat" -> "私信";
       case "admin-community" -> "社区审核";
       case "admin-community-detail" -> "审核详情";
       case "gallery" -> "菜品图册";
