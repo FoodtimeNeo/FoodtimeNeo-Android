@@ -34,6 +34,9 @@ public class MainActivity extends Activity {
   String tab = "dining";
   LinearLayout root, content, header;
   ScrollView scroll;
+  private float gestureDownX,gestureDownY;
+  private int gestureDownScrollY;
+  private boolean gestureTracking;
   final Bundle drafts = new Bundle();
   final Bundle scrollPositions = new Bundle();
   String pickingKey;
@@ -404,7 +407,22 @@ public class MainActivity extends Activity {
     }
   }
 
-  public void render() {
+  public void render() { render(false); }
+
+  /** Force the current page to refresh, used by the community pull gesture/refresh control. */
+  public void refreshCurrent() { if(!navigationLoading) render(true); }
+
+  private static final long COMMUNITY_FRESH_MS = 5 * 60 * 1000L;
+  private long communityLoadedAt;
+
+  private boolean isImmediate(Route target) {
+    return switch (target.kind()) {
+      case "admin", "profile", "dining", "community", "admin-dashboard" -> true;
+      default -> false;
+    };
+  }
+
+  private void render(boolean force) {
     if (repo.currentUser() == null) {
       showAuth(false);
       return;
@@ -415,29 +433,57 @@ public class MainActivity extends Activity {
     int ticket=++generation;
     int epoch=navigationEpoch;
     String actor=actor();
-    Route target=route();boolean catalog=LoadingScreen.catalog(target);boolean dashboard=target.kind().equals("admin-dashboard");
-    boolean retain=(catalog||dashboard&&repo.adminDashboard()!=null)&&contentReady&&displayedLocation.equals(location())&&displayedActor.equals(actor);
-    ContentRequest query=query(route());
-    navigationLoading=true;
-    if(dashboard&&retain)AdminDashboardScreen.refreshing(content,true);
-    LinearLayout body;
-    if(retain) {body=Ui.col(this);refreshBanner=body;content.addView(body,0);TextView refresh=Ui.text(this,"更新中",12,Design.MUTED);body.addView(refresh);}
-    else {
-      contentReady=false;shell(true);buildHeader();
-      body=catalog?LoadingScreen.begin(this,content,target):LoadingScreen.general(this,content,target);
-      if(catalog)navigationHandler.postDelayed(()->{if(ticket==generation&&epoch==navigationEpoch&&navigationLoading)LoadingScreen.skeleton(this,body,target.kind().equals("dishes"));},180);
+    Route target=route();
+    if(target.kind().equals("admin")&&!repo.currentUser().isAdmin()) {tab="dining";render();return;}
+    if(target.kind().equals("admin-dashboard")&&!repo.currentUser().role().equals("superadmin")) {tab="dining";render();return;}
+    ContentRequest query=query(target);
+    boolean community=target.kind().equals("community");
+    boolean freshCommunity=community&&!force&&communityLoadedAt>0
+        &&android.os.SystemClock.elapsedRealtime()-communityLoadedAt<COMMUNITY_FRESH_MS;
+    if(freshCommunity) {
+      renderContent();
+      return;
     }
-    navigationHandler.postDelayed(()->{
-      if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
-      TextView slow=Ui.text(this,"加载较慢，请稍候",12,Design.MUTED);slow.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);body.addView(slow,0);
-    },3000);
-    navigationHandler.postDelayed(()->{
-      if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
-      cancelNavigation();contentReady=retain;pageFailed=true;
-      if(retain){refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body,dashboard?"刷新失败，显示上次数据":"加载失败");}
-      else if(catalog)LoadingScreen.failure(this,body);
-      else LoadingScreen.failure(this,body);
-    },15000);
+    boolean catalog=LoadingScreen.catalog(target),dashboard=target.kind().equals("admin-dashboard");
+    boolean immediate=isImmediate(target);
+    boolean retain=(catalog||dashboard&&repo.adminDashboard()!=null)&&contentReady&&displayedLocation.equals(location())&&displayedActor.equals(actor);
+    navigationLoading=true;
+    LinearLayout[] bodyHolder={null};
+    if(immediate) {
+      // Static/cached shell paints first; live data is merged in after the read completes.
+      renderContent();
+      if(dashboard)AdminDashboardScreen.refreshing(content,true);
+      else {
+        String label=target.kind().equals("profile")?"正在更新关注与粉丝数…":target.kind().equals("admin")?"正在统计待审核…":"正在更新…";
+        navigationHandler.postDelayed(()->{
+          if(ticket==generation&&epoch==navigationEpoch&&navigationLoading)showRefreshBanner(label);
+        },150);
+      }
+      navigationHandler.postDelayed(()->{
+        if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
+        cancelNavigation();pageFailed=true;refreshPage();message("加载超时，已保留当前页面");
+      },15000);
+    } else {
+      if(dashboard&&retain)AdminDashboardScreen.refreshing(content,true);
+      if(retain) {bodyHolder[0]=Ui.col(this);refreshBanner=bodyHolder[0];content.addView(bodyHolder[0],0);TextView refresh=Ui.text(this,"更新中",12,Design.MUTED);bodyHolder[0].addView(refresh);}
+      else {
+        contentReady=false;shell(true);buildHeader();
+        bodyHolder[0]=catalog?LoadingScreen.begin(this,content,target):LoadingScreen.general(this,content,target);
+        if(catalog)navigationHandler.postDelayed(()->{if(ticket==generation&&epoch==navigationEpoch&&navigationLoading)LoadingScreen.skeleton(this,bodyHolder[0],target.kind().equals("dishes"));},180);
+      }
+      final LinearLayout slowBody=bodyHolder[0];
+      navigationHandler.postDelayed(()->{
+        if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
+        TextView slow=Ui.text(this,"加载较慢，请稍候",12,Design.MUTED);slow.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);slowBody.addView(slow,0);
+      },3000);
+      navigationHandler.postDelayed(()->{
+        if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
+        cancelNavigation();contentReady=retain;pageFailed=true;
+        if(retain){refreshBanner=slowBody;content.addView(slowBody,0);LoadingScreen.failure(this,slowBody,dashboard?"刷新失败，显示上次数据":"加载失败");}
+        else if(catalog)LoadingScreen.failure(this,slowBody);
+        else LoadingScreen.failure(this,slowBody);
+      },15000);
+    }
     navigationRead=new java.util.concurrent.FutureTask<>(() -> {
       RuntimeException error=null;try {repo.refresh(query);}catch(RuntimeException e){error=e;}
       RuntimeException failure=error;
@@ -448,9 +494,20 @@ public class MainActivity extends Activity {
         if(!actor.equals(actor())){Ui.clearImages();displayedActor="";}
         if(tab.equals("admin")&&!repo.currentUser().isAdmin()) {tab="dining";render();return;}
         if(tab.equals("dashboard")&&!repo.currentUser().role().equals("superadmin")) {tab="dining";render();return;}
-        if(failure!=null) {contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=body;content.addView(body,0);LoadingScreen.failure(this,body,dashboard?"刷新失败，显示上次数据":"加载失败");}else if(retain){content.removeAllViews();LoadingScreen.failure(this,catalog?LoadingScreen.begin(this,content,target):LoadingScreen.general(this,content,target),dashboard?failure.getMessage():"加载失败");}else LoadingScreen.failure(this,body,dashboard&&failure instanceof RepositoryException?failure.getMessage():"加载失败");return;}
-        renderContent();
-        if(catalog&&!retain&&android.animation.ValueAnimator.areAnimatorsEnabled()){content.setAlpha(.5f);content.animate().alpha(1).setDuration(150).start();}
+        if(failure!=null) {
+          if(immediate) {pageFailed=true;refreshPage();message(safeMessage(failure));return;}
+          contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=bodyHolder[0];content.addView(bodyHolder[0],0);LoadingScreen.failure(this,bodyHolder[0],dashboard?"刷新失败，显示上次数据":"加载失败");}else if(retain){content.removeAllViews();LoadingScreen.failure(this,catalog?LoadingScreen.begin(this,content,target):LoadingScreen.general(this,content,target),dashboard?failure.getMessage():"加载失败");}else LoadingScreen.failure(this,bodyHolder[0],dashboard&&failure instanceof RepositoryException?failure.getMessage():"加载失败");return;
+        }
+        if(community) communityLoadedAt=android.os.SystemClock.elapsedRealtime();
+        boolean sameActor=actor.equals(actor());
+        if(target.kind().equals("profile")&&sameActor&&updateProfileCounts()) {
+          // The profile shell is static; only the two counters need to change.
+        } else if(target.kind().equals("admin")&&sameActor&&updateAdminPendingCount()) {
+          // The admin shell is static; only the pending counter needs to change.
+        } else {
+          refreshPage();
+        }
+        if(catalog&&!retain&&!immediate&&android.animation.ValueAnimator.areAnimatorsEnabled()){content.setAlpha(.5f);content.animate().alpha(1).setDuration(150).start();}
       });
       return null;
     });
@@ -458,6 +515,61 @@ public class MainActivity extends Activity {
   }
   private void cancelNavigation(){navigationEpoch++;navigationHandler.removeCallbacksAndMessages(null);if(navigationRead!=null){navigationRead.cancel(true);navigationRead=null;}navigationLoading=false;AdminDashboardScreen.refreshing(content,false);if(refreshBanner!=null&&refreshBanner.getParent() instanceof android.view.ViewGroup parent)parent.removeView(refreshBanner);refreshBanner=null;}
   boolean isPageLoading(){return navigationLoading;}
+  boolean pageFailed(){return pageFailed;}
+
+  private void showRefreshBanner(String label) {
+    if(refreshBanner!=null)return;
+    LinearLayout banner=Ui.row(this);
+    TextView text=Ui.text(this,label,12,Design.MUTED);
+    text.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+    banner.addView(text);
+    banner.setPadding(0,0,0,Ui.dp(this,10));
+    content.addView(banner,0,new LinearLayout.LayoutParams(-1,-2));
+    refreshBanner=banner;
+  }
+
+  private boolean updateProfileCounts() {
+    android.view.View following=content.findViewWithTag("profile-following-count");
+    android.view.View followers=content.findViewWithTag("profile-follower-count");
+    var user=repo.currentUser();
+    if(user==null||!(following instanceof TextView followingText)||!(followers instanceof TextView followerText))return false;
+    followingText.setText("关注 "+user.followingCount());
+    followingText.setContentDescription("我的关注，"+user.followingCount()+"人");
+    followerText.setText("粉丝 "+user.followerCount());
+    followerText.setContentDescription("关注我的，"+user.followerCount()+"人");
+    return true;
+  }
+
+  private boolean updateAdminPendingCount() {
+    android.view.View view=content.findViewWithTag("admin-pending-count");
+    if(!(view instanceof TextView text))return false;
+    text.setText(AdminScreen.pendingLabel(this));
+    return true;
+  }
+
+  /** Pull down at the top or flick up at the bottom of the community feed to refresh. */
+  private void onScrollGesture(int action,float x,float y,int pointers) {
+    if(action==MotionEvent.ACTION_DOWN&&pointers==1) {
+      gestureDownX=x;gestureDownY=y;gestureDownScrollY=scroll==null?0:scroll.getScrollY();gestureTracking=true;
+      return;
+    }
+    if(action==MotionEvent.ACTION_CANCEL) {gestureTracking=false;return;}
+    if(action!=MotionEvent.ACTION_UP||!gestureTracking||pointers!=1)return;
+    gestureTracking=false;
+    if(!tab.equals("community")||!route().kind().equals("community")||navigationLoading)return;
+    float dx=x-gestureDownX,dy=y-gestureDownY;
+    if(Math.abs(dx)>Math.abs(dy)*1.4f)return;
+    int max=0;
+    if(scroll!=null&&scroll.getChildCount()>0)max=Math.max(0,scroll.getChildAt(0).getHeight()-scroll.getHeight());
+    int threshold=Ui.dp(this,72);
+    boolean pullDown=gestureDownScrollY<=0&&dy>threshold;
+    boolean pullUp=gestureDownScrollY>=max-2&&dy<-threshold;
+    if(pullDown||pullUp)scroll.post(()->{
+      if(!navigationLoading&&tab.equals("community")&&route().kind().equals("community")) {
+        message("正在刷新社区…");refreshCurrent();
+      }
+    });
+  }
 
   private ContentRequest query(Route route) {
     ContentRequest.Query q=switch(route.kind()) {
@@ -480,7 +592,8 @@ public class MainActivity extends Activity {
       case "review-replies","reply-create" -> ContentRequest.Query.REVIEW_REPLIES;
       case "mine-review-replies" -> ContentRequest.Query.MY_REVIEW_REPLIES;
       case "mine-submissions" -> ContentRequest.Query.MY_SUBMISSIONS;
-      case "admin","admin-audit" -> ContentRequest.Query.MODERATION;
+      case "admin" -> ContentRequest.Query.ADMIN_SUMMARY;
+      case "admin-audit" -> ContentRequest.Query.MODERATION;
       case "admin-data","admin-new" -> ContentRequest.Query.CATALOG;
       case "admin-edit" -> ContentRequest.Query.CATALOG_ITEM;
       case "admin-reviews" -> ContentRequest.Query.ADMIN_REVIEWS;
@@ -498,6 +611,19 @@ public class MainActivity extends Activity {
     shell(true);
     displayedLocation=location();
     displayedActor=actor();contentReady=true;buildHeader();
+    renderPage();
+  }
+
+  /** Rebuild only the page body after a background refresh, keeping the shell and scroll view stable. */
+  private void refreshPage() {
+    if(!displayedLocation.equals(location())) { renderContent(); return; }
+    rememberScroll();
+    content.removeAllViews();
+    displayedActor=actor();contentReady=true;
+    renderPage();
+  }
+
+  private void renderPage() {
     try {
       if (stacks.get(tab).size() > 1&&!LoadingScreen.catalog(route())) Ui.decorateSubpage(content, route().kind().hashCode());
       Screen s = screens.get(route().kind());
@@ -570,7 +696,7 @@ public class MainActivity extends Activity {
     View rule = new View(this);
     rule.setBackgroundColor(Design.BORDER);
     root.addView(rule, new LinearLayout.LayoutParams(-1, Ui.dp(this, 1)));
-    scroll = new ScrollView(this);
+    scroll = new RefreshScrollView(this, this::onScrollGesture);
     scroll.setFillViewport(true);
     content = Ui.col(this);
     content.setBackgroundColor(Design.PAPER);
@@ -851,7 +977,9 @@ public class MainActivity extends Activity {
     if(deferredCompletion!=null) {Runnable callback=deferredCompletion;deferredCompletion=null;callback.run();}
     List<Runnable> callbacks=new ArrayList<>(deferredReads);deferredReads.clear();
     for(Runnable callback:callbacks) callback.run();
-    if(resumeNavigation&&repo!=null&&repo.currentUser()!=null){resumeNavigation=false;render();}
+    if(resumeNavigation&&repo!=null&&repo.currentUser()!=null){resumeNavigation=false;render(true);}
+    else if(tab.equals("community")&&repo!=null&&repo.currentUser()!=null&&communityLoadedAt>0
+        &&android.os.SystemClock.elapsedRealtime()-communityLoadedAt>=COMMUNITY_FRESH_MS){render(true);}
     noticeUi.post(this::drainNotices);
   }
   @Override protected void onPause() { super.onPause();foreground=false;resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }

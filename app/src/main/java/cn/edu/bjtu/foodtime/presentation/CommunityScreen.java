@@ -27,11 +27,21 @@ final class CommunityScreen {
     page.addView(toolbar,new LinearLayout.LayoutParams(-1,-2));
     Ui.gap(page,18);
 
-    LinearLayout personal=Ui.row(a);personal.addView(Ui.button(a,"我的食记",false,()->a.go("community-mine","")));personal.addView(Ui.button(a,"我的收藏",false,()->a.go("community-favorites","")));page.addView(personal);Ui.gap(page,12);
+    LinearLayout personal=Ui.row(a);personal.addView(Ui.button(a,"我的食记",false,()->a.go("community-mine","")));personal.addView(Ui.button(a,"我的收藏",false,()->a.go("community-favorites","")));
+    TextView refresh=Ui.button(a,"↻ 刷新",false,()->a.refreshCurrent());
+    refresh.setContentDescription("刷新社区食记");
+    personal.addView(refresh);page.addView(personal);Ui.gap(page,8);
+    page.addView(Ui.text(a,"下拉顶部或上滑到底刷新；5分钟内返回不重复加载",12,Design.MUTED));Ui.gap(page,10);
     List<CommunityPost> posts=a.repo.communityPosts();
     if(posts.isEmpty()) {
-      Ui.empty(page,"社区还没有公开食记","发一篇真实的校园美食记录，审核通过后就会出现在这里。");
-      Ui.action(page,"写第一篇食记",true,() -> a.go("community-create",""));
+      if(a.isPageLoading()) Ui.empty(page,"正在加载校园食记…","马上就好。");
+      else if(a.pageFailed()) {
+        Ui.empty(page,"社区暂时无法加载","检查网络后重试。");
+        Ui.action(page,"重新加载",true,a::render);
+      } else {
+        Ui.empty(page,"社区还没有公开食记","发一篇真实的校园美食记录，审核通过后就会出现在这里。");
+        Ui.action(page,"写第一篇食记",true,() -> a.go("community-create",""));
+      }
       return;
     }
 
