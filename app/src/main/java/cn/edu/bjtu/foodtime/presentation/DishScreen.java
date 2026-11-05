@@ -109,7 +109,15 @@ final class DishScreen {
 
   private static FrameLayout detailPhoto(MainActivity a,Dish dish) {
     List<Photo> photos=a.repo.photos(dish.id());
-    if(!photos.isEmpty()) return (FrameLayout)Ui.image(a,photos.get(0).imageUrl(),dish.name()+"图片",true);
+    if(!photos.isEmpty()) {
+      String full=photos.get(0).imageUrl();
+      FrameLayout preview=(FrameLayout)Ui.image(a,Ui.thumb(full),dish.name()+"图片",true);
+      preview.setClickable(true);
+      preview.setFocusable(true);
+      preview.setContentDescription(dish.name()+"图片，点击查看大图");
+      preview.setOnClickListener(v->CommunityGallery.openFull(a,full));
+      return preview;
+    }
     FrameLayout art=new FrameLayout(a);art.setBackgroundColor(Design.ALT);
     art.setContentDescription("暂无菜品图片，敬请期待");
     View doodle=Ui.foodDoodle(a,5,0x99c9341e);
@@ -130,7 +138,13 @@ final class DishScreen {
     for (Photo p : photos) {
       LinearLayout c = Ui.card(page);
       c.setPadding(0, 0, 0, Ui.dp(a, 4));
-      c.addView(Ui.image(a, p.imageUrl(), "菜品图片", true));
+      String full = p.imageUrl();
+      FrameLayout preview = (FrameLayout) Ui.image(a, Ui.thumb(full), "菜品图片", true);
+      preview.setClickable(true);
+      preview.setFocusable(true);
+      preview.setContentDescription("菜品图片，点击查看大图");
+      preview.setOnClickListener(v -> CommunityGallery.openFull(a, full));
+      c.addView(preview);
     }
     Ui.action(page, "上传菜品图片", true, () -> a.go("upload-photo", d.id()));
   }
