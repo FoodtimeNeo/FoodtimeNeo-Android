@@ -414,6 +414,7 @@ public class MainActivity extends Activity {
 
   private static final long COMMUNITY_FRESH_MS = 5 * 60 * 1000L;
   private long communityLoadedAt;
+  private String communityLoadedFor="";
 
   private boolean isImmediate(Route target) {
     return switch (target.kind()) {
@@ -438,7 +439,7 @@ public class MainActivity extends Activity {
     if(target.kind().equals("admin-dashboard")&&!repo.currentUser().role().equals("superadmin")) {tab="dining";render();return;}
     ContentRequest query=query(target);
     boolean community=target.kind().equals("community");
-    boolean freshCommunity=community&&!force&&communityLoadedAt>0
+    boolean freshCommunity=community&&!force&&communityLoadedAt>0&&communityLoadedFor.equals(actor)
         &&android.os.SystemClock.elapsedRealtime()-communityLoadedAt<COMMUNITY_FRESH_MS;
     if(freshCommunity) {
       renderContent();
@@ -498,7 +499,7 @@ public class MainActivity extends Activity {
           if(immediate) {pageFailed=true;refreshPage();message(safeMessage(failure));return;}
           contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=bodyHolder[0];content.addView(bodyHolder[0],0);LoadingScreen.failure(this,bodyHolder[0],dashboard?"刷新失败，显示上次数据":"加载失败");}else if(retain){content.removeAllViews();LoadingScreen.failure(this,catalog?LoadingScreen.begin(this,content,target):LoadingScreen.general(this,content,target),dashboard?failure.getMessage():"加载失败");}else LoadingScreen.failure(this,bodyHolder[0],dashboard&&failure instanceof RepositoryException?failure.getMessage():"加载失败");return;
         }
-        if(community) communityLoadedAt=android.os.SystemClock.elapsedRealtime();
+        if(community) {communityLoadedAt=android.os.SystemClock.elapsedRealtime();communityLoadedFor=actor();}
         boolean sameActor=actor.equals(actor());
         if(target.kind().equals("profile")&&sameActor&&updateProfileCounts()) {
           // The profile shell is static; only the two counters need to change.
@@ -955,7 +956,7 @@ public class MainActivity extends Activity {
   private void clearNavigation() {
     for(var stack:stacks.values())for(Route item:stack)if(item.kind().equals("avatar-crop"))discardPhoto(item.id());
     pickingKey=null;avatarPickingActor="";
-    cancelNavigation();contentReady=false;displayedActor="";
+    cancelNavigation();contentReady=false;displayedActor="";communityLoadedAt=0;communityLoadedFor="";
     if(loginNoticeDialog!=null){loginNoticeDialog.dialog.dismiss();loginNoticeDialog=null;}
     loginNotices.reset();noticeErrorShown="";
     for(String key:drafts.keySet()) if(key.endsWith(":image")) {
