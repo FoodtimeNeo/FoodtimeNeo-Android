@@ -87,7 +87,11 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile int noticeNumber=1;
   private volatile MessagePage messagePage=MessagePage.empty();
   private volatile int messageNumber=1;
-  private volatile long noticeUnread=0,messageUnread=0;
+  private volatile ConversationPage conversationPage=ConversationPage.empty();
+  private volatile int conversationNumber=1;
+  private final Map<String,Conversation> conversationCache=new ConcurrentHashMap<>();
+  private final Map<String,DirectMessagePage> chatCache=new ConcurrentHashMap<>();
+  private volatile long noticeUnread=0,messageUnread=0,directUnread=0;
   private volatile NoticeFeed lastFeed=NoticeFeed.empty();
   private volatile boolean communityHasMore;
   private final Map<String,String> communityUploads=new ConcurrentHashMap<>();
@@ -308,8 +312,16 @@ public final class RemoteRepository implements FoodtimeRepository {
         // The inbox screen shows both tabs, so one refresh warms notices, messages and the badge.
         loadNoticePage(1); loadMessagePage(1);
         noticeUnread=call("GET","users/me/notices/unread-count",null).optLong("unreadCount"); messageUnread=getUnreadCount();
+        directUnread=getDirectUnreadCount();
       }
-      case MESSAGES -> { loadMessagePage(1); messageUnread=getUnreadCount(); }
+      case MESSAGES -> { loadMessagePage(1); messageUnread=getUnreadCount(); directUnread=getDirectUnreadCount(); }
+      case CONVERSATIONS -> {
+        if(request.id().isBlank()) { loadConversations(1); directUnread=getDirectUnreadCount(); }
+        else {
+          loadConversationDetail(request.id());
+          loadConversationMessages(request.id(),"");
+        }
+      }
       case PROFILE -> { }
     }
   }
@@ -838,7 +850,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     }
     return result;
   }
-  @Override public long unreadCount() { return noticeUnread+messageUnread; }
+  @Override public long unreadCount() { return noticeUnread+messageUnread+directUnread; }
   @Override public NoticeFeed noticeFeed(long sinceSeq,int limit) {
     NoticeFeed feed=getNoticeFeed(sinceSeq,limit); lastFeed=feed; noticeUnread=feed.unreadCount(); return feed;
   }
@@ -853,6 +865,109 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   public long getUnreadCount() {
     return call("GET","users/me/messages/unread-count",null).optLong("unreadCount");
+  }
+
+  @Override public long directUnreadCount(){return directUnread;}
+  public long getDirectUnreadCount() {
+    return call("GET","users/me/conversations/unread-count",null).optLong("unreadCount");
+  }
+  @Override public ConversationPage conversations(){return conversationPage;}
+  @Override public void loadMoreConversations(){if(conversationPage.hasMore())loadConversations(conversationNumber+1);}
+  private void loadConversations(int page){
+    JSONObject data=call("GET","users/me/conversations?page="+page+"&size=20",null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(502,"INVALID_RESPONSE","私信列表响应异常",0);
+    List<Conversation> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++)items.add(conversation(rows.optJSONObject(i)));
+    long total=data.optLong("total");
+    boolean hasMore=page*20L<total;
+    if(page<=1)conversationPage=new ConversationPage(items,total,hasMore);
+    else {
+      Map<String,Conversation> merged=new LinkedHashMap<>();
+      for(Conversation item:conversationPage.items())merged.put(item.id(),item);
+      for(Conversation item:items)merged.put(item.id(),item);
+      conversationPage=new ConversationPage(new ArrayList<>(merged.values()),total,hasMore);
+    }
+    conversationNumber=page;
+    for(Conversation item:items)conversationCache.put(item.id(),item);
+  }
+  @Override public Conversation conversation(String id){return conversationCache.get(id);}
+  private void loadConversationDetail(String id){
+    conversationCache.put(id,conversation(call("GET","users/me/conversations/"+id,null)));
+  }
+  @Override public DirectMessagePage conversationMessages(String id){
+    return chatCache.getOrDefault(id,DirectMessagePage.empty());
+  }
+  private void loadConversationMessages(String id,String cursor){
+    JSONObject data=call("GET","users/me/conversations/"+id+"/messages?size=30"+(cursor.isBlank()?"":"&cursor="+encode(cursor)),null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(502,"INVALID_RESPONSE","私信内容响应异常",0);
+    DirectMessagePage prior=conversationMessages(id);
+    Map<String,DirectMessage> merged=new LinkedHashMap<>();
+    if(cursor.isBlank())for(DirectMessage item:prior.items())merged.put(item.id(),item);
+    for(int i=0;i<rows.length();i++){
+      DirectMessage item=directMessage(rows.optJSONObject(i));
+      merged.put(item.id(),item);
+    }
+    List<DirectMessage> items=new ArrayList<>(merged.values());
+    items.sort(Comparator.comparingLong(DirectMessage::createdAt).thenComparing(DirectMessage::id));
+    String next=cursor.isBlank()&&!prior.nextCursor().isBlank()?prior.nextCursor():text(data,"nextCursor");
+    boolean more=data.optBoolean("hasMore")||(cursor.isBlank()&&prior.hasMore());
+    chatCache.put(id,new DirectMessagePage(items,more,next));
+  }
+  @Override public void loadMoreConversationMessages(String id){
+    DirectMessagePage page=conversationMessages(id);
+    if(page.hasMore()&&!page.nextCursor().isBlank())loadConversationMessages(id,page.nextCursor());
+  }
+  @Override public DirectMessage sendDirectMessage(String conversationId,String content,String clientRequestId){
+    DirectMessage message=directMessage(call("POST","users/me/conversations/"+conversationId+"/messages",
+        json("content",content,"clientRequestId",clientRequestId)));
+    DirectMessagePage prior=conversationMessages(conversationId);
+    Map<String,DirectMessage> merged=new LinkedHashMap<>();
+    for(DirectMessage item:prior.items())merged.put(item.id(),item);
+    merged.put(message.id(),message);
+    List<DirectMessage> items=new ArrayList<>(merged.values());
+    items.sort(Comparator.comparingLong(DirectMessage::createdAt).thenComparing(DirectMessage::id));
+    chatCache.put(conversationId,new DirectMessagePage(items,prior.hasMore(),prior.nextCursor()));
+    return message;
+  }
+  @Override public Conversation startConversation(String userId){
+    Conversation result=conversation(call("POST","users/me/conversations",json("userId",userId)));
+    conversationCache.put(result.id(),result);
+    return result;
+  }
+  @Override public void readConversation(String id){
+    call("POST","users/me/conversations/"+id+"/read",null);
+    Conversation prior=conversationCache.get(id);
+    if(prior!=null&&prior.unreadCount()>0){
+      directUnread=Math.max(0,directUnread-prior.unreadCount());
+      conversationCache.put(id,new Conversation(prior.id(),prior.other(),prior.lastMessage(),prior.lastSenderId(),
+          prior.lastMessageAt(),0,prior.updatedAt()));
+      List<Conversation> items=new ArrayList<>();
+      for(Conversation item:conversationPage.items())items.add(item.id().equals(id)
+          ?new Conversation(item.id(),item.other(),item.lastMessage(),item.lastSenderId(),item.lastMessageAt(),0,item.updatedAt()):item);
+      conversationPage=new ConversationPage(items,conversationPage.total(),conversationPage.hasMore());
+    }
+  }
+  @Override public void hideConversation(String id){
+    call("DELETE","users/me/conversations/"+id,null);
+    Conversation prior=conversationCache.remove(id);
+    if(prior!=null)directUnread=Math.max(0,directUnread-prior.unreadCount());
+    chatCache.remove(id);
+    List<Conversation> items=new ArrayList<>();
+    for(Conversation item:conversationPage.items())if(!item.id().equals(id))items.add(item);
+    conversationPage=new ConversationPage(items,Math.max(0,conversationPage.total()-1),conversationPage.hasMore());
+  }
+  private Conversation conversation(JSONObject j){
+    JSONObject other=j.optJSONObject("other");
+    return new Conversation(text(j,"id"),
+        new ChatUser(text(other,"id"),text(other,"displayName"),text(other,"avatarUrl")),
+        text(j,"lastMessage"),text(j,"lastSenderId"),time(j,"lastMessageAt"),
+        j.optLong("unreadCount"),time(j,"updatedAt"));
+  }
+  private DirectMessage directMessage(JSONObject j){
+    return new DirectMessage(text(j,"id"),text(j,"conversationId"),text(j,"senderId"),
+        text(j,"content"),time(j,"createdAt"));
   }
   @Override public void readMessage(String id) { call("POST","users/me/messages/"+id+"/read",null); markMessageRead(id); }
   private void markMessageRead(String id) {

@@ -228,6 +228,33 @@ public final class Models {
     public static MessagePage empty() { return new MessagePage(List.of(), 0, false); }
   }
 
+  /** 私信会话中的对方用户。 */
+  public record ChatUser(String id, String displayName, String avatarUrl) {
+    public ChatUser { displayName = displayName == null ? "" : displayName; avatarUrl = avatarUrl == null ? "" : avatarUrl; }
+  }
+
+  /** 私信会话摘要。 */
+  public record Conversation(String id, ChatUser other, String lastMessage, String lastSenderId,
+      long lastMessageAt, long unreadCount, long updatedAt) {
+    public Conversation {
+      lastMessage = lastMessage == null ? "" : lastMessage;
+      lastSenderId = lastSenderId == null ? "" : lastSenderId;
+    }
+  }
+
+  public record ConversationPage(List<Conversation> items, long total, boolean hasMore) {
+    public ConversationPage { items = List.copyOf(items); }
+    public static ConversationPage empty() { return new ConversationPage(List.of(), 0, false); }
+  }
+
+  /** 一对一私信正文。 */
+  public record DirectMessage(String id, String conversationId, String senderId, String content, long createdAt) {}
+
+  public record DirectMessagePage(List<DirectMessage> items, boolean hasMore, String nextCursor) {
+    public DirectMessagePage { items = List.copyOf(items); nextCursor = nextCursor == null ? "" : nextCursor; }
+    public static DirectMessagePage empty() { return new DirectMessagePage(List.of(), false, ""); }
+  }
+
   /** Latest state returned by a like/favorite toggle. */
   public record CommunityAction(boolean active, long count) {}
 
