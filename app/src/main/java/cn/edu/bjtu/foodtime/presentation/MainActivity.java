@@ -436,10 +436,8 @@ public class MainActivity extends Activity {
   private String communityLoadedFor="";
 
   private boolean isImmediate(Route target) {
-    return switch (target.kind()) {
-      case "admin", "profile", "dining", "community", "admin-dashboard" -> true;
-      default -> false;
-    };
+    // Catalog pages already have a dedicated skeleton; every other page paints its static shell first.
+    return !LoadingScreen.catalog(target);
   }
 
   private void render(boolean force) {
@@ -630,7 +628,7 @@ public class MainActivity extends Activity {
     shell(true);
     displayedLocation=location();
     displayedActor=actor();contentReady=true;buildHeader();
-    renderPage();
+    renderPage(true);
   }
 
   /** Rebuild only the page body after a background refresh, keeping the shell and scroll view stable. */
@@ -639,22 +637,78 @@ public class MainActivity extends Activity {
     rememberScroll();
     content.removeAllViews();
     displayedActor=actor();contentReady=true;
-    renderPage();
+    renderPage(false);
   }
 
-  private void renderPage() {
+  private void renderPage(boolean firstPaint) {
     try {
       if (stacks.get(tab).size() > 1&&!LoadingScreen.catalog(route())) Ui.decorateSubpage(content, route().kind().hashCode());
       Screen s = screens.get(route().kind());
       if (s == null) content.addView(Ui.title(this, tab.equals("profile") ? "我的" : tab.equals("dashboard") ? "数据" : tab.equals("admin") ? "管理" : tab.equals("community") ? "社区" : "食堂", 30));
       else s.show(this, content, route());
     } catch (RuntimeException e) {
-      contentReady=false;Ui.empty(content, "页面加载失败", e.getMessage() == null ? "请重试" : e.getMessage());
-      Ui.action(content, "重新加载", true, this::render);
+      if(firstPaint&&navigationLoading) {
+        staticPageShell();
+      } else {
+        contentReady=false;Ui.empty(content, "页面加载失败", e.getMessage() == null ? "请重试" : e.getMessage());
+        Ui.action(content, "重新加载", true, this::render);
+      }
     }
     int offset = scrollPositions.getInt(location(), 0);
     scroll.post(() -> scroll.scrollTo(0, offset));
     noticeUi.post(this::drainNotices);
+  }
+
+  /** Instant shell for pages whose first data read has not returned yet. */
+  private void staticPageShell() {
+    content.removeAllViews();
+    content.addView(Ui.title(this, routeTitle(route()), 30));
+    Ui.gap(content, 8);
+    content.addView(Ui.note(this, "页面已打开，内容正在后台加载。"));
+    Ui.gap(content, 24);
+    LinearLayout card=Ui.card(content);
+    card.addView(Ui.text(this, "正在读取内容…", 14, Design.MUTED));
+  }
+
+  private String routeTitle(Route route) {
+    return switch (route.kind()) {
+      case "venue-reviews" -> "点评";
+      case "venue-write" -> "写点评";
+      case "venue-mine" -> "我的点评";
+      case "community-detail" -> "社区食记";
+      case "community-create" -> "写一页美食手账";
+      case "community-mine" -> "我的食记";
+      case "community-favorites" -> "我的收藏";
+      case "inbox" -> "通知信箱";
+      case "admin-community" -> "社区审核";
+      case "admin-community-detail" -> "审核详情";
+      case "gallery" -> "菜品图册";
+      case "upload-photo" -> "上传菜品图片";
+      case "submit-dish" -> "投稿新菜品";
+      case "submit-stall" -> "投稿新档口";
+      case "mine-submissions" -> "我的提交";
+      case "following" -> "我的关注";
+      case "followers" -> "关注我的";
+      case "profile-edit" -> "编辑资料";
+      case "bind-school-email" -> "绑定学校邮箱";
+      case "avatar-crop" -> "裁剪头像";
+      case "password" -> "修改密码";
+      case "review" -> "写点评";
+      case "review-replies" -> "点评回复";
+      case "reply-create" -> "回复点评";
+      case "mine-reviews" -> "我的评论";
+      case "mine-review-replies" -> "我的回复";
+      case "detail" -> "菜品详情";
+      case "admin-audit" -> "审核投稿";
+      case "admin-data" -> "目录管理";
+      case "admin-edit" -> "编辑目录";
+      case "admin-new" -> "新增目录";
+      case "admin-reviews" -> "评论管理";
+      case "admin-users" -> "用户管理";
+      case "admin-logs" -> "审核日志";
+      case "admin-notices" -> "公告管理";
+      default -> "正在加载";
+    };
   }
   private void buildHeader() {
     LinearLayout bar = Ui.row(this);

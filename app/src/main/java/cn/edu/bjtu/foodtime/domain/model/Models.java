@@ -214,7 +214,13 @@ public final class Models {
 
   /** Personal inbox message. */
   public record Message(String id, String title, String body, String category,
-      String refType, String refId, boolean isRead, long createdAt) {}
+      String refType, String refId, String refCommentId, String refRootCommentId,
+      int actorCount, boolean isRead, long createdAt) {
+    public Message(String id, String title, String body, String category,
+        String refType, String refId, boolean isRead, long createdAt) {
+      this(id, title, body, category, refType, refId, "", "", 0, isRead, createdAt);
+    }
+  }
 
   /** Paged inbox messages, newest first. */
   public record MessagePage(List<Message> items, long total, boolean hasMore) {

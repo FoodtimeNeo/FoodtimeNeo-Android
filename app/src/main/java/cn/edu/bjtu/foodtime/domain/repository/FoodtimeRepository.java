@@ -42,6 +42,8 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default CommunityCommentPage communityReplies(String rootId){return CommunityCommentPage.empty();}
   default void loadMoreCommunityComments(String postId){throw new UnsupportedOperationException();}
   default void loadCommunityReplies(String postId,String rootId,boolean more){throw new UnsupportedOperationException();}
+  /** 深链定位：按需加载评论所在楼层与回复，找到目标后返回 true。 */
+  default boolean ensureCommunityCommentVisible(String postId,String rootId,String commentId){return false;}
   default String submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){throw new UnsupportedOperationException();}
   /** 提交后轮询审核结果；返回 null 表示评论已不可见。 */
   default String communityCommentStatus(String commentId) { return null; }

@@ -30,8 +30,7 @@ final class CommunityScreen {
     LinearLayout personal=Ui.row(a);personal.addView(Ui.button(a,"我的食记",false,()->a.go("community-mine","")));personal.addView(Ui.button(a,"我的收藏",false,()->a.go("community-favorites","")));
     TextView refresh=Ui.button(a,"↻ 刷新",false,()->a.refreshCurrent());
     refresh.setContentDescription("刷新社区食记");
-    personal.addView(refresh);page.addView(personal);Ui.gap(page,8);
-    page.addView(Ui.text(a,"下拉顶部或上滑到底刷新；5分钟内返回不重复加载",12,Design.MUTED));Ui.gap(page,10);
+    personal.addView(refresh);page.addView(personal);Ui.gap(page,12);
     List<CommunityPost> posts=a.repo.communityPosts();
     if(posts.isEmpty()) {
       if(a.isPageLoading()) Ui.empty(page,"正在加载校园食记…","马上就好。");
@@ -230,6 +229,37 @@ final class CommunityScreen {
       // 审核完成后自动刷新一次，不用再手动进入帖子。
       if(created[0]!=null)watchApproval(a,post.id(),rootId,created[0],0);
     });
+
+    String focusPrefix="community-detail:"+post.id()+":";
+    String focus=a.drafts.getString(focusPrefix+"focusComment","");
+    if(!focus.isBlank()) {
+      String focusRoot=a.drafts.getString(focusPrefix+"focusRoot","");
+      android.view.View target=a.content.findViewWithTag("community-comment:"+focus);
+      if(target!=null) {
+        clearFocusDrafts(a,focusPrefix);
+        a.scroll.post(()->highlightComment(a,target));
+      } else if(!focusRoot.isBlank()&&!a.drafts.getBoolean(focusPrefix+"focusTried",false)) {
+        a.drafts.putBoolean(focusPrefix+"focusTried",true);
+        a.read("community-focus:"+post.id()+":"+focus,null,null,
+            () -> a.repo.ensureCommunityCommentVisible(post.id(),focusRoot,focus),
+            a::redraw,() -> {});
+      } else {
+        clearFocusDrafts(a,focusPrefix);
+      }
+    }
+  }
+
+  private static void clearFocusDrafts(MainActivity a,String prefix) {
+    a.drafts.remove(prefix+"focusComment");a.drafts.remove(prefix+"focusRoot");a.drafts.remove(prefix+"focusTried");
+  }
+
+  private static void highlightComment(MainActivity a,android.view.View target) {
+    target.setBackground(Ui.shape(a,Design.ALT,Design.RED,12));
+    int[] targetPos=new int[2],scrollPos=new int[2];
+    target.getLocationOnScreen(targetPos);a.scroll.getLocationOnScreen(scrollPos);
+    int y=a.scroll.getScrollY()+targetPos[1]-scrollPos[1]-Ui.dp(a,80);
+    a.scroll.smoothScrollTo(0,Math.max(0,y));
+    a.getWindow().getDecorView().postDelayed(()->target.setBackground(null),2600);
   }
 
   /** 提交后短轮询：仍待审则 2 秒后再查，通过/驳回后刷新一次列表。最多约 24 秒。 */
@@ -251,7 +281,7 @@ final class CommunityScreen {
   }
 
   private static void comment(MainActivity a,LinearLayout page,CommunityComment item,CommunityComment root){
-    LinearLayout line=Ui.row(a);line.setGravity(Gravity.TOP);LinearLayout avatar=Ui.col(a);
+    LinearLayout line=Ui.row(a);line.setGravity(Gravity.TOP);line.setTag("community-comment:"+item.id());LinearLayout avatar=Ui.col(a);
     if(!item.userAvatarUrl().isBlank()&&!item.deleted())avatar.addView(Ui.image(a,item.userAvatarUrl(),"头像",false),new LinearLayout.LayoutParams(Ui.dp(a,32),Ui.dp(a,32)));
     else{TextView initial=Ui.text(a,item.deleted()?"·":item.userDisplayName().isBlank()?"同":item.userDisplayName().substring(0,1),13,Design.MUTED);initial.setGravity(Gravity.CENTER);initial.setBackground(Ui.shape(a,Design.ALT,0,16));avatar.addView(initial,new LinearLayout.LayoutParams(Ui.dp(a,32),Ui.dp(a,32)));}
     LinearLayout.LayoutParams avatarLp=new LinearLayout.LayoutParams(Ui.dp(a,32),-2);avatarLp.rightMargin=Ui.dp(a,10);line.addView(avatar,avatarLp);

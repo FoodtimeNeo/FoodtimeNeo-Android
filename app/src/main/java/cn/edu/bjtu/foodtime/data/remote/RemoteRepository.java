@@ -610,6 +610,24 @@ public final class RemoteRepository implements FoodtimeRepository {
     var prior=communityReplies(rootId);if(more&&!prior.hasMore())return;
     communityReplies.put(rootId,commentPage("community/posts/"+postId+"/comments/"+rootId+"/replies?size="+(more?20:3)+(more?"&cursor="+prior.nextCursor():""),more?prior:null));
   }
+  @Override public boolean ensureCommunityCommentVisible(String postId,String rootId,String commentId){
+    if(rootId==null||rootId.isBlank())return false;
+    if(communityRoots(postId).items().isEmpty())loadCommunityRoots(postId,false);
+    int guard=0;
+    while(!containsComment(communityRoots(postId).items(),rootId)&&communityRoots(postId).hasMore()&&guard++<10)
+      loadCommunityRoots(postId,true);
+    if(!containsComment(communityRoots(postId).items(),rootId))return false;
+    if(rootId.equals(commentId))return true;
+    if(communityReplies(rootId).items().isEmpty())loadCommunityReplies(postId,rootId,false);
+    guard=0;
+    while(!containsComment(communityReplies(rootId).items(),commentId)&&communityReplies(rootId).hasMore()&&guard++<20)
+      loadCommunityReplies(postId,rootId,true);
+    return containsComment(communityReplies(rootId).items(),commentId);
+  }
+  private static boolean containsComment(List<CommunityComment> items,String id){
+    for(CommunityComment item:items)if(item.id().equals(id))return true;
+    return false;
+  }
   @Override public String submitCommunityComment(String postId,String content){return submitCommunityComment(postId,content,"","",UUID.randomUUID().toString());}
   @Override public String submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){
     String body=Validation.text(content,500,"评论");
@@ -851,7 +869,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private static Message withRead(Message item) {
     return item.isRead()?item:new Message(item.id(),item.title(),item.body(),item.category(),
-        item.refType(),item.refId(),true,item.createdAt());
+        item.refType(),item.refId(),item.refCommentId(),item.refRootCommentId(),item.actorCount(),true,item.createdAt());
   }
   @Override public void readAllMessages() {
     call("POST","users/me/messages/read-all",null);
@@ -879,7 +897,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private Message message(JSONObject j) {
     return new Message(text(j,"id"),text(j,"title"),text(j,"body"),text(j,"category"),
-        text(j,"refType"),text(j,"refId"),j.optBoolean("isRead"),time(j,"createdAt"));
+        text(j,"refType"),text(j,"refId"),text(j,"refCommentId"),text(j,"refRootCommentId"),
+        j.optInt("actorCount"),j.optBoolean("isRead"),time(j,"createdAt"));
   }
   @Override public void deleteReview(String id) { call("DELETE","users/me/reviews/"+id,null); }
   @Override public void moderate(String id,String action,String reason) { moderate(id,action,reason,null); }
