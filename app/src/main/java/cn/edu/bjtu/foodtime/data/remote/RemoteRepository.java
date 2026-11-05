@@ -851,7 +851,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private static Message withRead(Message item) {
     return item.isRead()?item:new Message(item.id(),item.title(),item.body(),item.category(),
-        item.refType(),item.refId(),true,item.createdAt());
+        item.refType(),item.refId(),item.refCommentId(),item.actorCount(),true,item.createdAt());
   }
   @Override public void readAllMessages() {
     call("POST","users/me/messages/read-all",null);
@@ -879,7 +879,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private Message message(JSONObject j) {
     return new Message(text(j,"id"),text(j,"title"),text(j,"body"),text(j,"category"),
-        text(j,"refType"),text(j,"refId"),j.optBoolean("isRead"),time(j,"createdAt"));
+        text(j,"refType"),text(j,"refId"),text(j,"refCommentId"),j.optInt("actorCount"),
+        j.optBoolean("isRead"),time(j,"createdAt"));
   }
   @Override public void deleteReview(String id) { call("DELETE","users/me/reviews/"+id,null); }
   @Override public void moderate(String id,String action,String reason) { moderate(id,action,reason,null); }

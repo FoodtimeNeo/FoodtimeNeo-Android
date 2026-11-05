@@ -95,32 +95,73 @@ final class InboxScreen {
     page.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
     Ui.gap(page, 12);
     if (result.items().isEmpty()) {
-      Ui.empty(page, "暂无系统消息", "审核结果、互动提醒等个人消息会出现在这里。");
+      if (a.isPageLoading()) Ui.empty(page, "正在读取系统消息…", "互动提醒马上就来。");
+      else Ui.empty(page, "暂无系统消息", "审核结果、点赞与评论提醒会出现在这里。");
       return;
     }
     for (Message message : result.items()) {
       LinearLayout card = Ui.card(page);
+      card.setPadding(0, 0, 0, 0);
+      card.setBackground(Ui.ripple(a, message.isRead() ? Design.PAPER : Design.ALT, Design.BORDER, 18));
+      LinearLayout row = Ui.row(a);
+      row.setGravity(Gravity.TOP);
+      row.setPadding(Ui.dp(a, 14), Ui.dp(a, 14), Ui.dp(a, 14), Ui.dp(a, 14));
+      card.addView(row, new LinearLayout.LayoutParams(-1, -2));
+
+      TextView icon = Ui.text(a, iconFor(message), 21, colorFor(message));
+      icon.setGravity(Gravity.CENTER);
+      icon.setBackground(Ui.shape(a, iconBackground(message), 0, 999));
+      row.addView(icon, new LinearLayout.LayoutParams(Ui.dp(a, 42), Ui.dp(a, 42)));
+
+      LinearLayout copy = Ui.col(a);
+      LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(0, -2, 1);
+      copyLp.leftMargin = Ui.dp(a, 12);
+      row.addView(copy, copyLp);
+
       LinearLayout headline = Ui.row(a);
-      if (!message.isRead()) {
-        TextView dot = Ui.text(a, "● ", 13, Design.RED);
-        headline.addView(dot);
-      }
+      headline.setGravity(Gravity.CENTER_VERTICAL);
       TextView title = Ui.text(a, message.title(), 16, message.isRead() ? Design.MUTED : Design.INK);
       title.setTypeface(Design.title());
       headline.addView(title, new LinearLayout.LayoutParams(0, -2, 1));
-      card.addView(headline);
-      Ui.gap(card, 6);
+      if (!message.isRead()) headline.addView(Ui.text(a, "●", 11, Design.RED));
+      copy.addView(headline);
+      Ui.gap(copy, 5);
+
       String body = message.body() == null ? "" : message.body();
       if (!body.isBlank()) {
-        String snippet = body.length() > 80 ? body.substring(0, 80) + "…" : body;
-        card.addView(Ui.text(a, snippet, 14, Design.MUTED));
-        Ui.gap(card, 6);
+        TextView preview = Ui.text(a, body, 14, Design.INK);
+        preview.setMaxLines(3);
+        preview.setEllipsize(android.text.TextUtils.TruncateAt.END);
+        copy.addView(preview);
+        Ui.gap(copy, 7);
       }
-      String category = message.category() == null || message.category().isBlank() ? "系统消息" : message.category();
-      card.addView(Ui.text(a, category + " · " + CommunityText.publishedAt(message.createdAt()), 12, Design.MUTED));
+
+      LinearLayout meta = Ui.row(a);
+      meta.setGravity(Gravity.CENTER_VERTICAL);
+      meta.addView(Ui.text(a, categoryLabel(message), 11, Design.MUTED),
+          new LinearLayout.LayoutParams(0, -2, 1));
+      if (message.actorCount() > 1) {
+        TextView count = Ui.text(a, message.actorCount() + "人", 11, Design.RED);
+        LinearLayout.LayoutParams countLp = new LinearLayout.LayoutParams(-2, -2);
+        countLp.rightMargin = Ui.dp(a, 8);
+        meta.addView(count, countLp);
+      }
+      meta.addView(Ui.text(a, CommunityText.publishedAt(message.createdAt()), 11, Design.MUTED));
+      copy.addView(meta);
+
+      if (isCommunityMessage(message)) {
+        Ui.gap(copy, 8);
+        TextView open = Ui.button(a, "查看原帖", false, () -> openMessage(a, message));
+        open.setTextSize(13);
+        open.setMinHeight(Ui.dp(a, 36));
+        open.setBackground(Ui.ripple(a, Design.PAPER, Design.RED, 16));
+        open.setTextColor(Design.RED);
+        copy.addView(open, new LinearLayout.LayoutParams(-2, -2));
+      }
+
       card.setClickable(true);
       card.setFocusable(true);
-      card.setContentDescription(message.title() + (message.isRead() ? "" : "，未读") + "，查看全文");
+      card.setContentDescription(message.title() + (message.isRead() ? "" : "，未读") + "，查看消息");
       card.setOnClickListener(v -> openMessage(a, message));
     }
     if (result.hasMore()) {
@@ -130,6 +171,52 @@ final class InboxScreen {
     }
   }
 
+  private static String iconFor(Message message) {
+    return switch (message.category() == null ? "" : message.category()) {
+      case "LIKE_POST", "LIKE_COMMENT" -> "♥";
+      case "COMMENT_POST" -> "💬";
+      case "REPLY_COMMENT" -> "↩";
+      default -> "🔔";
+    };
+  }
+
+  private static int colorFor(Message message) {
+    return switch (message.category() == null ? "" : message.category()) {
+      case "LIKE_POST", "LIKE_COMMENT" -> Design.RED;
+      case "COMMENT_POST" -> Design.BLUE;
+      case "REPLY_COMMENT" -> Design.GREEN;
+      default -> Design.GOLD;
+    };
+  }
+
+  private static int iconBackground(Message message) {
+    return switch (message.category() == null ? "" : message.category()) {
+      case "LIKE_POST", "LIKE_COMMENT" -> Design.RED_SOFT;
+      case "COMMENT_POST" -> 0x1f3f7291;
+      case "REPLY_COMMENT" -> 0x1f5b7a3a;
+      default -> 0x1fb88924;
+    };
+  }
+
+  private static String categoryLabel(Message message) {
+    return switch (message.category() == null ? "" : message.category()) {
+      case "LIKE_POST" -> "食记点赞";
+      case "LIKE_COMMENT" -> "评论点赞";
+      case "COMMENT_POST" -> "食记评论";
+      case "REPLY_COMMENT" -> "评论回复";
+      default -> message.category() == null || message.category().isBlank() ? "系统消息" : message.category();
+    };
+  }
+
+  private static boolean isCommunityMessage(Message message) {
+    if (message.refId() == null || message.refId().isBlank()) return false;
+    if (!"community-post".equals(message.refType())) return false;
+    return switch (message.category() == null ? "" : message.category()) {
+      case "LIKE_POST", "LIKE_COMMENT", "COMMENT_POST", "REPLY_COMMENT" -> true;
+      default -> false;
+    };
+  }
+
   private static void openNotice(MainActivity a, Notice notice) {
     String body = notice.content() == null ? "" : notice.content();
     openFull(a, "系统公告", body, true);
@@ -137,6 +224,17 @@ final class InboxScreen {
   }
 
   private static void openMessage(MainActivity a, Message message) {
+    if (isCommunityMessage(message)) {
+      if (!message.isRead()) {
+        a.read("message-read:" + message.id(), null, null,
+            () -> a.repo.readMessage(message.id()), () -> {}, () -> {});
+      }
+      if (message.refCommentId() != null && !message.refCommentId().isBlank()) {
+        a.drafts.putString("community-detail:" + message.refId() + ":focusComment", message.refCommentId());
+      }
+      a.go("community-detail", message.refId());
+      return;
+    }
     String body = message.body() == null ? "" : message.body();
     showDetail(a, message.title(), body);
     if (!message.isRead()) a.request(null, null, () -> a.repo.readMessage(message.id()), a::redraw);
