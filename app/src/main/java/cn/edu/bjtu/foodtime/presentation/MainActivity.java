@@ -57,6 +57,7 @@ public class MainActivity extends Activity {
   private String displayedLocation="";
   private Runnable contentRefresh;
   private LinearLayout chatBar;
+  private String chatOriginTab;
   private Toast currentToast;
   private static final OperationStore OPERATIONS=new OperationStore();
   private long pendingOperation;
@@ -349,6 +350,7 @@ public class MainActivity extends Activity {
   public void go(String kind, String id) {
     if(writeInFlight) {message("正在提交，请稍候");return;}
     rememberScroll();
+    if(kind.equals("direct-chat")) chatOriginTab=tab;
     stacks.get(tab).add(new Route(kind, id));
     render();
   }
