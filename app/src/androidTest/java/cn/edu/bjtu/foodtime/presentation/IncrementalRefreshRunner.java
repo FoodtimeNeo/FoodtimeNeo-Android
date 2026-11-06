@@ -99,7 +99,9 @@ public final class IncrementalRefreshRunner extends Instrumentation {
         check(composer()==input,"Navigation refresh preserves the input View");
         check(input.getText().toString().equals("保留草稿"),"Navigation refresh preserves its draft");
         check(input.hasFocus()&&input.getSelectionStart()==2,"Background refresh preserves focus and cursor position");
-        check(text("第二条新消息")!=null,"Only the message region receives updated data");
+        View updated=text("第二条新消息");
+        check(updated!=null,"Only the message region receives updated data");
+        check(updated.getWidth()>0&&updated.getHeight()>0,"Message bubble must render visible text");
       });
       View refresh=find(activity.root,view->"刷新私信".contentEquals(view.getContentDescription()==null?"":view.getContentDescription()));
       main(refresh::performClick);await(refresh::isEnabled);

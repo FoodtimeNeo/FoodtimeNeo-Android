@@ -125,11 +125,13 @@ final class ChatScreen {
     bubble.setBackground(Ui.shape(a, mine ? Design.RED_SOFT : Design.PAPER, mine ? Design.RED : Design.BORDER, 14));
     TextView text = Ui.text(a, message.content(), 15, Design.INK);
     text.setMaxWidth(Ui.dp(a, 280));
-    bubble.addView(text);
+    // 垂直 LinearLayout 默认给子 View MATCH_PARENT；在 wrap_content 气泡里会测得 0 宽，
+    // 表现为只有内边距的窄空框，因此显式使用 WRAP_CONTENT。
+    bubble.addView(text, new LinearLayout.LayoutParams(-2, -2));
     Ui.gap(bubble, 3);
     TextView time = Ui.text(a, CommunityText.publishedAt(message.createdAt()), 10, Design.MUTED);
     time.setGravity(mine ? Gravity.END : Gravity.START);
-    bubble.addView(time);
+    bubble.addView(time, new LinearLayout.LayoutParams(-2, -2));
     line.addView(bubble, new LinearLayout.LayoutParams(-2, -2));
     list.addView(line, new LinearLayout.LayoutParams(-1, -2));
     Ui.gap(list, 7);
