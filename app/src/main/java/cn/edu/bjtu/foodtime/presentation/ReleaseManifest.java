@@ -51,7 +51,7 @@ final class ReleaseManifest {
 
   static ReleaseManifest fetch(String apkUrl, int expectedVersionCode) {
     String address = manifestUrl(apkUrl);
-    if (address == null) return null;
+    if (address == null || !webUrl(address)) return null;
     HttpURLConnection connection = null;
     try {
       connection = (HttpURLConnection) new URL(address).openConnection();
@@ -103,6 +103,15 @@ final class ReleaseManifest {
           java.util.Collections.unmodifiableList(new ArrayList<>(patches)));
     } catch (Exception malformed) {
       return null;
+    }
+  }
+
+  private static boolean webUrl(String url) {
+    try {
+      String scheme = new URL(url).getProtocol();
+      return "https".equalsIgnoreCase(scheme) || "http".equalsIgnoreCase(scheme);
+    } catch (IOException invalid) {
+      return false;
     }
   }
 

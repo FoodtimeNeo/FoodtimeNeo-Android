@@ -68,6 +68,7 @@ final class UpdateDownloader {
 
   private void run(AppRelease release, Listener listener) throws IOException {
     try {
+      requireWebUrl(release.apkUrl());
       File directory = new File(context.getCacheDir(), "updates");
       if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("无法创建更新目录");
       File target = new File(directory, "foodtime-" + release.versionCode() + ".apk");
@@ -208,6 +209,17 @@ final class UpdateDownloader {
 
   private void post(Runnable action) {
     main.post(() -> { if (!cancelled) action.run(); });
+  }
+
+  private static void requireWebUrl(String address) throws IOException {
+    try {
+      String scheme = new java.net.URL(address).getProtocol();
+      if (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) {
+        throw new IOException("更新地址不安全");
+      }
+    } catch (java.net.MalformedURLException invalid) {
+      throw new IOException("更新地址无效");
+    }
   }
 
   private static void checkCancelled() throws IOException {
