@@ -12,6 +12,7 @@ import cn.edu.bjtu.foodtime.domain.repository.RepositoryProvider;
 import cn.edu.bjtu.foodtime.domain.repository.ContentRequest;
 import cn.edu.bjtu.foodtime.domain.repository.RepositoryException;
 import cn.edu.bjtu.foodtime.domain.model.Models.AppRelease;
+import cn.edu.bjtu.foodtime.domain.model.Models.Conversation;
 import cn.edu.bjtu.foodtime.domain.model.Models.Notice;
 import java.util.*;
 import java.util.concurrent.Executor;
@@ -55,6 +56,7 @@ public class MainActivity extends Activity {
   private boolean writeInFlight;
   private String displayedLocation="";
   private Runnable contentRefresh;
+  private LinearLayout chatBar;
   private Toast currentToast;
   private static final OperationStore OPERATIONS=new OperationStore();
   private long pendingOperation;
@@ -648,6 +650,7 @@ public class MainActivity extends Activity {
   /** Rebuild only the page body after a background refresh, keeping the shell and scroll view stable. */
   private void refreshPage() {
     if(!displayedLocation.equals(location())) { renderContent(); return; }
+    if(isChatRoute()) buildHeader();
     if(displayedActor.equals(actor())&&contentRefresh!=null) {
       contentRefresh.run();
       noticeUi.post(this::drainNotices);
@@ -663,6 +666,15 @@ public class MainActivity extends Activity {
   /** A screen can own its changing region while keeping its controls and input views mounted. */
   void onContentRefresh(Runnable refresh) { contentRefresh=refresh; }
   void refreshContent() { refreshPage(); }
+  private boolean isChatRoute() {
+    return route()!=null&&"direct-chat".equals(route().kind())&&repo!=null&&repo.currentUser()!=null;
+  }
+  /** 聊天输入条固定在底部；每次内容重建时由 ChatScreen 填充。 */
+  void setChatComposer(LinearLayout composer) {
+    if(chatBar==null)return;
+    chatBar.removeAllViews();
+    chatBar.addView(composer,new LinearLayout.LayoutParams(-1,-2));
+  }
 
   private void renderPage(boolean firstPaint) {
     try {
@@ -736,6 +748,11 @@ public class MainActivity extends Activity {
     };
   }
   private void buildHeader() {
+    header.removeAllViews();
+    if (isChatRoute()) {
+      buildChatHeader();
+      return;
+    }
     LinearLayout bar = Ui.row(this);
     header.addView(bar, new LinearLayout.LayoutParams(-1, -2));
     TextView back = Ui.button(this, "←", false, this::back);
@@ -752,12 +769,34 @@ public class MainActivity extends Activity {
     bar.addView(home, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
   }
 
+  private void buildChatHeader() {
+    LinearLayout bar=Ui.row(this);
+    bar.setGravity(Gravity.CENTER_VERTICAL);
+    header.addView(bar,new LinearLayout.LayoutParams(-1,-2));
+    TextView back=Ui.button(this,"←",false,this::back);
+    back.setContentDescription("返回上一级");
+    bar.addView(back,new LinearLayout.LayoutParams(Ui.dp(this,48),Ui.dp(this,48)));
+    Conversation conversation=repo.conversation(route().id());
+    String name=conversation==null?"私信":conversation.other().displayName();
+    TextView title=Ui.title(this,name.isBlank()?"同学":name,20);
+    title.setSingleLine(true);title.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    title.setGravity(Gravity.CENTER);
+    bar.addView(title,new LinearLayout.LayoutParams(0,Ui.dp(this,48),1));
+    TextView refresh=Ui.button(this,"↻",false,()->{});
+    refresh.setContentDescription("刷新私信");
+    refresh.setOnClickListener(v->read("chat-header-refresh:"+route().id(),v,null,
+        ()->repo.refresh(new ContentRequest(ContentRequest.Query.CONVERSATIONS,route().id())),
+        this::refreshContent,()->{}));
+    bar.addView(refresh,new LinearLayout.LayoutParams(Ui.dp(this,48),Ui.dp(this,48)));
+  }
+
   void pinNoticeActions(LinearLayout actions) {
     actions.setPadding(Ui.dp(this,14),Ui.dp(this,8),Ui.dp(this,14),Ui.dp(this,8));
     actions.setBackgroundColor(Design.PAPER);
     root.addView(actions,Math.max(0,root.getChildCount()-1),new LinearLayout.LayoutParams(-1,-2));
   }
   private void shell(boolean navigation) {
+    boolean chat=isChatRoute();
     root = Ui.col(this);
     root.setBackgroundColor(Design.BAR);
     root.setOnApplyWindowInsetsListener(
@@ -798,10 +837,16 @@ public class MainActivity extends Activity {
     scroll.setFillViewport(true);
     content = Ui.col(this);
     content.setBackgroundColor(Design.PAPER);
-    content.setPadding(Ui.dp(this, 14), Ui.dp(this, 24), Ui.dp(this, 14), Ui.dp(this, 24));
+    if (chat) content.setPadding(0, 0, 0, 0);
+    else content.setPadding(Ui.dp(this, 14), Ui.dp(this, 24), Ui.dp(this, 14), Ui.dp(this, 24));
     scroll.addView(content);
     root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-    if (navigation) {
+    if (chat) {
+      chatBar = Ui.col(this);
+      chatBar.setBackgroundColor(Design.PAPER);
+      root.addView(chatBar, new LinearLayout.LayoutParams(-1, -2));
+    } else chatBar = null;
+    if (navigation && !chat) {
       LinearLayout nav = Ui.row(this);
       nav.setBackground(Ui.shape(this, Design.PAPER, Design.BORDER, 0));
       addTab(nav, "食堂", "dining");

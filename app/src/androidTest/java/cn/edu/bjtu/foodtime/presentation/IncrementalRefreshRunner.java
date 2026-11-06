@@ -47,7 +47,8 @@ public final class IncrementalRefreshRunner extends Instrumentation {
   }
   private EditText composer() {
     return (EditText)find(activity.root,view->view instanceof EditText edit
-        &&edit.getHint()!=null&&edit.getHint().toString().contains("私信内容"));
+        &&(edit.getHint()!=null&&edit.getHint().toString().contains("说点什么")
+        ||"私信内容".contentEquals(edit.getContentDescription()==null?"":edit.getContentDescription())));
   }
   private View text(String value) {
     return find(activity.root,view->view instanceof TextView label&&label.getText().toString().equals(value));
