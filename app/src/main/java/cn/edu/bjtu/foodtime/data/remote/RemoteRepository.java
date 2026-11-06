@@ -87,7 +87,11 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile int noticeNumber=1;
   private volatile MessagePage messagePage=MessagePage.empty();
   private volatile int messageNumber=1;
-  private volatile long noticeUnread=0,messageUnread=0;
+  private volatile ConversationPage conversationPage=ConversationPage.empty();
+  private volatile int conversationNumber=1;
+  private final Map<String,Conversation> conversationCache=new ConcurrentHashMap<>();
+  private final Map<String,DirectMessagePage> chatCache=new ConcurrentHashMap<>();
+  private volatile long noticeUnread=0,messageUnread=0,directUnread=0;
   private volatile NoticeFeed lastFeed=NoticeFeed.empty();
   private volatile boolean communityHasMore;
   private final Map<String,String> communityUploads=new ConcurrentHashMap<>();
@@ -230,9 +234,13 @@ public final class RemoteRepository implements FoodtimeRepository {
       case VENUE_REVIEWS -> {String[] p=request.id().split("~",-1);venues.load(p[0],p[1],p.length>2&&!p[2].isBlank()?p[2]:"all",false);}
       case VENUE_PERSONAL -> {String[] p=request.id().split("~",-1);venues.loadPersonal(p.length>0?p[0]:"",p.length>1&&p[1].equals("replies"),p.length>2?Integer.parseInt(p[2]):1);}
       case HALLS -> fetchHalls();
+      case HALL_TARGET -> { if(!halls.containsKey(request.id()))fetchHalls(); }
       case STALLS -> { fetchHalls(); fetchStalls(request.id()); }
+      case STALL_TARGET -> ensureStall(request.id());
       case DISHES -> { ensureStall(request.id()); fetchDishes(request.id()); }
       case DISH_DETAIL -> fetchDetail(request.id());
+      case DISH_TARGET -> fetchDishTarget(request.id());
+      case DISH_IMAGES -> { fetchDishTarget(request.id()); fetchDishImages(request.id()); }
       case COMMUNITY_FEED -> {
         if(communityPrototype==null) loadCommunityFeed(false);
         else syncPrototypeFeed();
@@ -305,11 +313,18 @@ public final class RemoteRepository implements FoodtimeRepository {
         NoticeFeed polled=getNoticeFeed(0,20); lastFeed=polled; noticeUnread=polled.unreadCount();
       }
       case NOTICES -> {
-        // The inbox screen shows both tabs, so one refresh warms notices, messages and the badge.
-        loadNoticePage(1); loadMessagePage(1);
+        loadNoticePage(1);
         noticeUnread=call("GET","users/me/notices/unread-count",null).optLong("unreadCount"); messageUnread=getUnreadCount();
+        directUnread=getDirectUnreadCount();
       }
       case MESSAGES -> { loadMessagePage(1); messageUnread=getUnreadCount(); }
+      case CONVERSATIONS -> {
+        if(request.id().isBlank()) { loadConversations(1); directUnread=getDirectUnreadCount(); }
+        else {
+          loadConversationDetail(request.id());
+          loadConversationMessages(request.id(),"");
+        }
+      }
       case PROFILE -> { }
     }
   }
@@ -323,6 +338,8 @@ public final class RemoteRepository implements FoodtimeRepository {
     for(Stall s:items) stalls.put(s.id(),s); stallLists.put(id,items);
   }
   private void ensureStall(String id) {
+    Stall known=stalls.get(id);
+    if(known!=null&&halls.containsKey(known.diningHallId())) return;
     fetchHalls();
     Stall cached=stalls.get(id);
     if(cached!=null && halls.containsKey(cached.diningHallId())) fetchStalls(cached.diningHallId());
@@ -338,15 +355,20 @@ public final class RemoteRepository implements FoodtimeRepository {
     dishLists.put(id,items);
   }
   private void fetchDetail(String id) {
-    JSONObject j=call("GET","dishes/"+id,null);
-    String stall=text(j,"stallId");
-    fetchHalls(); fetchStalls(text(j,"diningHallId"));
-    dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true));
-    contexts.put(id,joined(j,true));
+    fetchDishTarget(id);
     dishReviewPages.put(id,fetchDishReviewPage(id,1));
     fetchDishImages(id);
     JSONObject rating=call("GET","dishes/"+id+"/rating",null);
     ratings.put(id,new RatingSummary(decimal(rating,"averageScore"),rating.optLong("reviewCount")));
+  }
+  private void fetchDishTarget(String id) {
+    JSONObject j=call("GET","dishes/"+id,null);
+    String stall=text(j,"stallId");
+    String hall=text(j,"diningHallId");
+    if(!halls.containsKey(hall)) fetchHalls();
+    if(!stalls.containsKey(stall)) fetchStalls(hall);
+    dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true));
+    contexts.put(id,joined(j,true));
   }
   private void fetchDishImages(String id) {
     photos.put(id,page("dishes/"+id+"/images",p -> new Photo(text(p,"id"),id,text(p,"imageUrl"),"")));
@@ -610,6 +632,24 @@ public final class RemoteRepository implements FoodtimeRepository {
     var prior=communityReplies(rootId);if(more&&!prior.hasMore())return;
     communityReplies.put(rootId,commentPage("community/posts/"+postId+"/comments/"+rootId+"/replies?size="+(more?20:3)+(more?"&cursor="+prior.nextCursor():""),more?prior:null));
   }
+  @Override public boolean ensureCommunityCommentVisible(String postId,String rootId,String commentId){
+    if(rootId==null||rootId.isBlank())return false;
+    if(communityRoots(postId).items().isEmpty())loadCommunityRoots(postId,false);
+    int guard=0;
+    while(!containsComment(communityRoots(postId).items(),rootId)&&communityRoots(postId).hasMore()&&guard++<10)
+      loadCommunityRoots(postId,true);
+    if(!containsComment(communityRoots(postId).items(),rootId))return false;
+    if(rootId.equals(commentId))return true;
+    if(communityReplies(rootId).items().isEmpty())loadCommunityReplies(postId,rootId,false);
+    guard=0;
+    while(!containsComment(communityReplies(rootId).items(),commentId)&&communityReplies(rootId).hasMore()&&guard++<20)
+      loadCommunityReplies(postId,rootId,true);
+    return containsComment(communityReplies(rootId).items(),commentId);
+  }
+  private static boolean containsComment(List<CommunityComment> items,String id){
+    for(CommunityComment item:items)if(item.id().equals(id))return true;
+    return false;
+  }
   @Override public String submitCommunityComment(String postId,String content){return submitCommunityComment(postId,content,"","",UUID.randomUUID().toString());}
   @Override public String submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){
     String body=Validation.text(content,500,"评论");
@@ -820,7 +860,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     }
     return result;
   }
-  @Override public long unreadCount() { return noticeUnread+messageUnread; }
+  @Override public long unreadCount() { return noticeUnread+messageUnread+directUnread; }
   @Override public NoticeFeed noticeFeed(long sinceSeq,int limit) {
     NoticeFeed feed=getNoticeFeed(sinceSeq,limit); lastFeed=feed; noticeUnread=feed.unreadCount(); return feed;
   }
@@ -835,6 +875,109 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   public long getUnreadCount() {
     return call("GET","users/me/messages/unread-count",null).optLong("unreadCount");
+  }
+
+  @Override public long directUnreadCount(){return directUnread;}
+  public long getDirectUnreadCount() {
+    return call("GET","users/me/conversations/unread-count",null).optLong("unreadCount");
+  }
+  @Override public ConversationPage conversations(){return conversationPage;}
+  @Override public void loadMoreConversations(){if(conversationPage.hasMore())loadConversations(conversationNumber+1);}
+  private void loadConversations(int page){
+    JSONObject data=call("GET","users/me/conversations?page="+page+"&size=20",null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(502,"INVALID_RESPONSE","私信列表响应异常",0);
+    List<Conversation> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++)items.add(conversation(rows.optJSONObject(i)));
+    long total=data.optLong("total");
+    boolean hasMore=page*20L<total;
+    if(page<=1)conversationPage=new ConversationPage(items,total,hasMore);
+    else {
+      Map<String,Conversation> merged=new LinkedHashMap<>();
+      for(Conversation item:conversationPage.items())merged.put(item.id(),item);
+      for(Conversation item:items)merged.put(item.id(),item);
+      conversationPage=new ConversationPage(new ArrayList<>(merged.values()),total,hasMore);
+    }
+    conversationNumber=page;
+    for(Conversation item:items)conversationCache.put(item.id(),item);
+  }
+  @Override public Conversation conversation(String id){return conversationCache.get(id);}
+  private void loadConversationDetail(String id){
+    conversationCache.put(id,conversation(call("GET","users/me/conversations/"+id,null)));
+  }
+  @Override public DirectMessagePage conversationMessages(String id){
+    return chatCache.getOrDefault(id,DirectMessagePage.empty());
+  }
+  private void loadConversationMessages(String id,String cursor){
+    JSONObject data=call("GET","users/me/conversations/"+id+"/messages?size=30"+(cursor.isBlank()?"":"&cursor="+encode(cursor)),null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(502,"INVALID_RESPONSE","私信内容响应异常",0);
+    DirectMessagePage prior=conversationMessages(id);
+    Map<String,DirectMessage> merged=new LinkedHashMap<>();
+    for(DirectMessage item:prior.items())merged.put(item.id(),item);
+    for(int i=0;i<rows.length();i++){
+      DirectMessage item=directMessage(rows.optJSONObject(i));
+      merged.put(item.id(),item);
+    }
+    List<DirectMessage> items=new ArrayList<>(merged.values());
+    items.sort(Comparator.comparingLong(DirectMessage::createdAt).thenComparing(DirectMessage::id));
+    String next=cursor.isBlank()&&!prior.nextCursor().isBlank()?prior.nextCursor():text(data,"nextCursor");
+    boolean more=data.optBoolean("hasMore")||(cursor.isBlank()&&prior.hasMore());
+    chatCache.put(id,new DirectMessagePage(items,more,next));
+  }
+  @Override public void loadMoreConversationMessages(String id){
+    DirectMessagePage page=conversationMessages(id);
+    if(page.hasMore()&&!page.nextCursor().isBlank())loadConversationMessages(id,page.nextCursor());
+  }
+  @Override public DirectMessage sendDirectMessage(String conversationId,String content,String clientRequestId){
+    DirectMessage message=directMessage(call("POST","users/me/conversations/"+conversationId+"/messages",
+        json("content",content,"clientRequestId",clientRequestId)));
+    DirectMessagePage prior=conversationMessages(conversationId);
+    Map<String,DirectMessage> merged=new LinkedHashMap<>();
+    for(DirectMessage item:prior.items())merged.put(item.id(),item);
+    merged.put(message.id(),message);
+    List<DirectMessage> items=new ArrayList<>(merged.values());
+    items.sort(Comparator.comparingLong(DirectMessage::createdAt).thenComparing(DirectMessage::id));
+    chatCache.put(conversationId,new DirectMessagePage(items,prior.hasMore(),prior.nextCursor()));
+    return message;
+  }
+  @Override public Conversation startConversation(String userId){
+    Conversation result=conversation(call("POST","users/me/conversations",json("userId",userId)));
+    conversationCache.put(result.id(),result);
+    return result;
+  }
+  @Override public void readConversation(String id){
+    call("POST","users/me/conversations/"+id+"/read",null);
+    Conversation prior=conversationCache.get(id);
+    if(prior!=null&&prior.unreadCount()>0){
+      directUnread=Math.max(0,directUnread-prior.unreadCount());
+      conversationCache.put(id,new Conversation(prior.id(),prior.other(),prior.lastMessage(),prior.lastSenderId(),
+          prior.lastMessageAt(),0,prior.updatedAt()));
+      List<Conversation> items=new ArrayList<>();
+      for(Conversation item:conversationPage.items())items.add(item.id().equals(id)
+          ?new Conversation(item.id(),item.other(),item.lastMessage(),item.lastSenderId(),item.lastMessageAt(),0,item.updatedAt()):item);
+      conversationPage=new ConversationPage(items,conversationPage.total(),conversationPage.hasMore());
+    }
+  }
+  @Override public void hideConversation(String id){
+    call("DELETE","users/me/conversations/"+id,null);
+    Conversation prior=conversationCache.remove(id);
+    if(prior!=null)directUnread=Math.max(0,directUnread-prior.unreadCount());
+    chatCache.remove(id);
+    List<Conversation> items=new ArrayList<>();
+    for(Conversation item:conversationPage.items())if(!item.id().equals(id))items.add(item);
+    conversationPage=new ConversationPage(items,Math.max(0,conversationPage.total()-1),conversationPage.hasMore());
+  }
+  private Conversation conversation(JSONObject j){
+    JSONObject other=j.optJSONObject("other");
+    return new Conversation(text(j,"id"),
+        new ChatUser(text(other,"id"),text(other,"displayName"),text(other,"avatarUrl")),
+        text(j,"lastMessage"),text(j,"lastSenderId"),time(j,"lastMessageAt"),
+        j.optLong("unreadCount"),time(j,"updatedAt"));
+  }
+  private DirectMessage directMessage(JSONObject j){
+    return new DirectMessage(text(j,"id"),text(j,"conversationId"),text(j,"senderId"),
+        text(j,"content"),time(j,"createdAt"));
   }
   @Override public void readMessage(String id) { call("POST","users/me/messages/"+id+"/read",null); markMessageRead(id); }
   private void markMessageRead(String id) {
@@ -851,7 +994,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private static Message withRead(Message item) {
     return item.isRead()?item:new Message(item.id(),item.title(),item.body(),item.category(),
-        item.refType(),item.refId(),true,item.createdAt());
+        item.refType(),item.refId(),item.refCommentId(),item.refRootCommentId(),item.actorCount(),true,item.createdAt());
   }
   @Override public void readAllMessages() {
     call("POST","users/me/messages/read-all",null);
@@ -879,7 +1022,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private Message message(JSONObject j) {
     return new Message(text(j,"id"),text(j,"title"),text(j,"body"),text(j,"category"),
-        text(j,"refType"),text(j,"refId"),j.optBoolean("isRead"),time(j,"createdAt"));
+        text(j,"refType"),text(j,"refId"),text(j,"refCommentId"),text(j,"refRootCommentId"),
+        j.optInt("actorCount"),j.optBoolean("isRead"),time(j,"createdAt"));
   }
   @Override public void deleteReview(String id) { call("DELETE","users/me/reviews/"+id,null); }
   @Override public void moderate(String id,String action,String reason) { moderate(id,action,reason,null); }
@@ -1046,6 +1190,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();
     ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();
     noticePage=NoticePage.empty();noticeNumber=1;messagePage=MessagePage.empty();messageNumber=1;
-    noticeUnread=0;messageUnread=0;lastFeed=NoticeFeed.empty();
+    conversationPage=ConversationPage.empty();conversationNumber=1;conversationCache.clear();chatCache.clear();
+    noticeUnread=0;messageUnread=0;directUnread=0;lastFeed=NoticeFeed.empty();
   }
 }

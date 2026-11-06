@@ -18,3 +18,11 @@
     adb shell am instrument -w cn.edu.bjtu.foodtime.integration.test/cn.edu.bjtu.foodtime.presentation.LoginNoticeRunner
 
 该 runner 不访问部署服务器的业务写接口。
+
+## 社区互动消息
+
+系统消息页识别 `LIKE_POST`、`LIKE_COMMENT`、`COMMENT_POST`、`REPLY_COMMENT`，显示分类图标、聚合人数与「查看原帖」。点击会先标记已读，再携带 `refCommentId`/`refRootCommentId` 进入社区帖子详情；详情在后台按需加载楼层与回复分页，找到目标评论后滚动并短暂高亮，找不到时保留普通列表。互动消息的生成与聚合规则见 Backend `docs/modules/notices.md`。
+
+## 私信
+
+通知信箱新增「私信」标签：展示会话列表、最后一条消息与未读角标；点击进入聊天页，消息按时间正序、自己靠右显示，支持加载更早消息、刷新、发送（1000 字上限）和隐藏会话。社区食记作者栏提供「私信」入口；访客可查看与已读，但发送会被服务端拒绝。

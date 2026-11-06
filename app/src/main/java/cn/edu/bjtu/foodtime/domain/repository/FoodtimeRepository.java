@@ -42,6 +42,8 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default CommunityCommentPage communityReplies(String rootId){return CommunityCommentPage.empty();}
   default void loadMoreCommunityComments(String postId){throw new UnsupportedOperationException();}
   default void loadCommunityReplies(String postId,String rootId,boolean more){throw new UnsupportedOperationException();}
+  /** 深链定位：按需加载评论所在楼层与回复，找到目标后返回 true。 */
+  default boolean ensureCommunityCommentVisible(String postId,String rootId,String commentId){return false;}
   default String submitCommunityComment(String postId,String content,String rootId,String targetId,String requestId){throw new UnsupportedOperationException();}
   /** 提交后轮询审核结果；返回 null 表示评论已不可见。 */
   default String communityCommentStatus(String commentId) { return null; }
@@ -99,6 +101,18 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default void confirmNotice(String id, boolean dontShowAgain) {}
   default void readMessage(String id) {}
   default void readAllMessages() {}
+  /** 一对一私信会话（按最近消息排序）。 */
+  default ConversationPage conversations() { return ConversationPage.empty(); }
+  default void loadMoreConversations() { throw new UnsupportedOperationException(); }
+  default Conversation conversation(String id) { return null; }
+  default long directUnreadCount() { return 0; }
+  /** 会话消息按时间正序缓存；cursor 用于加载更早的消息。 */
+  default DirectMessagePage conversationMessages(String conversationId) { return DirectMessagePage.empty(); }
+  default void loadMoreConversationMessages(String conversationId) { throw new UnsupportedOperationException(); }
+  default DirectMessage sendDirectMessage(String conversationId, String content, String clientRequestId) { throw new UnsupportedOperationException("此数据源不支持私信"); }
+  default Conversation startConversation(String userId) { throw new UnsupportedOperationException("此数据源不支持私信"); }
+  default void readConversation(String id) {}
+  default void hideConversation(String id) {}
   void submitPhoto(String dishId, String imageUrl);
 
   void submitReview(String dishId, int rating, String content);
