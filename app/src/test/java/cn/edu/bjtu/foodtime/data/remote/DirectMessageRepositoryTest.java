@@ -60,6 +60,16 @@ public class DirectMessageRepositoryTest {
     assertEquals("回复一句",items.get(1).content());
   }
 
+  @Test public void logoutClearsPrivateChats() {
+    repo.refresh(new ContentRequest(ContentRequest.Query.CONVERSATIONS,"c1"));
+    assertEquals(1,repo.conversationMessages("c1").items().size());
+    repo.logout();
+    assertTrue(repo.conversations().items().isEmpty());
+    assertEquals(0,repo.directUnreadCount());
+    assertNull(repo.conversation("c1"));
+    assertTrue(repo.conversationMessages("c1").items().isEmpty());
+  }
+
   @Test public void startConversationCachesTheSummary() {
     var conversation=repo.startConversation("u2");
     assertEquals("c1",conversation.id());
@@ -111,7 +121,9 @@ public class DirectMessageRepositoryTest {
       String method=first.split(" ")[0],path=first.split(" ")[1];
       calls.add(path);
       Object data;
-      if(path.contains("/auth/csrf")) {
+      if(path.equals("/api/v1/auth/logout")) {
+        data=new JSONObject();
+      } else if(path.contains("/auth/csrf")) {
         data=new JSONObject().put("headerName","X-CSRF-TOKEN").put("token","local-token");
       } else if(path.equals("/api/v1/users/me/profile")) {
         data=new JSONObject().put("id",id(1)).put("email","20260001@bjtu.edu.cn")

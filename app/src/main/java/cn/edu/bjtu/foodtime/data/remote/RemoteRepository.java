@@ -1190,6 +1190,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();
     ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();
     noticePage=NoticePage.empty();noticeNumber=1;messagePage=MessagePage.empty();messageNumber=1;
-    noticeUnread=0;messageUnread=0;lastFeed=NoticeFeed.empty();
+    conversationPage=ConversationPage.empty();conversationNumber=1;conversationCache.clear();chatCache.clear();
+    noticeUnread=0;messageUnread=0;directUnread=0;lastFeed=NoticeFeed.empty();
   }
 }
