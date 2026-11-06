@@ -234,9 +234,13 @@ public final class RemoteRepository implements FoodtimeRepository {
       case VENUE_REVIEWS -> {String[] p=request.id().split("~",-1);venues.load(p[0],p[1],p.length>2&&!p[2].isBlank()?p[2]:"all",false);}
       case VENUE_PERSONAL -> {String[] p=request.id().split("~",-1);venues.loadPersonal(p.length>0?p[0]:"",p.length>1&&p[1].equals("replies"),p.length>2?Integer.parseInt(p[2]):1);}
       case HALLS -> fetchHalls();
+      case HALL_TARGET -> { if(!halls.containsKey(request.id()))fetchHalls(); }
       case STALLS -> { fetchHalls(); fetchStalls(request.id()); }
+      case STALL_TARGET -> ensureStall(request.id());
       case DISHES -> { ensureStall(request.id()); fetchDishes(request.id()); }
       case DISH_DETAIL -> fetchDetail(request.id());
+      case DISH_TARGET -> fetchDishTarget(request.id());
+      case DISH_IMAGES -> { fetchDishTarget(request.id()); fetchDishImages(request.id()); }
       case COMMUNITY_FEED -> {
         if(communityPrototype==null) loadCommunityFeed(false);
         else syncPrototypeFeed();
@@ -309,12 +313,11 @@ public final class RemoteRepository implements FoodtimeRepository {
         NoticeFeed polled=getNoticeFeed(0,20); lastFeed=polled; noticeUnread=polled.unreadCount();
       }
       case NOTICES -> {
-        // The inbox screen shows both tabs, so one refresh warms notices, messages and the badge.
-        loadNoticePage(1); loadMessagePage(1);
+        loadNoticePage(1);
         noticeUnread=call("GET","users/me/notices/unread-count",null).optLong("unreadCount"); messageUnread=getUnreadCount();
         directUnread=getDirectUnreadCount();
       }
-      case MESSAGES -> { loadMessagePage(1); messageUnread=getUnreadCount(); directUnread=getDirectUnreadCount(); }
+      case MESSAGES -> { loadMessagePage(1); messageUnread=getUnreadCount(); }
       case CONVERSATIONS -> {
         if(request.id().isBlank()) { loadConversations(1); directUnread=getDirectUnreadCount(); }
         else {
@@ -335,6 +338,8 @@ public final class RemoteRepository implements FoodtimeRepository {
     for(Stall s:items) stalls.put(s.id(),s); stallLists.put(id,items);
   }
   private void ensureStall(String id) {
+    Stall known=stalls.get(id);
+    if(known!=null&&halls.containsKey(known.diningHallId())) return;
     fetchHalls();
     Stall cached=stalls.get(id);
     if(cached!=null && halls.containsKey(cached.diningHallId())) fetchStalls(cached.diningHallId());
@@ -350,15 +355,20 @@ public final class RemoteRepository implements FoodtimeRepository {
     dishLists.put(id,items);
   }
   private void fetchDetail(String id) {
-    JSONObject j=call("GET","dishes/"+id,null);
-    String stall=text(j,"stallId");
-    fetchHalls(); fetchStalls(text(j,"diningHallId"));
-    dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true));
-    contexts.put(id,joined(j,true));
+    fetchDishTarget(id);
     dishReviewPages.put(id,fetchDishReviewPage(id,1));
     fetchDishImages(id);
     JSONObject rating=call("GET","dishes/"+id+"/rating",null);
     ratings.put(id,new RatingSummary(decimal(rating,"averageScore"),rating.optLong("reviewCount")));
+  }
+  private void fetchDishTarget(String id) {
+    JSONObject j=call("GET","dishes/"+id,null);
+    String stall=text(j,"stallId");
+    String hall=text(j,"diningHallId");
+    if(!halls.containsKey(hall)) fetchHalls();
+    if(!stalls.containsKey(stall)) fetchStalls(hall);
+    dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true));
+    contexts.put(id,joined(j,true));
   }
   private void fetchDishImages(String id) {
     photos.put(id,page("dishes/"+id+"/images",p -> new Photo(text(p,"id"),id,text(p,"imageUrl"),"")));
@@ -904,7 +914,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     if(rows==null)throw new RepositoryException(502,"INVALID_RESPONSE","私信内容响应异常",0);
     DirectMessagePage prior=conversationMessages(id);
     Map<String,DirectMessage> merged=new LinkedHashMap<>();
-    if(cursor.isBlank())for(DirectMessage item:prior.items())merged.put(item.id(),item);
+    for(DirectMessage item:prior.items())merged.put(item.id(),item);
     for(int i=0;i<rows.length();i++){
       DirectMessage item=directMessage(rows.optJSONObject(i));
       merged.put(item.id(),item);
@@ -1180,6 +1190,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();
     ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();
     noticePage=NoticePage.empty();noticeNumber=1;messagePage=MessagePage.empty();messageNumber=1;
-    noticeUnread=0;messageUnread=0;lastFeed=NoticeFeed.empty();
+    conversationPage=ConversationPage.empty();conversationNumber=1;conversationCache.clear();chatCache.clear();
+    noticeUnread=0;messageUnread=0;directUnread=0;lastFeed=NoticeFeed.empty();
   }
 }

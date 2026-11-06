@@ -22,12 +22,13 @@ final class ChatScreen {
 
     if (conversation.unreadCount() > 0) {
       a.read("chat-read:" + route.id(), null, null,
-          () -> a.repo.readConversation(route.id()), a::redraw, () -> {});
+          () -> a.repo.readConversation(route.id()), () -> {}, () -> {});
     }
 
     LinearLayout toolbar = Ui.row(a);
     toolbar.setGravity(Gravity.CENTER_VERTICAL);
-    toolbar.addView(Ui.text(a, conversation.lastMessage().isBlank() ? "还没有消息" : "最近：" + conversation.lastMessage(), 13, Design.MUTED),
+    TextView preview=Ui.text(a, conversation.lastMessage().isBlank() ? "还没有消息" : "最近：" + conversation.lastMessage(), 13, Design.MUTED);
+    toolbar.addView(preview,
         new LinearLayout.LayoutParams(0, -2, 1));
     TextView refresh = Ui.button(a, "刷新", false, () -> {});
     refresh.setTextSize(13);
@@ -36,30 +37,13 @@ final class ChatScreen {
     refresh.setContentDescription("刷新私信");
     refresh.setOnClickListener(v -> a.read("chat-refresh:" + route.id(), v, null,
         () -> a.repo.refresh(new ContentRequest(ContentRequest.Query.CONVERSATIONS, route.id())),
-        a::redraw, () -> {}));
+        a::refreshContent, () -> {}));
     toolbar.addView(refresh, new LinearLayout.LayoutParams(-2, -2));
     page.addView(toolbar, new LinearLayout.LayoutParams(-1, -2));
     Ui.gap(page, 10);
 
-    DirectMessagePage messages = a.repo.conversationMessages(route.id());
     LinearLayout list = Ui.card(page);
-    if (messages.hasMore()) {
-      TextView older = Ui.button(a, "加载更早的消息", false, () -> {});
-      older.setTextSize(13);
-      older.setBackground(Ui.ripple(a, Design.PAPER, Design.RED, 16));
-      older.setTextColor(Design.RED);
-      older.setOnClickListener(v -> a.read("chat-older:" + route.id(), v, null,
-          () -> a.repo.loadMoreConversationMessages(route.id()), a::redraw, () -> {}));
-      list.addView(older, new LinearLayout.LayoutParams(-1, -2));
-      Ui.gap(list, 10);
-    }
-    if (messages.items().isEmpty()) {
-      Ui.empty(list, "还没有消息", "发一句问候开始聊天吧。");
-    } else {
-      String me = a.repo.currentUser() == null ? "" : a.repo.currentUser().id();
-      for (DirectMessage message : messages.items()) message(a, list, message, me);
-    }
-    page.addView(list, new LinearLayout.LayoutParams(-1, -2));
+    renderMessages(a,list,route.id());
     Ui.gap(page, 14);
 
     LinearLayout composer = Ui.card(page);
@@ -78,15 +62,48 @@ final class ChatScreen {
       error.setText("");
       a.read("chat-send:" + route.id(), send, error,
           () -> a.repo.sendDirectMessage(route.id(), body, UUID.randomUUID().toString()),
-          () -> { input.setText(""); a.redraw(); }, () -> {});
+          () -> { input.setText(""); a.refreshContent(); }, () -> {});
     });
     composer.addView(send, new LinearLayout.LayoutParams(-1, -2));
-    page.addView(composer, new LinearLayout.LayoutParams(-1, -2));
     Ui.gap(page, 18);
     LinearLayout marks = Ui.row(a);
     marks.setGravity(Gravity.CENTER);
     marks.addView(Ui.foodDoodle(a, 5, 0x665b7a3a), new LinearLayout.LayoutParams(Ui.dp(a, 74), Ui.dp(a, 56)));
     page.addView(marks);
+    a.onContentRefresh(()->{
+      Conversation current=a.repo.conversation(route.id());
+      if(current!=null)preview.setText(current.lastMessage().isBlank()?"还没有消息":"最近："+current.lastMessage());
+      if(current!=null&&current.unreadCount()>0)
+        a.read("chat-read:"+route.id(),null,null,()->a.repo.readConversation(route.id()),()->{},()->{});
+      list.removeAllViews();
+      renderMessages(a,list,route.id());
+    });
+  }
+
+  private static void renderMessages(MainActivity a,LinearLayout list,String conversationId) {
+    DirectMessagePage messages=a.repo.conversationMessages(conversationId);
+    if (messages.hasMore()) {
+      TextView older = Ui.button(a, "加载更早的消息", false, () -> {});
+      older.setTextSize(13);
+      older.setBackground(Ui.ripple(a, Design.PAPER, Design.RED, 16));
+      older.setTextColor(Design.RED);
+      older.setOnClickListener(v -> {
+        int oldHeight=list.getHeight(),oldOffset=a.scroll.getScrollY();
+        a.read("chat-older:" + conversationId, v, null,
+            () -> a.repo.loadMoreConversationMessages(conversationId), ()->{
+              a.refreshContent();
+              list.post(()->a.scroll.scrollTo(0,oldOffset+list.getHeight()-oldHeight));
+            }, () -> {});
+      });
+      list.addView(older, new LinearLayout.LayoutParams(-1, -2));
+      Ui.gap(list, 10);
+    }
+    if (messages.items().isEmpty()) {
+      Ui.empty(list, "还没有消息", "发一句问候开始聊天吧。");
+    } else {
+      String me = a.repo.currentUser() == null ? "" : a.repo.currentUser().id();
+      for (DirectMessage message : messages.items()) message(a, list, message, me);
+    }
   }
 
   private static void message(MainActivity a, LinearLayout list, DirectMessage message, String me) {

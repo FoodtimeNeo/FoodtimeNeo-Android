@@ -54,6 +54,7 @@ public class MainActivity extends Activity {
   private int generation;
   private boolean writeInFlight;
   private String displayedLocation="";
+  private Runnable contentRefresh;
   private Toast currentToast;
   private static final OperationStore OPERATIONS=new OperationStore();
   private long pendingOperation;
@@ -456,6 +457,7 @@ public class MainActivity extends Activity {
     if(target.kind().equals("admin")&&!repo.currentUser().isAdmin()) {tab="dining";render();return;}
     if(target.kind().equals("admin-dashboard")&&!repo.currentUser().role().equals("superadmin")) {tab="dining";render();return;}
     ContentRequest query=query(target);
+    if(query==null) { renderContent(); return; }
     boolean community=target.kind().equals("community");
     boolean freshCommunity=community&&!force&&communityLoadedAt>0&&communityLoadedFor.equals(actor)
         &&android.os.SystemClock.elapsedRealtime()-communityLoadedAt<COMMUNITY_FRESH_MS;
@@ -594,14 +596,22 @@ public class MainActivity extends Activity {
       case "venue-reviews","venue-write" -> ContentRequest.Query.VENUE_REVIEWS;
       case "venue-mine" -> ContentRequest.Query.VENUE_PERSONAL;
       case "dining" -> ContentRequest.Query.HALLS;
-      case "stalls","submit-stall" -> ContentRequest.Query.STALLS;
-      case "dishes","submit-dish" -> ContentRequest.Query.DISHES;
-      case "detail","gallery","upload-photo","review" -> ContentRequest.Query.DISH_DETAIL;
+      case "stalls" -> ContentRequest.Query.STALLS;
+      case "submit-stall" -> ContentRequest.Query.HALL_TARGET;
+      case "dishes" -> ContentRequest.Query.DISHES;
+      case "submit-dish" -> ContentRequest.Query.STALL_TARGET;
+      case "detail" -> ContentRequest.Query.DISH_DETAIL;
+      case "gallery" -> ContentRequest.Query.DISH_IMAGES;
+      case "upload-photo","review" -> ContentRequest.Query.DISH_TARGET;
       case "community" -> ContentRequest.Query.COMMUNITY_FEED;
       case "community-detail" -> ContentRequest.Query.COMMUNITY_DETAIL;
       case "community-mine" -> ContentRequest.Query.MY_COMMUNITY_POSTS;
       case "community-favorites" -> ContentRequest.Query.MY_COMMUNITY_FAVORITES;
-      case "inbox" -> ContentRequest.Query.NOTICES;
+      case "inbox" -> switch(drafts.getString(draftKey("tab"),"notice")) {
+        case "message" -> ContentRequest.Query.MESSAGES;
+        case "chat" -> ContentRequest.Query.CONVERSATIONS;
+        default -> ContentRequest.Query.NOTICES;
+      };
       case "direct-chat" -> ContentRequest.Query.CONVERSATIONS;
       case "admin-community" -> ContentRequest.Query.COMMUNITY_MODERATION;
       case "admin-community-detail" -> ContentRequest.Query.COMMUNITY_MODERATION_DETAIL;
@@ -619,14 +629,16 @@ public class MainActivity extends Activity {
       case "admin-users" -> ContentRequest.Query.ADMIN_USERS;
       case "admin-dashboard" -> ContentRequest.Query.ADMIN_DASHBOARD;
       case "admin-logs" -> ContentRequest.Query.AUDITS;
-      default -> ContentRequest.Query.PROFILE;
+      case "profile" -> ContentRequest.Query.PROFILE;
+      default -> null;
     };
-    return new ContentRequest(q,route.id());
+    return q==null?null:new ContentRequest(q,route.id());
   }
 
   void redraw() { rememberScroll();renderContent(); }
 
   private void renderContent() {
+    contentRefresh=null;
     shell(true);
     displayedLocation=location();
     displayedActor=actor();contentReady=true;buildHeader();
@@ -636,11 +648,21 @@ public class MainActivity extends Activity {
   /** Rebuild only the page body after a background refresh, keeping the shell and scroll view stable. */
   private void refreshPage() {
     if(!displayedLocation.equals(location())) { renderContent(); return; }
+    if(displayedActor.equals(actor())&&contentRefresh!=null) {
+      contentRefresh.run();
+      noticeUi.post(this::drainNotices);
+      return;
+    }
     rememberScroll();
+    contentRefresh=null;
     content.removeAllViews();
     displayedActor=actor();contentReady=true;
     renderPage(false);
   }
+
+  /** A screen can own its changing region while keeping its controls and input views mounted. */
+  void onContentRefresh(Runnable refresh) { contentRefresh=refresh; }
+  void refreshContent() { refreshPage(); }
 
   private void renderPage(boolean firstPaint) {
     try {
