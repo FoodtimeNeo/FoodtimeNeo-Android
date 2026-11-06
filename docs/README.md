@@ -54,6 +54,7 @@ docs/
 | 1.4.0 版本与更新范围 | [1.4.0 发布说明](releases/release-1.4.0.md) |
 | 1.4.1 版本与更新范围 | [1.4.1 发布说明](releases/release-1.4.1.md) |
 | 1.4.2 版本与更新范围 | [1.4.2 发布说明](releases/release-1.4.2.md) |
+| 1.4.3 版本与更新范围 | [1.4.3 发布说明](releases/release-1.4.3.md) |
 | | [历史工程验收记录](releases/verification.md) | 真实环境端到端验证证据与设备适配覆盖报告 |
 
 ---
