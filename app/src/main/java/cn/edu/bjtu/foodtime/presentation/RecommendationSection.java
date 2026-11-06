@@ -8,6 +8,9 @@ import cn.edu.bjtu.foodtime.domain.repository.ContentRequest;
 
 /** Independent section: recommendation failures leave the dining catalog usable. */
 final class RecommendationSection {
+  private static final int CARD_IMAGE_HEIGHT_DP=154;
+  private static final int CARD_HEIGHT_DP=342;
+
   static void show(MainActivity a,LinearLayout page) {
     LinearLayout section=Ui.col(a);section.setTag("daily-recommendations");
     header(a,section);Ui.gap(section,10);
@@ -68,26 +71,30 @@ final class RecommendationSection {
   }
 
   private static void card(MainActivity a,LinearLayout cards,RecommendedDish dish,int index) {
-    LinearLayout card=Ui.col(a);int fill=index%3==1?Design.ALT:Design.PAPER;
-    card.setBackground(Ui.ripple(a,fill,Design.BORDER,20));card.setClipToOutline(true);
+    LinearLayout card=Ui.col(a);
+    card.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,20));card.setClipToOutline(true);
     card.setElevation(Ui.dp(a,3));card.setTag("daily-recommendation-card:"+dish.dishId());
+    FrameLayout visual=new FrameLayout(a);
+    visual.setBackgroundColor(index%2==0?Design.KRAFT_SOFT:Design.ALT);
     if(dish.imageUrl()!=null&&!dish.imageUrl().isBlank()) {
-      card.addView(Ui.ratioImage(a,Ui.thumb(dish.imageUrl()),dish.dishName(),.68f),new LinearLayout.LayoutParams(-1,-2));
+      int inset=Ui.dp(a,6);visual.setPadding(inset,inset,inset,inset);
+      View image=Ui.ratioImage(a,Ui.thumb(dish.imageUrl()),dish.dishName(),.68f);
+      visual.addView(image,new FrameLayout.LayoutParams(-1,-1));
     } else {
-      FrameLayout sketch=new FrameLayout(a);sketch.setBackgroundColor(index%2==0?Design.KRAFT_SOFT:Design.ALT);
       View mark=Ui.foodDoodle(a,index+4,index%2==0?Design.RED:Design.GREEN);
-      sketch.addView(mark,new FrameLayout.LayoutParams(Ui.dp(a,92),Ui.dp(a,70),Gravity.CENTER));
+      visual.addView(mark,new FrameLayout.LayoutParams(Ui.dp(a,92),Ui.dp(a,70),Gravity.CENTER));
       TextView waiting=Ui.note(a,"敬请期待");waiting.setTextSize(16);
       waiting.setGravity(Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);
-      sketch.addView(waiting,new FrameLayout.LayoutParams(-1,Ui.dp(a,42),Gravity.BOTTOM));
-      card.addView(sketch,new LinearLayout.LayoutParams(-1,Ui.dp(a,154)));
+      visual.addView(waiting,new FrameLayout.LayoutParams(-1,Ui.dp(a,42),Gravity.BOTTOM));
     }
+    card.addView(visual,new LinearLayout.LayoutParams(-1,Ui.dp(a,CARD_IMAGE_HEIGHT_DP)));
 
-    LinearLayout text=Ui.col(a);text.setPadding(Ui.dp(a,14),Ui.dp(a,12),Ui.dp(a,14),Ui.dp(a,14));
+    LinearLayout text=Ui.col(a);text.setBackgroundColor(Design.PAPER);
+    text.setPadding(Ui.dp(a,14),Ui.dp(a,12),Ui.dp(a,14),Ui.dp(a,14));
     LinearLayout nameRow=Ui.row(a);nameRow.setGravity(Gravity.CENTER_VERTICAL);
     TextView name=Ui.title(a,dish.dishName(),20);name.setMaxLines(2);
     nameRow.addView(name,new LinearLayout.LayoutParams(0,-2,1));
-    text.addView(nameRow);Ui.gap(text,8);
+    text.addView(nameRow,new LinearLayout.LayoutParams(-1,Ui.dp(a,52)));Ui.gap(text,8);
     TextView where=Ui.text(a,dish.diningHallName()+" · "+dish.stallName(),12,Design.MUTED);
     where.setMaxLines(1);text.addView(where);Ui.gap(text,7);
     if(dish.reviewCount()>0) {
@@ -95,14 +102,15 @@ final class RecommendationSection {
       chips.addView(chip(a,dish.reviewCount()+"条评价",Design.GREEN));
       text.addView(chips);Ui.gap(text,10);
     }
+    text.addView(new Space(a),new LinearLayout.LayoutParams(1,0,1));
     TextView open=Ui.note(a,"查看详情");open.setTextSize(16);open.setTextColor(Design.BLUE);open.setGravity(Gravity.END);
-    text.addView(open);card.addView(text,new LinearLayout.LayoutParams(-1,-2));
+    text.addView(open);card.addView(text,new LinearLayout.LayoutParams(-1,0,1));
     card.setFocusable(true);card.setClickable(true);
     card.setContentDescription(dish.dishName()+"，"+dish.diningHallName()+"，"+dish.stallName()+"，查看菜品详情");
     card.setOnClickListener(v->a.go("detail",dish.dishId()));
     int width=Ui.dp(a,Math.min(250,Math.max(224,a.getResources().getConfiguration().screenWidthDp-70)));
-    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(width,-2);
-    lp.rightMargin=Ui.dp(a,12);lp.topMargin=Ui.dp(a,index%2==0?0:10);cards.addView(card,lp);
+    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(width,Ui.dp(a,CARD_HEIGHT_DP));
+    lp.rightMargin=Ui.dp(a,12);cards.addView(card,lp);
   }
 
   private static TextView chip(MainActivity a,String label,int color) {
