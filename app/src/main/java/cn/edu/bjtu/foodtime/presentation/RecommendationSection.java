@@ -8,6 +8,9 @@ import cn.edu.bjtu.foodtime.domain.repository.ContentRequest;
 
 /** Independent section: recommendation failures leave the dining catalog usable. */
 final class RecommendationSection {
+  private static final int CARD_IMAGE_HEIGHT_DP=154;
+  private static final int CARD_HEIGHT_DP=342;
+
   static void show(MainActivity a,LinearLayout page) {
     LinearLayout section=Ui.col(a);section.setTag("daily-recommendations");
     header(a,section);Ui.gap(section,10);
@@ -72,7 +75,8 @@ final class RecommendationSection {
     card.setBackground(Ui.ripple(a,fill,Design.BORDER,20));card.setClipToOutline(true);
     card.setElevation(Ui.dp(a,3));card.setTag("daily-recommendation-card:"+dish.dishId());
     if(dish.imageUrl()!=null&&!dish.imageUrl().isBlank()) {
-      card.addView(Ui.ratioImage(a,Ui.thumb(dish.imageUrl()),dish.dishName(),.68f),new LinearLayout.LayoutParams(-1,-2));
+      View image=Ui.ratioImage(a,Ui.thumb(dish.imageUrl()),dish.dishName(),.68f);
+      card.addView(image,new LinearLayout.LayoutParams(-1,Ui.dp(a,CARD_IMAGE_HEIGHT_DP)));
     } else {
       FrameLayout sketch=new FrameLayout(a);sketch.setBackgroundColor(index%2==0?Design.KRAFT_SOFT:Design.ALT);
       View mark=Ui.foodDoodle(a,index+4,index%2==0?Design.RED:Design.GREEN);
@@ -80,7 +84,7 @@ final class RecommendationSection {
       TextView waiting=Ui.note(a,"敬请期待");waiting.setTextSize(16);
       waiting.setGravity(Gravity.BOTTOM|Gravity.CENTER_HORIZONTAL);
       sketch.addView(waiting,new FrameLayout.LayoutParams(-1,Ui.dp(a,42),Gravity.BOTTOM));
-      card.addView(sketch,new LinearLayout.LayoutParams(-1,Ui.dp(a,154)));
+      card.addView(sketch,new LinearLayout.LayoutParams(-1,Ui.dp(a,CARD_IMAGE_HEIGHT_DP)));
     }
 
     LinearLayout text=Ui.col(a);text.setPadding(Ui.dp(a,14),Ui.dp(a,12),Ui.dp(a,14),Ui.dp(a,14));
@@ -95,13 +99,14 @@ final class RecommendationSection {
       chips.addView(chip(a,dish.reviewCount()+"条评价",Design.GREEN));
       text.addView(chips);Ui.gap(text,10);
     }
+    text.addView(new Space(a),new LinearLayout.LayoutParams(1,0,1));
     TextView open=Ui.note(a,"查看详情");open.setTextSize(16);open.setTextColor(Design.BLUE);open.setGravity(Gravity.END);
-    text.addView(open);card.addView(text,new LinearLayout.LayoutParams(-1,-2));
+    text.addView(open);card.addView(text,new LinearLayout.LayoutParams(-1,0,1));
     card.setFocusable(true);card.setClickable(true);
     card.setContentDescription(dish.dishName()+"，"+dish.diningHallName()+"，"+dish.stallName()+"，查看菜品详情");
     card.setOnClickListener(v->a.go("detail",dish.dishId()));
     int width=Ui.dp(a,Math.min(250,Math.max(224,a.getResources().getConfiguration().screenWidthDp-70)));
-    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(width,-2);
+    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(width,Ui.dp(a,CARD_HEIGHT_DP));
     lp.rightMargin=Ui.dp(a,12);lp.topMargin=Ui.dp(a,index%2==0?0:10);cards.addView(card,lp);
   }
 
