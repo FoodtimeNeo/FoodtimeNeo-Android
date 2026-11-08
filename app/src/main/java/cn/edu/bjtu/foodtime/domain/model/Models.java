@@ -184,6 +184,11 @@ public final class Models {
   public record AppRelease(int versionCode, String versionName, String apkUrl, String notes, int minVersionCode) {}
 
   public record FollowUser(String id, String displayName, String avatarUrl, boolean followedByMe) {}
+
+  public record UserSearchPage(String query,List<FollowUser> items,long total,int page,boolean hasMore) {
+    public UserSearchPage { items=List.copyOf(items); }
+    public static UserSearchPage empty() { return new UserSearchPage("",List.of(),0,0,false); }
+  }
   public record FollowPage(List<FollowUser> items, long total, int page, boolean hasMore) {
     public FollowPage { items=List.copyOf(items); }
     public FollowPage(List<FollowUser> items,long total) { this(items,total,1,false); }

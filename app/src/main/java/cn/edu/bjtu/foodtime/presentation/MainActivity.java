@@ -170,6 +170,7 @@ public class MainActivity extends Activity {
     screens.put("submit-stall", UploadScreen::stall);
     screens.put("mine-submissions", SubmissionScreen::mine);
     screens.put("following", FollowListScreen::following);
+    screens.put("user-search", UserSearchScreen::show);
     screens.put("followers", FollowListScreen::followers);
     screens.put("profile", ProfileScreen::profile);
     screens.put("profile-edit", ProfileScreen::edit);
@@ -727,6 +728,7 @@ public class MainActivity extends Activity {
       case "submit-stall" -> "投稿新档口";
       case "mine-submissions" -> "我的提交";
       case "following" -> "我的关注";
+      case "user-search" -> "搜索用户";
       case "followers" -> "关注我的";
       case "profile-edit" -> "编辑资料";
       case "bind-school-email" -> "绑定学校邮箱";

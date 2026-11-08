@@ -77,6 +77,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile CommunityAuditDetail communityAuditDetail;
   private volatile String communityCursor="";
   private volatile FollowPage followingPage=FollowPage.empty(),followersPage=FollowPage.empty();
+  private UserSearchPage userSearchPage=UserSearchPage.empty();
+  private long userSearchRequest;
   // Share the identity lock: account changes and private-list publication are atomic.
   private final Object followLock=dashboardLock;
   private String followOwner="";
@@ -785,12 +787,36 @@ public final class RemoteRepository implements FoodtimeRepository {
     if(!owner.equals(followOwner)) {resetFollows();followOwner=owner;}
   }
   private void resetFollows() {
+    userSearchPage=UserSearchPage.empty();userSearchRequest++;
     followOwner="";followEpoch++;followingRequest++;followersRequest++;followingNeedsRebase=false;
     followingPage=FollowPage.empty();followersPage=FollowPage.empty();followStates.clear();
   }
   @Override public FollowPage following() { synchronized(followLock){syncFollowOwner();return followingPage;} }
   @Override public FollowPage followers() { synchronized(followLock){syncFollowOwner();return followersPage;} }
   @Override public FollowState followState(String userId) { synchronized(followLock){syncFollowOwner();return userId==null?null:followStates.get(userId);} }
+  @Override public UserSearchPage userSearchResults() {
+    synchronized(followLock){syncFollowOwner();return userSearchPage;}
+  }
+  @Override public void loadUserSearch(String query,int page) {
+    String keyword=query==null?"":query.strip();
+    if(keyword.length()>50||page<1)throw new RepositoryException(400,"VALIDATION_ERROR","用户名最多50字，页码必须大于0",0);
+    final String owner;final long epoch,ticket;final UserSearchPage before;
+    synchronized(followLock) {
+      syncFollowOwner();owner=followOwner;epoch=followEpoch;ticket=++userSearchRequest;before=userSearchPage;
+      if(owner.isEmpty())throw new RepositoryException(401,"AUTH_REQUIRED","请先登录",0);
+      if(keyword.isEmpty()){userSearchPage=UserSearchPage.empty();return;}
+      if(page>1&&(!keyword.equals(before.query())||before.page()!=page-1))throw staleFollow();
+    }
+    FollowPage response=FollowJson.page(call("GET","users/search?q="+encode(keyword)+"&page="+page+"&size=20",null),page);
+    var rows=new LinkedHashMap<String,FollowUser>();
+    if(page>1)for(var row:before.items())rows.put(row.id(),row);
+    for(var row:response.items())rows.put(row.id(),row);
+    synchronized(followLock) {
+      syncFollowOwner();
+      if(Thread.currentThread().isInterrupted()||epoch!=followEpoch||!owner.equals(followOwner)||ticket!=userSearchRequest)throw staleFollow();
+      userSearchPage=new UserSearchPage(keyword,new ArrayList<>(rows.values()),response.total(),page,response.hasMore());
+    }
+  }
   private void ensureFollows(boolean fans) {
     boolean needed;synchronized(followLock){syncFollowOwner();needed=(fans?followersPage:followingPage).page()==0||!fans&&followingNeedsRebase;}
     if(needed)fetchFollows(fans,false,true);
@@ -837,7 +863,8 @@ public final class RemoteRepository implements FoodtimeRepository {
       syncFollowOwner();owner=followOwner;epoch=followEpoch;
       FollowState known=followStates.get(userId);
       FollowUser row=java.util.stream.Stream.concat(followingPage.items().stream(),followersPage.items().stream()).filter(item->item.id().equals(userId)).findFirst().orElse(null);
-      previous=row!=null?row.followedByMe():known==null?null:known.followed();
+      if(row==null)row=userSearchPage.items().stream().filter(item->item.id().equals(userId)).findFirst().orElse(null);
+      previous=row!=null?Boolean.valueOf(row.followedByMe()):known==null?null:Boolean.valueOf(known.followed());
       if(owner.isEmpty())throw new RepositoryException(401,"AUTH_REQUIRED","请先登录",0);
     }
     FollowState result=FollowJson.state(call(follow?"PUT":"DELETE","users/"+userId+"/follow",null));
@@ -857,6 +884,10 @@ public final class RemoteRepository implements FoodtimeRepository {
       }
       followingPage=new FollowPage(rows,user.followingCount(),followingPage.page(),followingPage.hasMore()||rows.size()<user.followingCount());
       followersPage=withFollowState(followersPage,userId,result.followed());
+      userSearchRequest++;
+      userSearchPage=new UserSearchPage(userSearchPage.query(),userSearchPage.items().stream().map(item->
+          item.id().equals(userId)?new FollowUser(item.id(),item.displayName(),item.avatarUrl(),result.followed()):item).collect(java.util.stream.Collectors.toList()),
+          userSearchPage.total(),userSearchPage.page(),userSearchPage.hasMore());
     }
     return result;
   }

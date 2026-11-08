@@ -81,6 +81,9 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default FollowPage followers() { return FollowPage.empty(); }
   default void loadFollows(boolean followers) { throw new UnsupportedOperationException(); }
   default void loadMoreFollows(boolean followers) { throw new UnsupportedOperationException(); }
+  default UserSearchPage userSearchResults() { return UserSearchPage.empty(); }
+  /** Explicit network read; run on the worker, then consume the identity-scoped snapshot above. */
+  default void loadUserSearch(String query,int page) { throw new UnsupportedOperationException(); }
   /** Cached relation state for one author; null when it has not been loaded yet. */
   default FollowState followState(String userId) { return null; }
   default FollowState setFollow(String userId, boolean follow) { throw new UnsupportedOperationException("此数据源不支持关注"); }

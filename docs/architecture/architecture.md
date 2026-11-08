@@ -25,6 +25,8 @@ OperationStore在进程内保留提交结果；Activity重建后恢复结果和�
 
 静态表单不触发页面级读取；菜品目标、图册和完整详情使用不同 ContentRequest。信箱按标签取数，信箱和私信通过当前路径、身份约束下的局部回调更新动态区域，保留固定控件与编辑器。详细行为见[页面按区域刷新](../modules/incremental-page-refresh.md)。
 
+用户搜索由 `UserSearchScreen` 通过显式后台读取更新结果区域，`UserSearchPage` 为只读分页快照；不作为整个页面的 `ContentRequest`。行操作、身份隔离和设备验收入口见[搜索用户](../modules/user-search.md)。
+
 点评回复采用独立ContentRequest查询：公开列表每页20条游标加载、个人记录按page分页；加载更多只更新缓存和当前页面。两类点赞在worker写入，直接使用服务器状态更新按钮；回复点赞同时更新缓存，避免加载更多重绘时倒退。
 
 嵌入式回复由 EmbeddedReviewReplies 编排：展示层通过 domain 的 hasLoadedReviewReplies/loadReviewReplies 判断缓存及按需取第一页，RemoteRepository 负责每楼缓存（包括空页）；展开/编辑状态和草稿随 Activity Bundle 保存。局部刷新、分页与点赞不触发整个菜品重载。ReviewActionRow 仅负责轻操作自动换行，保持放大字体下的触控尺寸。
