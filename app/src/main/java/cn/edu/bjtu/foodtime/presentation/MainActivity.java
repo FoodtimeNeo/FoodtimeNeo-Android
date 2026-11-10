@@ -153,6 +153,7 @@ public class MainActivity extends Activity {
     screens.put("venue-write",VenueScreen::write);
     screens.put("venue-mine",VenueScreen::mine);
     screens.put("dining", DiningScreen::halls);
+    screens.put("dish-search", DishSearchScreen::show);
     screens.put("community", CommunityScreen::feed);
     screens.put("community-detail", CommunityScreen::detail);
     screens.put("community-create", CommunityScreen::create);
@@ -742,6 +743,7 @@ public class MainActivity extends Activity {
       case "mine-reviews" -> "我的评论";
       case "mine-review-replies" -> "我的回复";
       case "detail" -> "菜品详情";
+      case "dish-search" -> "跨食堂搜菜";
       case "admin-audit" -> "审核投稿";
       case "admin-data" -> "目录管理";
       case "admin-edit" -> "编辑目录";
