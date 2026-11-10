@@ -95,7 +95,10 @@ final class CommunityPhotoDialog {
     screen.setOnApplyWindowInsetsListener((view, insets) -> {
       if (Build.VERSION.SDK_INT >= 30) {
         var safe = insets.getInsets(WindowInsets.Type.systemBars() | WindowInsets.Type.displayCutout());
-        top.setPadding(safe.left, safe.top, safe.right, 0);
+        // Keep transient system indicators above the buttons even while the status bar is hidden.
+        int topInset = insets.getInsetsIgnoringVisibility(
+            WindowInsets.Type.statusBars() | WindowInsets.Type.displayCutout()).top;
+        top.setPadding(safe.left, topInset, safe.right, 0);
         if (bottom != null) bottom.setPadding(safe.left, 0, safe.right, safe.bottom);
         var left = (FrameLayout.LayoutParams) previous.getLayoutParams();
         var right = (FrameLayout.LayoutParams) next.getLayoutParams();
@@ -103,6 +106,8 @@ final class CommunityPhotoDialog {
         right.rightMargin = dp(10) + safe.right;
         previous.setLayoutParams(left);
         next.setLayoutParams(right);
+      } else {
+        top.setPadding(0, insets.getStableInsetTop(), 0, 0);
       }
       return insets;
     });
