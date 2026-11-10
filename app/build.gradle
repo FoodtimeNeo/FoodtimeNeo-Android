@@ -13,8 +13,8 @@ android {
         applicationId 'cn.edu.bjtu.foodtime'
         minSdk 26
         targetSdk 36
-        versionCode 20
-        versionName '1.7.0'
+        versionCode 21
+        versionName '1.7.1'
         buildConfigField 'String', 'API_BASE_URL', '"' + providers.gradleProperty('FOODTIME_API_BASE_URL').getOrElse('https://bjtufoodtime.top/api/v1/').replace('"', '\\"') + '"'
         testInstrumentationRunner providers.gradleProperty('FOODTIME_TEST_RUNNER').getOrElse('cn.edu.bjtu.foodtime.presentation.RemoteUiRunner')
     }
