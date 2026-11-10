@@ -168,6 +168,10 @@ public final class Models {
   }
   public record CommunityImage(String url,int width,int height) {}
   public record LinkedDish(String id, String name) {}
+  public record CommunityAuthor(String id, String displayName, String avatarUrl) {}
+  public record CommunityFeedSlice(List<CommunityPost> items, long total, String nextCursor) {
+    public CommunityFeedSlice { items = List.copyOf(items); }
+  }
   public record CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
       long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
       boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt,

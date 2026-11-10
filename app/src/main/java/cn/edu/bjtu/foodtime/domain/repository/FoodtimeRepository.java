@@ -32,6 +32,10 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default void reviewReport(String id) { throw new UnsupportedOperationException(); }
 
   default List<CommunityPost> communityPosts() { return List.of(); }
+  default CommunityAuthor communityAuthor(String userId) { throw new UnsupportedOperationException(); }
+  default CommunityFeedSlice discoverPosts(String authorId, boolean following, String query, String cursor) {
+    throw new UnsupportedOperationException();
+  }
   default boolean communityPrototypeEnabled() { return false; }
   default CommunityPost communityPost(String id) { return null; }
   default List<CommunityComment> communityComments(String postId) { return List.of(); }

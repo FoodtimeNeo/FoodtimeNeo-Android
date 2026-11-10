@@ -31,6 +31,13 @@ final class CommunityScreen {
     TextView refresh=Ui.button(a,"↻ 刷新",false,()->a.refreshCurrent());
     refresh.setContentDescription("刷新社区食记");
     personal.addView(refresh);page.addView(personal);Ui.gap(page,12);
+    LinearLayout discovery = Ui.row(a);
+    discovery.addView(Ui.button(a, "只看关注", false, () -> a.go("community-following", "")),
+        new LinearLayout.LayoutParams(0, -2, 1));
+    discovery.addView(Ui.button(a, "搜索食记", false, () -> a.go("community-search", "")),
+        new LinearLayout.LayoutParams(0, -2, 1));
+    page.addView(discovery);
+    Ui.gap(page, 12);
     List<CommunityPost> posts=a.repo.communityPosts();
     if(posts.isEmpty()) {
       if(a.isPageLoading()) Ui.empty(page,"正在加载校园食记…","马上就好。");
@@ -61,7 +68,7 @@ final class CommunityScreen {
       more.setOnClickListener(v->a.read("community-collection:"+favorites,v,null,()->a.repo.loadMoreCommunityCollection(favorites),a::redraw,()->{}));
     }
   }
-  private static void waterfall(MainActivity a,LinearLayout page,List<CommunityPost> posts){
+  static void waterfall(MainActivity a,LinearLayout page,List<CommunityPost> posts){
     LinearLayout waterfall=Ui.row(a);waterfall.setGravity(Gravity.TOP);
     LinearLayout left=Ui.col(a),right=Ui.col(a);
     LinearLayout.LayoutParams leftLp=new LinearLayout.LayoutParams(0,-2,1);leftLp.rightMargin=Ui.dp(a,5);
@@ -182,6 +189,11 @@ final class CommunityScreen {
     author.setPadding(Ui.dp(a, 8), 0, Ui.dp(a, 6), 0);
     author.setSingleLine();
     author.setEllipsize(TextUtils.TruncateAt.END);
+    if (!post.userId().isBlank()) {
+      author.setFocusable(true);
+      author.setContentDescription("查看 " + name + " 的作者主页");
+      author.setOnClickListener(view -> a.go("community-author", post.userId()));
+    }
     bar.addView(author, new LinearLayout.LayoutParams(0, -2, 1));
     User viewer = a.repo.currentUser();
     if (viewer == null || post.userId().isBlank() || post.userId().equals(viewer.id())) return;

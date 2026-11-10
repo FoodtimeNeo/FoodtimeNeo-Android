@@ -552,6 +552,12 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
 
   private CommunityPost cacheCommunityPost(JSONObject j) {
+    CommunityPost post = parseCommunityPost(j);
+    communityPostCache.put(post.id(),post);
+    return post;
+  }
+
+  private CommunityPost parseCommunityPost(JSONObject j) {
     List<String> images=new ArrayList<>();
     JSONArray imageValues=j.optJSONArray("imageUrls");
     if(imageValues!=null) for(int i=0;i<imageValues.length();i++) {
@@ -564,12 +570,11 @@ public final class RemoteRepository implements FoodtimeRepository {
     JSONObject repost=j.optJSONObject("repost");
     JSONObject linked=j.optJSONObject("linkedDish");
     LinkedDish dish = text(linked,"id").isBlank() ? null : new LinkedDish(text(linked,"id"),text(linked,"name"));
-    CommunityPost post=new CommunityPost(text(j,"id"),text(j,"userId"),text(j,"userDisplayName"),
+    return new CommunityPost(text(j,"id"),text(j,"userId"),text(j,"userDisplayName"),
         text(j,"content"),images,j.optLong("likeCount"),j.optLong("commentCount"),j.optInt("repostCount"),
         text(j,"repostOfId"),text(repost,"userDisplayName"),text(repost,"content"),
         j.optBoolean("likedByMe"),j.optBoolean("favoritedByMe"),text(j,"status"),
         text(j,"reviewReason"),time(j,"createdAt"),text(j,"title"),text(j,"userAvatarUrl"),details,j.optLong("favoriteCount"),text(j,"reviewStage"),dish);
-    communityPostCache.put(post.id(),post);return post;
   }
 
   private CommunityComment communityComment(JSONObject j) {
@@ -638,6 +643,24 @@ public final class RemoteRepository implements FoodtimeRepository {
     communityFeed=List.copyOf(result);communityCursor=text(data,"nextCursor");communityHasMore=data.optBoolean("hasMore");
   }
   @Override public void loadMoreCommunityPosts(){if(communityHasMore)loadCommunityFeed(true);}
+  @Override public CommunityAuthor communityAuthor(String userId) {
+    JSONObject profile = call("GET", "community/authors/" + encode(userId), null);
+    return new CommunityAuthor(text(profile, "id"), text(profile, "displayName"), text(profile, "avatarUrl"));
+  }
+
+  @Override public CommunityFeedSlice discoverPosts(String authorId, boolean following, String query, String cursor) {
+    String path = authorId.isEmpty() ? "community/feed/cursor" : "community/authors/" + encode(authorId) + "/posts";
+    path += "?size=20";
+    if (following) path += "&following=true";
+    if (!query.isBlank()) path += "&q=" + encode(query);
+    if (!cursor.isBlank()) path += "&cursor=" + encode(cursor);
+    JSONObject data = call("GET", path, null);
+    JSONArray items = data.optJSONArray("items");
+    if (items == null) throw new IllegalStateException("食记列表返回格式异常");
+    List<CommunityPost> posts = new ArrayList<>();
+    for (int i = 0; i < items.length(); i++) posts.add(parseCommunityPost(items.optJSONObject(i)));
+    return new CommunityFeedSlice(posts, data.optLong("total"), text(data, "nextCursor"));
+  }
   @Override public boolean hasMoreCommunityPosts(){return communityHasMore;}
   @Override public void submitCommunityPost(String content,List<String> images) {
     submitCommunityPost(CommunityText.headline(content),content,images,UUID.randomUUID().toString());
