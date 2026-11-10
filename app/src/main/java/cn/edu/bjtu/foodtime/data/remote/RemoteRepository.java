@@ -128,7 +128,9 @@ public final class RemoteRepository implements FoodtimeRepository {
   public RemoteRepository withImageCache(File directory) { imageCache=new ImageDiskCache(directory,200L*1024*1024);return this; }
   @Override public String imageIdentity() {var actor=user;return origin+":"+(actor==null?"guest":actor.id()+":"+actor.role())+":"+http.sessionKey()+":"+imageEpoch.get();}
   @Override public long imageCacheBytes() {return imageCache==null?0:imageCache.size();}
-  @Override public void clearImageCache() {imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(false);}
+  @Override public void clearImageCache() {
+    synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(false);}
+  }
   @Override public void restoreSession() {
     try { profile(); }
     catch(RepositoryException e) { if(e.status()!=401) throw e; }
@@ -231,7 +233,11 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
 
   @Override public void refresh(ContentRequest request) {
-    profile(); // Restore current server role/status on every screen load.
+    // Community reads are independently authorized; a profile round trip must not delay them.
+    switch(request.query()) {
+      case COMMUNITY_FEED, COMMUNITY_FOLLOWING, MY_COMMUNITY_POSTS, MY_COMMUNITY_FAVORITES, COMMUNITY_POST -> {}
+      default -> profile();
+    }
     switch(request.query()) {
       case DAILY_RECOMMENDATIONS -> fetchRecommendations();
       case VENUE_REVIEWS -> {String[] p=request.id().split("~",-1);venues.load(p[0],p[1],p.length>2&&!p[2].isBlank()?p[2]:"all",false);}
@@ -266,19 +272,12 @@ public final class RemoteRepository implements FoodtimeRepository {
       case COMMUNITY_FOLLOWING -> loadCommunityFollowing(false);
       case MY_COMMUNITY_POSTS -> loadCommunityCollection(false,false);
       case MY_COMMUNITY_FAVORITES -> loadCommunityCollection(true,false);
+      case COMMUNITY_POST -> loadCommunityPost(request.id());
       case COMMUNITY_DETAIL -> {
+        CommunityPost post=loadCommunityPost(request.id());
         if(communityPrototype==null) {
-          CommunityPost post=cacheCommunityPost(call("GET","community/posts/"+request.id(),null));
-          User viewer=user;
-          if(viewer!=null&&!post.userId().isBlank()&&!post.userId().equals(viewer.id()))
-            followStates.put(post.userId(),fetchFollowState(post.userId()));
-          if(post.status().equals("approved"))loadCommunityRoots(post.id(),false);
-          else {communityRoots.remove(post.id());communityCommentCache.remove(post.id());}
-        } else {
-          CommunityPost post=communityPrototype.post(request.id());
-          if(post==null) throw missing("动态不存在或暂不可见");
-          communityPostCache.put(post.id(),post);
-          communityCommentCache.put(post.id(),communityPrototype.comments(post.id()));
+          loadCommunityAuthorFollow(post.userId());
+          if(post.status().equals("approved"))reloadCommunityComments(post.id());
         }
       }
       case FOLLOWING -> ensureFollows(false);
@@ -776,7 +775,40 @@ public final class RemoteRepository implements FoodtimeRepository {
     try { return text(call("GET","community/comments/"+commentId+"/status",null),"status"); }
     catch(RepositoryException missing){ return null; }
   }
-  @Override public void reloadCommunityComments(String postId){ loadCommunityRoots(postId,false); }
+  @Override public void reloadCommunityComments(String postId){
+    if(communityPrototype==null)loadCommunityRoots(postId,false);
+  }
+
+  private CommunityPost loadCommunityPost(String id) {
+    try {
+      if(communityPrototype!=null) {
+        CommunityPost post=communityPrototype.post(id);
+        if(post==null)throw missing("动态不存在或暂不可见");
+        communityPostCache.put(id,post);
+        communityCommentCache.put(id,communityPrototype.comments(id));
+        return post;
+      }
+      CommunityPost post=cacheCommunityPost(call("GET","community/posts/"+id,null));
+      if(!post.status().equals("approved")) {
+        communityRoots.remove(id);
+        communityCommentCache.remove(id);
+      }
+      return post;
+    } catch(RepositoryException failure) {
+      if(failure.status()==403||failure.status()==404) {
+        communityPostCache.remove(id);
+        communityRoots.remove(id);
+        communityCommentCache.remove(id);
+      }
+      throw failure;
+    }
+  }
+
+  @Override public void loadCommunityAuthorFollow(String userId) {
+    User viewer=user;
+    if(communityPrototype==null&&viewer!=null&&!userId.isBlank()&&!userId.equals(viewer.id()))
+      followStates.put(userId,fetchFollowState(userId));
+  }
   @Override public void reloadCommunityReplies(String postId,String rootId){ loadCommunityReplies(postId,rootId,false); }
   @Override public void deleteCommunityComment(String id){call("DELETE","community/comments/"+id,null);}
   @Override public CommunityAuditPage communityAudit(){return communityAudit;}
@@ -1223,8 +1255,11 @@ public final class RemoteRepository implements FoodtimeRepository {
     if(uri.getUserInfo()!=null||uri.getFragment()!=null)throw new IllegalArgumentException("图片地址不合法");
     String publicKey="p-"+ImageDiskCache.hash(uri.toString()),privateKey="s-"+ImageDiskCache.hash(identity+":"+uri);
     ImageDiskCache.Entry cached=imageCache==null?null:imageCache.get(publicKey);
-    if(cached!=null&&cached.freshUntil()>System.currentTimeMillis())return new ImageResource(cached.bytes(),true,cached.freshUntil(),cached.etag());
     if(cached==null&&imageCache!=null)cached=imageCache.get(privateKey);
+    if(cached!=null&&cached.freshUntil()>System.currentTimeMillis()) {
+      if(epoch!=imageEpoch.get()||!identity.equals(imageIdentity())||Thread.currentThread().isInterrupted())throw unavailable();
+      return new ImageResource(cached.bytes(),true,cached.freshUntil(),cached.etag());
+    }
     try {
       // Legacy external HTTPS images receive no application cookies or authentication headers.
       HttpTransport loader=sameOrigin?http:new HttpTransport(uri.getScheme()+"://"+uri.getAuthority()+"/",
@@ -1233,7 +1268,9 @@ public final class RemoteRepository implements FoodtimeRepository {
       if(epoch!=imageEpoch.get()||!identity.equals(imageIdentity())||Thread.currentThread().isInterrupted())throw unavailable();
       String policy=header(response,"Cache-Control").toLowerCase(Locale.ROOT),type=header(response,"Content-Type"),etag=header(response,"ETag");
       if(response.status()!=200&&response.status()!=304) {
-        if(imageCache!=null){imageCache.remove(publicKey);imageCache.remove(privateKey);}
+        if(imageCache!=null&&response.status()>=400&&response.status()<500&&response.status()!=429){
+          imageCache.remove(publicKey);imageCache.remove(privateKey);
+        }
         if(response.status()==401)clear();
         throw new RepositoryException(response.status(),"IMAGE_UNAVAILABLE","图片暂不可用",0);
       }
@@ -1244,15 +1281,22 @@ public final class RemoteRepository implements FoodtimeRepository {
       if(etag.isBlank()&&cached!=null)etag=cached.etag();
       boolean reusable=!policy.contains("no-store")&&(policy.contains("private")||policy.contains("public"));
       long until=0;
-      if(reusable&&policy.contains("public")&&!policy.contains("no-cache")) {
+      boolean shared=policy.contains("public")&&!policy.contains("private");
+      if(reusable&&!policy.contains("no-cache")) {
         var match=java.util.regex.Pattern.compile("(?:^|[,\\s])max-age=(\\d+)").matcher(policy);
-        if(match.find())try {long age=Long.parseLong(header(response,"Age").isBlank()?"0":header(response,"Age"));until=System.currentTimeMillis()+Math.max(0,Math.min(31536000L,Long.parseLong(match.group(1)))-age)*1000;}catch(NumberFormatException ignored){}
+        if(match.find())try {
+          long age=Long.parseLong(header(response,"Age").isBlank()?"0":header(response,"Age"));
+          long maxAge=Math.min(shared?31536000L:300L,Long.parseLong(match.group(1)));
+          if(age>=0&&age<maxAge)until=System.currentTimeMillis()+(maxAge-age)*1000;
+        }catch(NumberFormatException ignored){}
       }
       synchronized(imageEpoch) {
         if(epoch!=imageEpoch.get()||!identity.equals(imageIdentity())||Thread.currentThread().isInterrupted())throw unavailable();
         if(imageCache!=null) {
-          imageCache.remove(publicKey);imageCache.remove(privateKey);
-          if(reusable)imageCache.put(until>0?publicKey:privateKey,new ImageDiskCache.Entry(bytes,etag,type,until));
+          String key=shared&&until>0?publicKey:privateKey;
+          imageCache.remove(key.equals(publicKey)?privateKey:publicKey);
+          if(reusable)imageCache.put(key,new ImageDiskCache.Entry(bytes,etag,type,until));
+          else imageCache.remove(key);
         }
       }
       return new ImageResource(bytes,reusable,until,etag.isBlank()?ImageDiskCache.contentHash(bytes):etag);
