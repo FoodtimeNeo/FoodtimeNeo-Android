@@ -126,7 +126,11 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public cn.edu.bjtu.foodtime.domain.model.VenueModels.AuditDetail venueAuditDetail(String type,String id){return venues.auditDetail(type,id);}
   @Override public User currentUser() { return user; }
   public RemoteRepository withImageCache(File directory) { imageCache=new ImageDiskCache(directory,200L*1024*1024);return this; }
-  @Override public String imageIdentity() {var actor=user;return origin+":"+(actor==null?"guest":actor.id()+":"+actor.role())+":"+http.sessionKey()+":"+imageEpoch.get();}
+  private String imageScope() {
+    var actor=user;
+    return origin+":"+(actor==null?"guest":actor.id()+":"+actor.role())+":"+http.sessionKey();
+  }
+  @Override public String imageIdentity() {return imageScope()+":"+imageEpoch.get();}
   @Override public long imageCacheBytes() {return imageCache==null?0:imageCache.size();}
   @Override public void clearImageCache() {
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(false);}
@@ -1248,16 +1252,17 @@ public final class RemoteRepository implements FoodtimeRepository {
     return loadImageResource(reference).bytes();
   }
   @Override public ImageResource loadImageResource(String reference) {
-    String identity=imageIdentity();long epoch=imageEpoch.get();
+    long epoch=imageEpoch.get();String scope=imageScope();
     URI uri=origin.resolve(reference);
     boolean sameOrigin=origin.getScheme().equals(uri.getScheme())&&origin.getAuthority().equals(uri.getAuthority());
     if(!sameOrigin&&!"https".equals(uri.getScheme())) throw new IllegalArgumentException("图片地址不合法");
     if(uri.getUserInfo()!=null||uri.getFragment()!=null)throw new IllegalArgumentException("图片地址不合法");
-    String publicKey="p-"+ImageDiskCache.hash(uri.toString()),privateKey="s-"+ImageDiskCache.hash(identity+":"+uri);
+    // Keep the original epoch-zero key format on disk; the in-memory epoch only cancels old work.
+    String publicKey="p-"+ImageDiskCache.hash(uri.toString()),privateKey="s-"+ImageDiskCache.hash(scope+":0:"+uri);
     ImageDiskCache.Entry cached=imageCache==null?null:imageCache.get(publicKey);
     if(cached==null&&imageCache!=null)cached=imageCache.get(privateKey);
     if(cached!=null&&cached.freshUntil()>System.currentTimeMillis()) {
-      if(epoch!=imageEpoch.get()||!identity.equals(imageIdentity())||Thread.currentThread().isInterrupted())throw unavailable();
+      if(epoch!=imageEpoch.get()||!scope.equals(imageScope())||Thread.currentThread().isInterrupted())throw unavailable();
       return new ImageResource(cached.bytes(),true,cached.freshUntil(),cached.etag());
     }
     try {
@@ -1265,7 +1270,7 @@ public final class RemoteRepository implements FoodtimeRepository {
       HttpTransport loader=sameOrigin?http:new HttpTransport(uri.getScheme()+"://"+uri.getAuthority()+"/",
           new java.net.CookieManager(null,java.net.CookiePolicy.ACCEPT_NONE));
       var response=loader.bytes(uri.toString(),cached==null||cached.etag().isBlank()?Map.of():Map.of("If-None-Match",cached.etag()));
-      if(epoch!=imageEpoch.get()||!identity.equals(imageIdentity())||Thread.currentThread().isInterrupted())throw unavailable();
+      if(epoch!=imageEpoch.get()||!scope.equals(imageScope())||Thread.currentThread().isInterrupted())throw unavailable();
       String policy=header(response,"Cache-Control").toLowerCase(Locale.ROOT),type=header(response,"Content-Type"),etag=header(response,"ETag");
       if(response.status()!=200&&response.status()!=304) {
         if(imageCache!=null&&response.status()>=400&&response.status()<500&&response.status()!=429){
@@ -1291,7 +1296,7 @@ public final class RemoteRepository implements FoodtimeRepository {
         }catch(NumberFormatException ignored){}
       }
       synchronized(imageEpoch) {
-        if(epoch!=imageEpoch.get()||!identity.equals(imageIdentity())||Thread.currentThread().isInterrupted())throw unavailable();
+        if(epoch!=imageEpoch.get()||!scope.equals(imageScope())||Thread.currentThread().isInterrupted())throw unavailable();
         if(imageCache!=null) {
           String key=shared&&until>0?publicKey:privateKey;
           imageCache.remove(key.equals(publicKey)?privateKey:publicKey);
