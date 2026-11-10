@@ -36,9 +36,6 @@ public class MainActivity extends Activity {
   String tab = "dining";
   LinearLayout root, content, header;
   ScrollView scroll;
-  private float gestureDownX,gestureDownY;
-  private int gestureDownScrollY;
-  private boolean gestureTracking;
   final Bundle drafts = new Bundle();
   final Bundle scrollPositions = new Bundle();
   String pickingKey;
@@ -204,7 +201,7 @@ public class MainActivity extends Activity {
     screens.put("dish-search", DishSearchScreen::show);
     screens.put("favorite-dishes", FavoriteDishesScreen::show);
     screens.put("community", CommunityScreen::feed);
-    screens.put("community-following", CommunityDiscoveryScreen::show);
+    screens.put("community-following", CommunityScreen::feed);
     screens.put("community-search", CommunityDiscoveryScreen::show);
     screens.put("community-author", CommunityDiscoveryScreen::show);
     screens.put("community-detail", CommunityScreen::detail);
@@ -418,6 +415,11 @@ public class MainActivity extends Activity {
     if(writeInFlight){message("正在提交，请稍候");return;}
     rememberScroll();ArrayList<Route> stack=stacks.get(tab);stack.set(stack.size()-1,new Route(kind,id));render();
   }
+
+  boolean isCommunityHub() {
+    return tab.equals("community") && stacks.get(tab).size() == 1
+        && CommunityScreen.isSection(route().kind());
+  }
   public Route route() {
     ArrayList<Route> s = stacks.get(tab);
     return s.get(s.size() - 1);
@@ -537,13 +539,9 @@ public class MainActivity extends Activity {
     LinearLayout[] bodyHolder={null};
     if(immediate) {
       // Static/cached shell paints first; live data is merged in after the read completes.
-      renderContent();
+      if (!(force && isCommunityHub() && contentReady && contentRefresh != null
+          && displayedLocation.equals(location()) && displayedActor.equals(actor))) renderContent();
       if(dashboard)AdminDashboardScreen.refreshing(content,true);
-      else if(community) {
-        navigationHandler.postDelayed(()->{
-          if(ticket==generation&&epoch==navigationEpoch&&navigationLoading)showRefreshBanner("正在刷新社区…");
-        },150);
-      }
       navigationHandler.postDelayed(()->{
         if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
         cancelNavigation();pageFailed=true;refreshPage();message("加载超时，已保留当前页面");
@@ -598,20 +596,9 @@ public class MainActivity extends Activity {
     });
     worker.execute(navigationRead);
   }
-  private void cancelNavigation(){navigationEpoch++;navigationHandler.removeCallbacksAndMessages(null);if(navigationRead!=null){navigationRead.cancel(true);navigationRead=null;}navigationLoading=false;AdminDashboardScreen.refreshing(content,false);if(refreshBanner!=null&&refreshBanner.getParent() instanceof android.view.ViewGroup parent)parent.removeView(refreshBanner);refreshBanner=null;}
+  private void cancelNavigation(){navigationEpoch++;navigationHandler.removeCallbacksAndMessages(null);if(navigationRead!=null){navigationRead.cancel(true);navigationRead=null;}if(navigationLoading&&scroll instanceof RefreshScrollView feed)feed.finishRefresh();navigationLoading=false;AdminDashboardScreen.refreshing(content,false);if(refreshBanner!=null&&refreshBanner.getParent() instanceof android.view.ViewGroup parent)parent.removeView(refreshBanner);refreshBanner=null;}
   boolean isPageLoading(){return navigationLoading;}
   boolean pageFailed(){return pageFailed;}
-
-  private void showRefreshBanner(String label) {
-    if(refreshBanner!=null)return;
-    LinearLayout banner=Ui.row(this);
-    TextView text=Ui.text(this,label,12,Design.MUTED);
-    text.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-    banner.addView(text);
-    banner.setPadding(0,0,0,Ui.dp(this,10));
-    content.addView(banner,0,new LinearLayout.LayoutParams(-1,-2));
-    refreshBanner=banner;
-  }
 
   private boolean updateProfileCounts() {
     android.view.View following=content.findViewWithTag("profile-following-count");
@@ -632,30 +619,6 @@ public class MainActivity extends Activity {
     return true;
   }
 
-  /** Pull down at the top or flick up at the bottom of the community feed to refresh. */
-  private void onScrollGesture(int action,float x,float y,int pointers) {
-    if(action==MotionEvent.ACTION_DOWN&&pointers==1) {
-      gestureDownX=x;gestureDownY=y;gestureDownScrollY=scroll==null?0:scroll.getScrollY();gestureTracking=true;
-      return;
-    }
-    if(action==MotionEvent.ACTION_CANCEL) {gestureTracking=false;return;}
-    if(action!=MotionEvent.ACTION_UP||!gestureTracking||pointers!=1)return;
-    gestureTracking=false;
-    if(!tab.equals("community")||!route().kind().equals("community")||navigationLoading)return;
-    float dx=x-gestureDownX,dy=y-gestureDownY;
-    if(Math.abs(dx)>Math.abs(dy)*1.4f)return;
-    int max=0;
-    if(scroll!=null&&scroll.getChildCount()>0)max=Math.max(0,scroll.getChildAt(0).getHeight()-scroll.getHeight());
-    int threshold=Ui.dp(this,72);
-    boolean pullDown=gestureDownScrollY<=0&&dy>threshold;
-    boolean pullUp=gestureDownScrollY>=max-2&&dy<-threshold;
-    if(pullDown||pullUp)scroll.post(()->{
-      if(!navigationLoading&&tab.equals("community")&&route().kind().equals("community")) {
-        message("正在刷新社区…");refreshCurrent();
-      }
-    });
-  }
-
   private ContentRequest query(Route route) {
     ContentRequest.Query q=switch(route.kind()) {
       case "venue-reviews","venue-write" -> ContentRequest.Query.VENUE_REVIEWS;
@@ -669,6 +632,7 @@ public class MainActivity extends Activity {
       case "gallery" -> ContentRequest.Query.DISH_IMAGES;
       case "upload-photo","review" -> ContentRequest.Query.DISH_TARGET;
       case "community" -> ContentRequest.Query.COMMUNITY_FEED;
+      case "community-following" -> ContentRequest.Query.COMMUNITY_FOLLOWING;
       case "community-detail" -> ContentRequest.Query.COMMUNITY_DETAIL;
       case "community-mine" -> ContentRequest.Query.MY_COMMUNITY_POSTS;
       case "community-favorites" -> ContentRequest.Query.MY_COMMUNITY_FAVORITES;
@@ -840,9 +804,18 @@ public class MainActivity extends Activity {
     brand.setEllipsize(android.text.TextUtils.TruncateAt.END);
     brand.setGravity(Gravity.CENTER_VERTICAL);
     bar.addView(brand, new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1));
-    TextView home = Ui.button(this, "⌂", false, this::home);
-    home.setContentDescription("回到食堂首页");
-    bar.addView(home, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
+    if (isCommunityHub()) {
+      bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_search,
+          "搜索食记", () -> go("community-search", route().kind().equals("community-following") ? "following" : "")),
+          new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
+      bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_home,
+          "回到食堂首页", this::home), new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
+      CommunityScreen.tabs(this, header);
+    } else {
+      TextView home = Ui.button(this, "⌂", false, this::home);
+      home.setContentDescription("回到食堂首页");
+      bar.addView(home, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
+    }
   }
 
   private void buildChatHeader() {
@@ -922,14 +895,35 @@ public class MainActivity extends Activity {
     View rule = new View(this);
     rule.setBackgroundColor(Design.BORDER);
     root.addView(rule, new LinearLayout.LayoutParams(-1, Ui.dp(this, 1)));
-    scroll = new RefreshScrollView(this, this::onScrollGesture);
+    boolean hub = navigation && isCommunityHub();
+    FrameLayout feedFrame = hub ? new FrameLayout(this) : null;
+    if (hub) {
+      ProgressBar indicator = new ProgressBar(this);
+      indicator.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Design.RED));
+      indicator.setPadding(Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8));
+      indicator.setBackground(Ui.shape(this, Design.PAPER, Design.BORDER, 24));
+      indicator.setElevation(Ui.dp(this, 3));
+      indicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+      indicator.setVisibility(View.INVISIBLE);
+      scroll = new RefreshScrollView(this, indicator, () -> !navigationLoading,
+          this::refreshCurrent, direction -> CommunityScreen.swipe(this, direction));
+      feedFrame.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
+      FrameLayout.LayoutParams indicatorSize = new FrameLayout.LayoutParams(Ui.dp(this, 42), Ui.dp(this, 42),
+          Gravity.TOP | Gravity.CENTER_HORIZONTAL);
+      feedFrame.addView(indicator, indicatorSize);
+      View create = CommunityScreen.createButton(this);
+      FrameLayout.LayoutParams createSize = new FrameLayout.LayoutParams(Ui.dp(this, 54), Ui.dp(this, 54),
+          Gravity.BOTTOM | Gravity.END);
+      createSize.setMargins(0, 0, Ui.dp(this, 18), Ui.dp(this, 15));
+      feedFrame.addView(create, createSize);
+    } else scroll = new ScrollView(this);
     scroll.setFillViewport(true);
     content = Ui.col(this);
     content.setBackgroundColor(Design.PAPER);
     if (chat || post) content.setPadding(0, 0, 0, 0);
-    else content.setPadding(Ui.dp(this, 14), Ui.dp(this, 24), Ui.dp(this, 14), Ui.dp(this, 24));
+    else content.setPadding(Ui.dp(this, 14), Ui.dp(this, hub ? 15 : 24), Ui.dp(this, 14), Ui.dp(this, hub ? 76 : 24));
     scroll.addView(content);
-    root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+    root.addView(hub ? feedFrame : scroll, new LinearLayout.LayoutParams(-1, 0, 1));
     if (chat || post) {
       chatBar = Ui.col(this);
       chatBar.setBackgroundColor(Design.PAPER);
@@ -1231,7 +1225,7 @@ public class MainActivity extends Activity {
     for(Runnable callback:callbacks) callback.run();
     if(contentReady&&consumeIncoming()){resumeNavigation=false;render(true);}
     else if(resumeNavigation&&repo!=null&&repo.currentUser()!=null){resumeNavigation=false;render(true);}
-    else if(tab.equals("community")&&repo!=null&&repo.currentUser()!=null&&communityLoadedAt>0
+    else if(isCommunityHub()&&route().kind().equals("community")&&repo!=null&&repo.currentUser()!=null&&communityLoadedAt>0
         &&android.os.SystemClock.elapsedRealtime()-communityLoadedAt>=COMMUNITY_FRESH_MS){render(true);}
     noticeUi.post(this::drainNotices);
     syncPrivateMessageUnread();
