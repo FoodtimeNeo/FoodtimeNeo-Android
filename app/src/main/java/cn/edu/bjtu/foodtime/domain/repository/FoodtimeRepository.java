@@ -25,7 +25,17 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default AdminDashboard adminDashboard() { return null; }
   default DailyRecommendations dailyRecommendations() { return null; }
 
+  default boolean blockedByMe(String userId) { throw new UnsupportedOperationException(); }
+  default void setBlocked(String userId, boolean blocked) { throw new UnsupportedOperationException(); }
+  default void reportContent(String type, String id, String reason) { throw new UnsupportedOperationException(); }
+  default ReportPage reports(int page) { throw new UnsupportedOperationException(); }
+  default void reviewReport(String id) { throw new UnsupportedOperationException(); }
+
   default List<CommunityPost> communityPosts() { return List.of(); }
+  default CommunityAuthor communityAuthor(String userId) { throw new UnsupportedOperationException(); }
+  default CommunityFeedSlice discoverPosts(String authorId, boolean following, String query, String cursor) {
+    throw new UnsupportedOperationException();
+  }
   default boolean communityPrototypeEnabled() { return false; }
   default CommunityPost communityPost(String id) { return null; }
   default List<CommunityComment> communityComments(String postId) { return List.of(); }
@@ -33,8 +43,14 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
     throw new UnsupportedOperationException("此数据源不支持社区发帖");
   }
   default void submitCommunityPost(String title,String content,List<String> images,String clientRequestId) {throw new UnsupportedOperationException();}
+  default void submitCommunityPost(String title,String content,List<String> images,String clientRequestId,String dishId) {
+    if (!dishId.isBlank()) throw new UnsupportedOperationException();
+    submitCommunityPost(title,content,images,clientRequestId);
+  }
   default void loadMoreCommunityPosts(){throw new UnsupportedOperationException();}
   default boolean hasMoreCommunityPosts(){return false;}
+  default CommunityFeedSlice communityFollowing() { return new CommunityFeedSlice(List.of(), 0, ""); }
+  default void loadMoreCommunityFollowing() {}
   default String submitCommunityComment(String postId, String content) {
     throw new UnsupportedOperationException("此数据源不支持社区评论");
   }
@@ -109,6 +125,7 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default void loadMoreConversations() { throw new UnsupportedOperationException(); }
   default Conversation conversation(String id) { return null; }
   default long directUnreadCount() { return 0; }
+  default long refreshDirectUnread() { return directUnreadCount(); }
   /** 会话消息按时间正序缓存；cursor 用于加载更早的消息。 */
   default DirectMessagePage conversationMessages(String conversationId) { return DirectMessagePage.empty(); }
   default void loadMoreConversationMessages(String conversationId) { throw new UnsupportedOperationException(); }

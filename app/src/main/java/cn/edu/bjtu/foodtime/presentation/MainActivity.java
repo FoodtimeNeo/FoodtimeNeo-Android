@@ -14,6 +14,7 @@ import cn.edu.bjtu.foodtime.domain.repository.RepositoryException;
 import cn.edu.bjtu.foodtime.domain.model.Models.AppRelease;
 import cn.edu.bjtu.foodtime.domain.model.Models.Conversation;
 import cn.edu.bjtu.foodtime.domain.model.Models.Notice;
+import cn.edu.bjtu.foodtime.domain.model.CommunityShareLink;
 import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.function.*;
@@ -35,9 +36,7 @@ public class MainActivity extends Activity {
   String tab = "dining";
   LinearLayout root, content, header;
   ScrollView scroll;
-  private float gestureDownX,gestureDownY;
-  private int gestureDownScrollY;
-  private boolean gestureTracking;
+  private CommunityPager communityPager;
   final Bundle drafts = new Bundle();
   final Bundle scrollPositions = new Bundle();
   String pickingKey;
@@ -68,6 +67,9 @@ public class MainActivity extends Activity {
   private final List<Runnable> deferredReads=new ArrayList<>();
   private final android.os.Handler noticeUi=new android.os.Handler(android.os.Looper.getMainLooper());
   private String noticeErrorShown="";
+  private static final int REQUEST_PRIVATE_MESSAGE_NOTIFICATION = 1092;
+  private String incomingPost = "";
+  private boolean incomingInbox;
   private String actor(){var user=repo==null?null:repo.currentUser();return user==null?"":user.id()+":"+user.role();}
   private void drainNotices() {
     if(loginNotices==null||updateCheckPending)return;
@@ -129,8 +131,52 @@ public class MainActivity extends Activity {
       avatarPickingActor = state.getString("avatarPickingActor", "");
       Bundle positions = state.getBundle("scrollPositions");
       if (positions != null) scrollPositions.putAll(positions);
+      incomingPost = state.getString("incomingPost", "");
+      incomingInbox = state.getBoolean("incomingInbox");
+    } else {
+      captureIncoming(getIntent());
     }
     restore();
+  }
+
+  @Override protected void onNewIntent(Intent intent) {
+    super.onNewIntent(intent);
+    setIntent(intent);
+    captureIncoming(intent);
+    if (contentReady && consumeIncoming()) render(true);
+  }
+
+  private void captureIncoming(Intent intent) {
+    if (intent == null) return;
+    if (PrivateMessageReminders.OPEN_INBOX.equals(intent.getAction())) {
+      incomingInbox = true;
+      incomingPost = "";
+    } else if (Intent.ACTION_VIEW.equals(intent.getAction())) {
+      String id = CommunityShareLink.postId(intent.getDataString());
+      if (!id.isEmpty()) {
+        incomingPost = id;
+        incomingInbox = false;
+      }
+    }
+  }
+
+  private boolean consumeIncoming() {
+    if (repo.currentUser() == null || writeInFlight || pendingOperation != 0
+        || (!incomingInbox && incomingPost.isEmpty())) return false;
+    if (contentReady) rememberScroll();
+    Route target;
+    if (incomingInbox) {
+      tab = "profile";
+      target = new Route("inbox", "");
+      drafts.putString("inbox::tab", "chat");
+    } else {
+      tab = "community";
+      target = new Route("community-detail", incomingPost);
+    }
+    if (!target.equals(route())) stacks.get(tab).add(target);
+    incomingInbox = false;
+    incomingPost = "";
+    return true;
   }
 
   public void restore() {
@@ -153,7 +199,12 @@ public class MainActivity extends Activity {
     screens.put("venue-write",VenueScreen::write);
     screens.put("venue-mine",VenueScreen::mine);
     screens.put("dining", DiningScreen::halls);
+    screens.put("dish-search", DishSearchScreen::show);
+    screens.put("favorite-dishes", FavoriteDishesScreen::show);
     screens.put("community", CommunityScreen::feed);
+    screens.put("community-following", CommunityScreen::feed);
+    screens.put("community-search", CommunityDiscoveryScreen::show);
+    screens.put("community-author", CommunityDiscoveryScreen::show);
     screens.put("community-detail", CommunityScreen::detail);
     screens.put("community-create", CommunityScreen::create);
     screens.put("community-mine", CommunityScreen::collection);
@@ -191,6 +242,7 @@ public class MainActivity extends Activity {
     screens.put("admin-edit", AdminScreen::edit);
     screens.put("admin-reviews", AdminScreen::reviews);
     screens.put("admin-notices", AdminNoticesScreen::settings);
+    screens.put("admin-reports", ReportsScreen::show);
     screens.put("admin-notice-create", AdminNoticesScreen::create);
     screens.put("admin-users", AdminScreen::users);
     screens.put("admin-dashboard", AdminDashboardScreen::show);
@@ -220,6 +272,10 @@ public class MainActivity extends Activity {
     }
     if (tab.equals("admin") && !repo.currentUser().isAdmin()) tab = "dining";
     if (tab.equals("dashboard") && !repo.currentUser().role().equals("superadmin")) tab = "dining";
+    consumeIncoming();
+    if (PrivateMessageReminders.configured(this, repo.currentUser().id())) {
+      PrivateMessageReminders.ensureScheduled(this);
+    }
     loginNotices.check(repo,inboxWorker);
     render();
     updateCheckPending = true;
@@ -360,6 +416,35 @@ public class MainActivity extends Activity {
     if(writeInFlight){message("正在提交，请稍候");return;}
     rememberScroll();ArrayList<Route> stack=stacks.get(tab);stack.set(stack.size()-1,new Route(kind,id));render();
   }
+
+  boolean isCommunityHub() {
+    return tab.equals("community") && stacks.get(tab).size() == 1
+        && CommunityPager.isSection(route().kind());
+  }
+
+  void restoreCommunityScroll(ScrollView view, String section) {
+    int offset = scrollPositions.getInt("community:" + section + ":", 0);
+    if (offset == 0) return;
+    view.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+      @Override public void onLayoutChange(View v, int left, int top, int right, int bottom,
+          int oldLeft, int oldTop, int oldRight, int oldBottom) {
+        view.removeOnLayoutChangeListener(this);
+        view.scrollTo(0, offset);
+      }
+    });
+  }
+
+  void commitCommunityPage(CommunityPager owner, String section, CommunityPager.Page page) {
+    if (communityPager != owner || !isCommunityHub()) return;
+    rememberScroll();
+    cancelNavigation();
+    stacks.get(tab).set(0, new Route(section, ""));
+    scroll = page.scroll();
+    content = page.content();
+    contentRefresh = page.update();
+    displayedLocation = location();
+    render();
+  }
   public Route route() {
     ArrayList<Route> s = stacks.get(tab);
     return s.get(s.size() - 1);
@@ -426,6 +511,8 @@ public class MainActivity extends Activity {
     state.putLong("pendingOperation",pendingOperation);
     state.putBoolean("authRegistration",authRegistration);
     state.putString("tab", tab);
+    state.putString("incomingPost", incomingPost);
+    state.putBoolean("incomingInbox", incomingInbox);
     for (String key : stacks.keySet()) {
       ArrayList<String> saved = new ArrayList<>();
       for (Route route : stacks.get(key)) saved.add(route.kind() + "|" + route.id());
@@ -464,10 +551,13 @@ public class MainActivity extends Activity {
     ContentRequest query=query(target);
     if(query==null) { renderContent(); return; }
     boolean community=target.kind().equals("community");
+    boolean keepCommunityPage = isCommunityHub() && contentReady && contentRefresh != null
+        && displayedLocation.equals(location()) && displayedActor.equals(actor);
     boolean freshCommunity=community&&!force&&communityLoadedAt>0&&communityLoadedFor.equals(actor)
         &&android.os.SystemClock.elapsedRealtime()-communityLoadedAt<COMMUNITY_FRESH_MS;
     if(freshCommunity) {
-      renderContent();
+      if (keepCommunityPage) refreshPage();
+      else renderContent();
       return;
     }
     boolean catalog=LoadingScreen.catalog(target),dashboard=target.kind().equals("admin-dashboard");
@@ -477,13 +567,8 @@ public class MainActivity extends Activity {
     LinearLayout[] bodyHolder={null};
     if(immediate) {
       // Static/cached shell paints first; live data is merged in after the read completes.
-      renderContent();
+      if (!keepCommunityPage) renderContent();
       if(dashboard)AdminDashboardScreen.refreshing(content,true);
-      else if(community) {
-        navigationHandler.postDelayed(()->{
-          if(ticket==generation&&epoch==navigationEpoch&&navigationLoading)showRefreshBanner("正在刷新社区…");
-        },150);
-      }
       navigationHandler.postDelayed(()->{
         if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
         cancelNavigation();pageFailed=true;refreshPage();message("加载超时，已保留当前页面");
@@ -538,20 +623,9 @@ public class MainActivity extends Activity {
     });
     worker.execute(navigationRead);
   }
-  private void cancelNavigation(){navigationEpoch++;navigationHandler.removeCallbacksAndMessages(null);if(navigationRead!=null){navigationRead.cancel(true);navigationRead=null;}navigationLoading=false;AdminDashboardScreen.refreshing(content,false);if(refreshBanner!=null&&refreshBanner.getParent() instanceof android.view.ViewGroup parent)parent.removeView(refreshBanner);refreshBanner=null;}
+  private void cancelNavigation(){navigationEpoch++;navigationHandler.removeCallbacksAndMessages(null);if(navigationRead!=null){navigationRead.cancel(true);navigationRead=null;}if(navigationLoading&&scroll instanceof RefreshScrollView feed)feed.finishRefresh();navigationLoading=false;AdminDashboardScreen.refreshing(content,false);if(refreshBanner!=null&&refreshBanner.getParent() instanceof android.view.ViewGroup parent)parent.removeView(refreshBanner);refreshBanner=null;}
   boolean isPageLoading(){return navigationLoading;}
   boolean pageFailed(){return pageFailed;}
-
-  private void showRefreshBanner(String label) {
-    if(refreshBanner!=null)return;
-    LinearLayout banner=Ui.row(this);
-    TextView text=Ui.text(this,label,12,Design.MUTED);
-    text.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-    banner.addView(text);
-    banner.setPadding(0,0,0,Ui.dp(this,10));
-    content.addView(banner,0,new LinearLayout.LayoutParams(-1,-2));
-    refreshBanner=banner;
-  }
 
   private boolean updateProfileCounts() {
     android.view.View following=content.findViewWithTag("profile-following-count");
@@ -572,30 +646,6 @@ public class MainActivity extends Activity {
     return true;
   }
 
-  /** Pull down at the top or flick up at the bottom of the community feed to refresh. */
-  private void onScrollGesture(int action,float x,float y,int pointers) {
-    if(action==MotionEvent.ACTION_DOWN&&pointers==1) {
-      gestureDownX=x;gestureDownY=y;gestureDownScrollY=scroll==null?0:scroll.getScrollY();gestureTracking=true;
-      return;
-    }
-    if(action==MotionEvent.ACTION_CANCEL) {gestureTracking=false;return;}
-    if(action!=MotionEvent.ACTION_UP||!gestureTracking||pointers!=1)return;
-    gestureTracking=false;
-    if(!tab.equals("community")||!route().kind().equals("community")||navigationLoading)return;
-    float dx=x-gestureDownX,dy=y-gestureDownY;
-    if(Math.abs(dx)>Math.abs(dy)*1.4f)return;
-    int max=0;
-    if(scroll!=null&&scroll.getChildCount()>0)max=Math.max(0,scroll.getChildAt(0).getHeight()-scroll.getHeight());
-    int threshold=Ui.dp(this,72);
-    boolean pullDown=gestureDownScrollY<=0&&dy>threshold;
-    boolean pullUp=gestureDownScrollY>=max-2&&dy<-threshold;
-    if(pullDown||pullUp)scroll.post(()->{
-      if(!navigationLoading&&tab.equals("community")&&route().kind().equals("community")) {
-        message("正在刷新社区…");refreshCurrent();
-      }
-    });
-  }
-
   private ContentRequest query(Route route) {
     ContentRequest.Query q=switch(route.kind()) {
       case "venue-reviews","venue-write" -> ContentRequest.Query.VENUE_REVIEWS;
@@ -609,6 +659,7 @@ public class MainActivity extends Activity {
       case "gallery" -> ContentRequest.Query.DISH_IMAGES;
       case "upload-photo","review" -> ContentRequest.Query.DISH_TARGET;
       case "community" -> ContentRequest.Query.COMMUNITY_FEED;
+      case "community-following" -> ContentRequest.Query.COMMUNITY_FOLLOWING;
       case "community-detail" -> ContentRequest.Query.COMMUNITY_DETAIL;
       case "community-mine" -> ContentRequest.Query.MY_COMMUNITY_POSTS;
       case "community-favorites" -> ContentRequest.Query.MY_COMMUNITY_FAVORITES;
@@ -696,7 +747,8 @@ public class MainActivity extends Activity {
       }
     }
     int offset = scrollPositions.getInt(location(), 0);
-    scroll.post(() -> scroll.scrollTo(0, offset));
+    ScrollView displayedScroll = scroll;
+    displayedScroll.post(() -> displayedScroll.scrollTo(0, offset));
     noticeUi.post(this::drainNotices);
   }
 
@@ -717,6 +769,9 @@ public class MainActivity extends Activity {
       case "venue-write" -> "写点评";
       case "venue-mine" -> "我的点评";
       case "community-detail" -> "社区食记";
+      case "community-following" -> "只看关注";
+      case "community-search" -> "搜索食记";
+      case "community-author" -> "作者主页";
       case "community-create" -> "写一页美食手账";
       case "community-mine" -> "我的食记";
       case "community-favorites" -> "我的收藏";
@@ -742,6 +797,8 @@ public class MainActivity extends Activity {
       case "mine-reviews" -> "我的评论";
       case "mine-review-replies" -> "我的回复";
       case "detail" -> "菜品详情";
+      case "dish-search" -> "跨食堂搜菜";
+      case "favorite-dishes" -> "想吃清单";
       case "admin-audit" -> "审核投稿";
       case "admin-data" -> "目录管理";
       case "admin-edit" -> "编辑目录";
@@ -750,6 +807,7 @@ public class MainActivity extends Activity {
       case "admin-users" -> "用户管理";
       case "admin-logs" -> "审核日志";
       case "admin-notices" -> "公告管理";
+      case "admin-reports" -> "举报处理";
       default -> "正在加载";
     };
   }
@@ -774,9 +832,18 @@ public class MainActivity extends Activity {
     brand.setEllipsize(android.text.TextUtils.TruncateAt.END);
     brand.setGravity(Gravity.CENTER_VERTICAL);
     bar.addView(brand, new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1));
-    TextView home = Ui.button(this, "⌂", false, this::home);
-    home.setContentDescription("回到食堂首页");
-    bar.addView(home, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
+    if (communityPager != null) {
+      bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_search,
+          "搜索食记", () -> go("community-search", route().kind().equals("community-following") ? "following" : "")),
+          new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
+      bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_home,
+          "回到食堂首页", this::home), new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
+      communityPager.bindTabs(header);
+    } else {
+      TextView home = Ui.button(this, "⌂", false, this::home);
+      home.setContentDescription("回到食堂首页");
+      bar.addView(home, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
+    }
   }
 
   private void buildChatHeader() {
@@ -798,6 +865,17 @@ public class MainActivity extends Activity {
         ()->repo.refresh(new ContentRequest(ContentRequest.Query.CONVERSATIONS,route().id())),
         this::refreshContent,()->{}));
     bar.addView(refresh,new LinearLayout.LayoutParams(Ui.dp(this,48),Ui.dp(this,48)));
+    if (conversation != null) {
+      TextView safety = Ui.button(this, "⋯", false, () -> {});
+      safety.setContentDescription("私信拉黑管理");
+      safety.setOnClickListener(view -> ContentSafety.manageBlock(this, view, conversation.other().id(), blocked -> {
+        String version = draftKey("chatBlockVersion");
+        drafts.putLong(version, drafts.getLong(version) + 1);
+        drafts.putBoolean(draftKey("chatBlocked"), blocked);
+        refreshContent();
+      }));
+      bar.addView(safety, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
+    }
   }
 
   void pinNoticeActions(LinearLayout actions) {
@@ -845,14 +923,22 @@ public class MainActivity extends Activity {
     View rule = new View(this);
     rule.setBackgroundColor(Design.BORDER);
     root.addView(rule, new LinearLayout.LayoutParams(-1, Ui.dp(this, 1)));
-    scroll = new RefreshScrollView(this, this::onScrollGesture);
-    scroll.setFillViewport(true);
-    content = Ui.col(this);
-    content.setBackgroundColor(Design.PAPER);
-    if (chat || post) content.setPadding(0, 0, 0, 0);
-    else content.setPadding(Ui.dp(this, 14), Ui.dp(this, 24), Ui.dp(this, 14), Ui.dp(this, 24));
-    scroll.addView(content);
-    root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+    boolean hub = navigation && isCommunityHub();
+    communityPager = hub ? new CommunityPager(this, route().kind()) : null;
+    if (hub) {
+      scroll = communityPager.current().scroll();
+      content = communityPager.current().content();
+      root.addView(communityPager.frame, new LinearLayout.LayoutParams(-1, 0, 1));
+    } else {
+      scroll = new ScrollView(this);
+      scroll.setFillViewport(true);
+      content = Ui.col(this);
+      content.setBackgroundColor(Design.PAPER);
+      if (chat || post) content.setPadding(0, 0, 0, 0);
+      else content.setPadding(Ui.dp(this, 14), Ui.dp(this, 24), Ui.dp(this, 14), Ui.dp(this, 24));
+      scroll.addView(content);
+      root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+    }
     if (chat || post) {
       chatBar = Ui.col(this);
       chatBar.setBackgroundColor(Design.PAPER);
@@ -1059,6 +1145,7 @@ public class MainActivity extends Activity {
           else if(loggedIn&&repo.currentUser()==null) {
             clearNavigation();showAuth(false);message("登录已失效，请重新登录");
           } else if(error!=null) error.setText(safeMessage(failure));else message(safeMessage(failure));
+          if (consumeIncoming()) render(true);
         };
         if(stateSaved) deferredCompletion=complete;else complete.run();
       });
@@ -1126,6 +1213,7 @@ public class MainActivity extends Activity {
   }
   public void signedOut() {clearNavigation();showAuth(false);}
   private void clearNavigation() {
+    PrivateMessageReminders.disable(this);
     for(var stack:stacks.values())for(Route item:stack)if(item.kind().equals("avatar-crop"))discardPhoto(item.id());
     pickingKey=null;avatarPickingActor="";
     cancelNavigation();contentReady=false;displayedActor="";communityLoadedAt=0;communityLoadedFor="";
@@ -1150,12 +1238,77 @@ public class MainActivity extends Activity {
     if(deferredCompletion!=null) {Runnable callback=deferredCompletion;deferredCompletion=null;callback.run();}
     List<Runnable> callbacks=new ArrayList<>(deferredReads);deferredReads.clear();
     for(Runnable callback:callbacks) callback.run();
-    if(resumeNavigation&&repo!=null&&repo.currentUser()!=null){resumeNavigation=false;render(true);}
-    else if(tab.equals("community")&&repo!=null&&repo.currentUser()!=null&&communityLoadedAt>0
+    if(contentReady&&consumeIncoming()){resumeNavigation=false;render(true);}
+    else if(resumeNavigation&&repo!=null&&repo.currentUser()!=null){resumeNavigation=false;render(true);}
+    else if(isCommunityHub()&&route().kind().equals("community")&&repo!=null&&repo.currentUser()!=null&&communityLoadedAt>0
         &&android.os.SystemClock.elapsedRealtime()-communityLoadedAt>=COMMUNITY_FRESH_MS){render(true);}
     noticeUi.post(this::drainNotices);
+    syncPrivateMessageUnread();
   }
-  @Override protected void onPause() { super.onPause();foreground=false;resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
+
+  private void syncPrivateMessageUnread() {
+    var user = repo.currentUser();
+    if (user == null || !contentReady) return;
+    Route location = route();
+    boolean chat = location.kind().equals("direct-chat");
+    read("resume-direct-unread:" + location.kind() + ":" + location.id(), null, new TextView(this), () -> {
+      long unread = repo.refreshDirectUnread();
+      if (chat && unread > 0) repo.refresh(new ContentRequest(ContentRequest.Query.CONVERSATIONS, location.id()));
+    }, () -> {
+      ProfileScreen.updateUnreadBadge(this);
+      InboxScreen.updateDirectBadge(this);
+      if (chat && repo.directUnreadCount() > 0) refreshContent();
+      else PrivateMessageReminders.update(this, user.id(), repo.directUnreadCount());
+    }, () -> {});
+  }
+
+  boolean privateMessageRemindersConfigured() {
+    var user = repo.currentUser();
+    return user != null && PrivateMessageReminders.configured(this, user.id());
+  }
+
+  void togglePrivateMessageReminders() {
+    if (privateMessageRemindersConfigured()) {
+      PrivateMessageReminders.disable(this);
+      updateReminderToggle();
+      return;
+    }
+    if (android.os.Build.VERSION.SDK_INT >= 33
+        && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+      requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, REQUEST_PRIVATE_MESSAGE_NOTIFICATION);
+      return;
+    }
+    enablePrivateMessageReminders();
+  }
+
+  @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] grantResults) {
+    super.onRequestPermissionsResult(code, permissions, grantResults);
+    if (code == REQUEST_PRIVATE_MESSAGE_NOTIFICATION) {
+      if (grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+        enablePrivateMessageReminders();
+      } else {
+        message("系统未允许通知，可在系统设置中开启。");
+      }
+    }
+  }
+
+  private void enablePrivateMessageReminders() {
+    var user = repo.currentUser();
+    if (user == null) return;
+    if (PrivateMessageReminders.enable(this, user.id(), repo.directUnreadCount())) {
+      updateReminderToggle();
+    } else {
+      message("未能开启私信提醒，请检查系统通知设置。");
+    }
+  }
+
+  private void updateReminderToggle() {
+    TextView control = root == null ? null : root.findViewWithTag("private-message-reminder-toggle");
+    if (control != null) {
+      control.setText(privateMessageRemindersConfigured() ? "关闭私信提醒" : "开启私信提醒");
+    }
+  }
+  @Override protected void onPause() { super.onPause();foreground=false;if(communityPager!=null)communityPager.cancelSwipe();resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)Ui.clearImages();}
   @Override protected void onDestroy() {if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();++generation;cancelNavigation();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }

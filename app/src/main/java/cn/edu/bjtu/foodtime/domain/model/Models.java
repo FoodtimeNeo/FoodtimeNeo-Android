@@ -28,6 +28,22 @@ public final class Models {
       String description,
       boolean active) {}
 
+  public record DishSearchRow(String id, String name, BigDecimal price,
+                              String stallName, String diningHallName) {}
+
+  public record DishSearchPage(List<DishSearchRow> items, long total, int page, int size) {
+    public DishSearchPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
+  public record ReportRow(String id, String type, String targetUserId, String postId,
+                          String reason, String excerpt) {}
+
+  public record ReportPage(List<ReportRow> items, long total, int page, int size) {
+    public ReportPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
   public record User(String id, String email, String displayName, String role, boolean active,
       String avatarUrl, long createdAt, long reviewCount, long followingCount, long followerCount) {
     public User(String id, String email, String displayName, String role, boolean active,
@@ -151,16 +167,28 @@ public final class Models {
     public static CommunityPostPage empty(){return new CommunityPostPage(List.of(),0,0,false);}
   }
   public record CommunityImage(String url,int width,int height) {}
+  public record LinkedDish(String id, String name) {}
+  public record CommunityAuthor(String id, String displayName, String avatarUrl) {}
+  public record CommunityFeedSlice(List<CommunityPost> items, long total, String nextCursor) {
+    public CommunityFeedSlice { items = List.copyOf(items); }
+  }
   public record CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
       long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
       boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt,
-      String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage) {
+      String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage,LinkedDish linkedDish) {
     public CommunityPost {imageUrls=imageUrls==null?List.of():List.copyOf(imageUrls);images=images==null?List.of():List.copyOf(images);}
     public CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
         long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
         boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt) {
       this(id,userId,userDisplayName,content,imageUrls,likeCount,commentCount,repostCount,repostOfId,repostAuthor,repostContent,
-          likedByMe,favoritedByMe,status,reviewReason,createdAt,CommunityText.headline(content),"",List.of(),0,"");
+          likedByMe,favoritedByMe,status,reviewReason,createdAt,CommunityText.headline(content),"",List.of(),0,"",null);
+    }
+    public CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
+        long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
+        boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt,
+        String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage) {
+      this(id,userId,userDisplayName,content,imageUrls,likeCount,commentCount,repostCount,repostOfId,repostAuthor,repostContent,
+          likedByMe,favoritedByMe,status,reviewReason,createdAt,title,userAvatarUrl,images,favoriteCount,reviewStage,null);
     }
   }
 

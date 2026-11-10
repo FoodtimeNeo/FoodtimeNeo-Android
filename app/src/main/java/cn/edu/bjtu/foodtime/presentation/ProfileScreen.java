@@ -94,21 +94,31 @@ final class ProfileScreen {
     LinearLayout copy=Ui.col(a);copy.addView(Ui.title(a,"我的手账",30));Ui.gap(copy,8);
     copy.addView(Ui.note(a,"把喜欢的味道、写下的点评，都收进这一页。"));
     header.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
-    long unread=a.repo.unreadCount();
     FrameLayout inbox=new FrameLayout(a);inbox.setClickable(true);inbox.setFocusable(true);
+    inbox.setTag("profile-inbox-button");
     inbox.setClipChildren(false);inbox.setClipToPadding(false);
     inbox.setBackground(Ui.ripple(a,Design.ALT,0,24));
-    inbox.setContentDescription(unread>0?"通知信箱，"+unread+"条未读":"通知信箱");
     TextView bell=Ui.text(a,"🔔",23,Design.INK);bell.setGravity(Gravity.CENTER);
     inbox.addView(bell,new FrameLayout.LayoutParams(-1,-1));
-    if(unread>0) {
-      TextView badge=Ui.text(a,unread>99?"99+":String.valueOf(unread),10,Design.ON_RED);badge.setGravity(Gravity.CENTER);badge.setTypeface(Design.body(),android.graphics.Typeface.BOLD);
-      badge.setBackground(Ui.shape(a,Design.RED,0,999));badge.setMinWidth(Ui.dp(a,20));badge.setMinHeight(Ui.dp(a,20));
-      FrameLayout.LayoutParams badgeLp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.END);badgeLp.topMargin=-Ui.dp(a,3);badgeLp.rightMargin=-Ui.dp(a,3);inbox.addView(badge,badgeLp);
-    }
+    TextView badge=Ui.text(a,"",10,Design.ON_RED);badge.setGravity(Gravity.CENTER);badge.setTypeface(Design.body(),android.graphics.Typeface.BOLD);
+    badge.setTag("profile-inbox-badge");
+    badge.setBackground(Ui.shape(a,Design.RED,0,999));badge.setMinWidth(Ui.dp(a,20));badge.setMinHeight(Ui.dp(a,20));
+    FrameLayout.LayoutParams badgeLp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.END);badgeLp.topMargin=-Ui.dp(a,3);badgeLp.rightMargin=-Ui.dp(a,3);inbox.addView(badge,badgeLp);
     inbox.setOnClickListener(v->a.go("inbox",""));
     LinearLayout.LayoutParams inboxLp=new LinearLayout.LayoutParams(Ui.dp(a,48),Ui.dp(a,48));inboxLp.leftMargin=Ui.dp(a,12);header.addView(inbox,inboxLp);
     page.addView(header,new LinearLayout.LayoutParams(-1,-2));Ui.gap(page,24);
+    updateUnreadBadge(a);
+  }
+
+  static void updateUnreadBadge(MainActivity activity) {
+    if (activity.root == null) return;
+    View inbox = activity.root.findViewWithTag("profile-inbox-button");
+    TextView badge = activity.root.findViewWithTag("profile-inbox-badge");
+    if (inbox == null || badge == null) return;
+    long unread = activity.repo.unreadCount();
+    inbox.setContentDescription(unread > 0 ? "通知信箱，" + unread + "条未读" : "通知信箱");
+    badge.setVisibility(unread > 0 ? View.VISIBLE : View.GONE);
+    badge.setText(unread > 99 ? "99+" : String.valueOf(unread));
   }
 
   private static void renderPanel(MainActivity a,LinearLayout panel,User user,int selected) {
@@ -126,11 +136,18 @@ final class ProfileScreen {
     else if(selected==1) {
       roundedAction(a,panel,action,false,()->a.go("community-mine",""));Ui.gap(panel,10);
       roundedAction(a,panel,"我的收藏",false,()->a.go("community-favorites",""));
+      Ui.gap(panel,10);
+      roundedAction(a,panel,"想吃清单",false,()->a.go("favorite-dishes",""));
     }
     else if(selected==2) roundedAction(a,panel,action,false,() -> a.go("mine-submissions",""));
     else if(selected==3) {
       roundedAction(a,panel,action,false,() -> a.go("profile-edit",""));Ui.gap(panel,10);
       roundedAction(a,panel,"修改密码",false,() -> a.go("password",""));
+      Ui.gap(panel,10);
+      TextView reminders = Ui.button(a, a.privateMessageRemindersConfigured() ? "关闭私信提醒" : "开启私信提醒",
+          false, a::togglePrivateMessageReminders);
+      reminders.setTag("private-message-reminder-toggle");
+      panel.addView(reminders);
       Ui.gap(panel,10);
       TextView cache=Ui.text(a,"图片缓存",14,Design.MUTED);panel.addView(cache);
       TextView cacheError=Ui.text(a,"",12,Design.RED);panel.addView(cacheError);

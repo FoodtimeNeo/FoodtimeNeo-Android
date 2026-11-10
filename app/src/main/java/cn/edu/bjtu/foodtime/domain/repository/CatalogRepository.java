@@ -11,6 +11,19 @@ public interface CatalogRepository {
 
   List<Dish> dishes(String stallId);
 
+  /** Load just one directory level on a worker. */
+  default List<Hall> loadHalls() { return halls(); }
+  default List<Stall> loadStalls(String hallId) { return stalls(hallId); }
+  default List<Dish> loadDishes(String stallId) { return dishes(stallId); }
+
+  /** Searches active dishes across all dining halls on a worker. */
+  default DishSearchPage searchDishes(String query, int page) {
+    throw new UnsupportedOperationException();
+  }
+  default DishSearchPage favoriteDishes(int page) { throw new UnsupportedOperationException(); }
+  default boolean dishFavorite(String dishId) { throw new UnsupportedOperationException(); }
+  default boolean setDishFavorite(String dishId, boolean saved) { throw new UnsupportedOperationException(); }
+
   Hall hall(String id);
 
   Stall stall(String id);

@@ -119,6 +119,8 @@ final class UserSearchScreen {
       avatar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);avatar.setBackground(Ui.shape(a,Design.ALT,Design.BORDER,999));avatar.setClipToOutline(true);
       LinearLayout.LayoutParams avatarLp=new LinearLayout.LayoutParams(Ui.dp(a,40),Ui.dp(a,40));avatarLp.rightMargin=Ui.dp(a,8);line.addView(avatar,avatarLp);
       person.name=Ui.text(a,name,16,Design.INK);line.addView(person.name,new LinearLayout.LayoutParams(0,-2,1));
+      person.name.setFocusable(true);
+      person.name.setOnClickListener(view -> a.go("community-author", user.id()));
       person.follow=button(a,"关注");person.follow.setTag("user-search-follow:"+user.id());
       person.chat=button(a,"私信");person.chat.setTag("user-search-chat:"+user.id());person.chat.setContentDescription("私信"+name);
       LinearLayout.LayoutParams actionLp=new LinearLayout.LayoutParams(-2,-2);actionLp.leftMargin=Ui.dp(a,8);line.addView(person.follow,actionLp);

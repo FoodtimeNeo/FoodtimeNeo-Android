@@ -2,7 +2,7 @@
 
 本文档是 `FoodtimeNeo-Android` 原生应用工程的系统级技术导航与构建运维速查中心。
 
-当前客户端工程版本：**v1.3.4**（`versionCode 14`；日常开发主分支为 `dev`，生产发布基线为 `main`）。
+当前客户端工程版本为 [v1.7.0](releases/release-1.7.0.md)（`versionCode 20`）。日常开发主分支为 `dev`，生产发布基线为 `main`。
 
 ---
 
