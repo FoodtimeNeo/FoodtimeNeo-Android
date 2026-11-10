@@ -16,6 +16,8 @@ import java.util.function.Supplier;
 /** Small native View toolkit; no WebView, no blurred elevation or default Material colours. */
 public final class Ui {
   public static void clearImages() {ImageLoader.clear();}
+  static void trimImages() {ImageLoader.trim();}
+  static void recheckImages() {ImageLoader.recheck();}
   public static void pauseImages() {ImageLoader.pause();}
   public static void resumeImages() {ImageLoader.resume();}
   public static int dp(Context c, float n) {

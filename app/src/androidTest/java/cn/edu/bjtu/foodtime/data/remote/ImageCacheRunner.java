@@ -14,6 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class ImageCacheRunner extends Instrumentation {
   private int checks;
   private final AtomicInteger publicReads=new AtomicInteger(),privateReads=new AtomicInteger(),noStoreReads=new AtomicInteger(),transferred=new AtomicInteger();
+  private final AtomicInteger communityReads=new AtomicInteger();
   private volatile boolean deny;
   private final CountDownLatch slowStarted=new CountDownLatch(1),releaseSlow=new CountDownLatch(1);
   private void check(boolean ok,String message){if(!ok)throw new AssertionError(message);checks++;}
@@ -30,6 +31,12 @@ public final class ImageCacheRunner extends Instrumentation {
           boolean conditional=headers.containsKey("if-none-match");int status=200;String policy="no-store",extra="";
           if(path.contains("public")){publicReads.incrementAndGet();policy="public, max-age=31536000, immutable";}
           if(path.contains("private")){privateReads.incrementAndGet();policy="private, no-cache";if(deny)status=404;else if(conditional)status=304;}
+          if(path.contains("community")){
+            communityReads.incrementAndGet();
+            policy="private, max-age=300, must-revalidate";
+            if(path.contains("expired"))extra="Age: 300\r\n";
+            if(deny)status=404;else if(conditional)status=304;
+          }
           if(path.contains("nostore"))noStoreReads.incrementAndGet();
           if(path.contains("slow")){slowStarted.countDown();releaseSlow.await(5,TimeUnit.SECONDS);extra="Set-Cookie: FOODTIME_SESSION=late; Path=/\r\n";}
           byte[] bytes=status==200?png:new byte[0];transferred.addAndGet(bytes.length);
@@ -44,9 +51,29 @@ public final class ImageCacheRunner extends Instrumentation {
       RemoteRepository restarted=new RemoteRepository(base,new HttpTransport(base)).withImageCache(folder);
       check(Arrays.equals(first,restarted.loadImage("/api/v1/media/public?size=thumb")),"Restart reuses public disk bytes");check(publicReads.get()==1,"Restart avoids body transfer");
       repo.loadImage("/api/v1/media/public?size=full");check(publicReads.get()==2,"Full and thumbnail remain distinct");
+      var session=new HttpCookie("FOODTIME_SESSION","test-session-a");session.setPath("/");
+      transport.cookieManager().getCookieStore().add(URI.create(base),session);
+      String thumb="/api/v1/media/community?size=thumb",full="/api/v1/media/community?size=full";
+      repo.loadImage(thumb);
+      check(communityReads.get()==1,"Original is not fetched with thumbnail");
+      repo.loadImage(full);
+      var sameSession=new HttpTransport(base,transport.cookieManager());
+      var reopened=new RemoteRepository(base,sameSession).withImageCache(folder);
+      int savedBytes=transferred.get();
+      check(Arrays.equals(reopened.loadImage(thumb),png)&&Arrays.equals(reopened.loadImage(full),png),
+          "Recreated repository reads both variants from disk");
+      check(communityReads.get()==2&&transferred.get()==savedBytes,"Warm same-session visits send no media requests");
+      restarted.loadImage(thumb);
+      check(communityReads.get()==3,"New session cannot reuse private media from disk");
+      String expired="/api/v1/media/community-expired?size=thumb";
+      repo.loadImage(expired);savedBytes=transferred.get();
+      repo.loadImage(expired);
+      check(communityReads.get()==5&&transferred.get()==savedBytes,"Expired thumbnail revalidates without retransferring bytes");
       byte[] privateFirst=repo.loadImage("/api/v1/media/private");int before=transferred.get();
       check(Arrays.equals(privateFirst,repo.loadImage("/api/v1/media/private")),"Private 304 reuses validated bytes");check(privateReads.get()==2,"Private image always validates");check(transferred.get()==before,"Private revalidation transfers no body");
       deny=true;boolean rejected=false;try{repo.loadImage("/api/v1/media/private");}catch(RuntimeException expected){rejected=true;}check(rejected,"Revoked image never falls back to stale bytes");
+      rejected=false;try{repo.loadImage(expired);}catch(RuntimeException expected){rejected=true;}
+      check(rejected,"Removed community media is rejected at expiration");
       long size=repo.imageCacheBytes();repo.loadImage("/api/v1/media/nostore");repo.loadImage("/api/v1/media/nostore");check(noStoreReads.get()==2,"No-store is fetched each time");check(repo.imageCacheBytes()==size,"No-store never touches persistent cache");
       Future<?> slow=serverWorkers.submit(()->{try{transport.bytes(base+"media/slow");throw new AssertionError("Late response accepted");}catch(IOException expected){}});
       check(slowStarted.await(3,TimeUnit.SECONDS),"Slow image request started");long started=System.currentTimeMillis();transport.request("GET","echo",null,null);check(System.currentTimeMillis()-started<1000,"Slow image does not hold business transport lock");

@@ -40,7 +40,9 @@ final class ImageLoader {
   /** 切后台只暂停加载与绑定，不清内存缓存：回前台可直接复用已解码位图。
    *  低内存仍由 onTrimMemory 触发 clear()，登出/切号走 Ui.clearImages()。 */
   static void pause(){paused=true;}
-  static void resume(){paused=false;for(Runnable[] binding:List.copyOf(BINDINGS.values()))binding[1].run();}
+  static void resume(){paused=false;recheck();}
+  static void recheck(){for(Runnable[] binding:List.copyOf(BINDINGS.values()))binding[1].run();}
+  static void trim(){MEMORY.evictAll();}
   private static Runnable subscribe(MainActivity a,String path,int bound,Consumer<Bitmap> listener) {
     String identity=a.repo.imageIdentity(),key=identity+":"+path+":"+bound;int ticket=epoch;
     Decoded hit=MEMORY.get(key);
@@ -75,7 +77,7 @@ final class ImageLoader {
           if(TASKS.get(key)!=current||ticket!=epoch||!identity.equals(a.repo.imageIdentity()))return;
           TASKS.remove(key);
           if(result!=null&&loaded!=null&&loaded.reusable())MEMORY.put(key,new Decoded(result,loaded.version(),
-              Math.max(loaded.freshUntil(),System.currentTimeMillis()+DISPLAY_TTL_MS)));
+              loaded.freshUntil()>0?loaded.freshUntil():System.currentTimeMillis()+DISPLAY_TTL_MS));
           else MEMORY.remove(key);
           for(Consumer<Bitmap> callback:List.copyOf(current.listeners))callback.accept(result);
         });
@@ -94,6 +96,8 @@ final class ImageLoader {
       if(!visible){if(release[0]!=null&&!completed[0]){generation[0]++;release[0].run();release[0]=null;}return;}
       if(release[0]!=null||failed[0])return;
       int bound=128;while(bound<frame.getWidth()&&bound<1600)bound*=2;bound=Math.min(1600,bound);
+      // The feed, detail and viewer all share the same 480px thumbnail decode.
+      if(path.startsWith("/api/v1/media/")&&path.endsWith("?size=thumb"))bound=480;
       int ticket=++generation[0];
       release[0]=subscribe(a,path,bound,bitmap->{
         if(a.isDestroyed()||ticket!=generation[0]||!frame.isAttachedToWindow())return;

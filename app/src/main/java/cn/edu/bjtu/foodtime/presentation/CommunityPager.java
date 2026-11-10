@@ -237,6 +237,7 @@ final class CommunityPager implements RefreshScrollView.SwipeListener {
     draw(0);
     updateTabs();
     if (commit) activity.commitCommunityPage(this, SECTIONS.get(index).route(), current);
+    frame.post(Ui::recheckImages);
   }
 
   static float dragProgress(int index, float dx, int width) {

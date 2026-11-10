@@ -13,6 +13,7 @@ import cn.edu.bjtu.foodtime.domain.repository.ContentRequest;
 import cn.edu.bjtu.foodtime.domain.repository.RepositoryException;
 import cn.edu.bjtu.foodtime.domain.model.Models.AppRelease;
 import cn.edu.bjtu.foodtime.domain.model.Models.Conversation;
+import cn.edu.bjtu.foodtime.domain.model.Models.CommunityPost;
 import cn.edu.bjtu.foodtime.domain.model.Models.Notice;
 import cn.edu.bjtu.foodtime.domain.model.CommunityShareLink;
 import java.util.*;
@@ -43,6 +44,10 @@ public class MainActivity extends Activity {
   private String avatarPickingActor="";
   private Executor worker;
   private Executor inboxWorker;
+  // A cancelled socket can still be unwinding. Leave a second slot for the new screen.
+  private final java.util.concurrent.ThreadPoolExecutor navigationWorker =
+      new java.util.concurrent.ThreadPoolExecutor(2,2,0,java.util.concurrent.TimeUnit.SECONDS,
+          new java.util.concurrent.LinkedBlockingQueue<>());
   private java.util.concurrent.FutureTask<Void> navigationRead;
   private final android.os.Handler navigationHandler=new android.os.Handler(android.os.Looper.getMainLooper());
   private boolean navigationLoading,contentReady,foreground,resumeNavigation,pageFailed;
@@ -55,6 +60,7 @@ public class MainActivity extends Activity {
   private boolean writeInFlight;
   private String displayedLocation="";
   private Runnable contentRefresh;
+  private Runnable communityCommentsRefresh;
   private LinearLayout chatBar;
   private String chatOriginTab;
   private Toast currentToast;
@@ -525,9 +531,15 @@ public class MainActivity extends Activity {
   /** Force the current page to refresh, used by the community pull gesture/refresh control. */
   public void refreshCurrent() { if(!navigationLoading) render(true); }
 
-  private static final long COMMUNITY_FRESH_MS = 5 * 60 * 1000L;
-  private long communityLoadedAt;
+  private static final long COMMUNITY_FRESH_MS = 60 * 1000L;
+  private final Map<String,Long> communityLoadedAt=new HashMap<>();
   private String communityLoadedFor="";
+
+  private boolean freshCommunitySection(String kind) {
+    Long loaded=communityLoadedAt.get(kind);
+    return loaded!=null&&communityLoadedFor.equals(actor())
+        &&android.os.SystemClock.elapsedRealtime()-loaded<COMMUNITY_FRESH_MS;
+  }
 
   private boolean isImmediate(Route target) {
     // Catalog pages already have a dedicated skeleton; every other page paints its static shell first.
@@ -550,11 +562,10 @@ public class MainActivity extends Activity {
     if(target.kind().equals("admin-dashboard")&&!repo.currentUser().role().equals("superadmin")) {tab="dining";render();return;}
     ContentRequest query=query(target);
     if(query==null) { renderContent(); return; }
-    boolean community=target.kind().equals("community");
+    boolean community=CommunityPager.isSection(target.kind());
     boolean keepCommunityPage = isCommunityHub() && contentReady && contentRefresh != null
         && displayedLocation.equals(location()) && displayedActor.equals(actor);
-    boolean freshCommunity=community&&!force&&communityLoadedAt>0&&communityLoadedFor.equals(actor)
-        &&android.os.SystemClock.elapsedRealtime()-communityLoadedAt<COMMUNITY_FRESH_MS;
+    boolean freshCommunity=community&&!force&&freshCommunitySection(target.kind());
     if(freshCommunity) {
       if (keepCommunityPage) refreshPage();
       else renderContent();
@@ -568,6 +579,7 @@ public class MainActivity extends Activity {
     if(immediate) {
       // Static/cached shell paints first; live data is merged in after the read completes.
       if (!keepCommunityPage) renderContent();
+      else refreshPage();
       if(dashboard)AdminDashboardScreen.refreshing(content,true);
       navigationHandler.postDelayed(()->{
         if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
@@ -594,6 +606,7 @@ public class MainActivity extends Activity {
         else LoadingScreen.failure(this,slowBody);
       },15000);
     }
+    CommunityPost paintedPost=target.kind().equals("community-detail")?repo.communityPost(target.id()):null;
     navigationRead=new java.util.concurrent.FutureTask<>(() -> {
       RuntimeException error=null;try {repo.refresh(query);}catch(RuntimeException e){error=e;}
       RuntimeException failure=error;
@@ -608,22 +621,27 @@ public class MainActivity extends Activity {
           if(immediate) {pageFailed=true;refreshPage();message(safeMessage(failure));return;}
           contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=bodyHolder[0];content.addView(bodyHolder[0],0);LoadingScreen.failure(this,bodyHolder[0],dashboard?"刷新失败，显示上次数据":"加载失败");}else if(retain){content.removeAllViews();LoadingScreen.failure(this,catalog?LoadingScreen.begin(this,content,target):LoadingScreen.general(this,content,target),dashboard?failure.getMessage():"加载失败");}else LoadingScreen.failure(this,bodyHolder[0],dashboard&&failure instanceof RepositoryException?failure.getMessage():"加载失败");return;
         }
-        if(community) {communityLoadedAt=android.os.SystemClock.elapsedRealtime();communityLoadedFor=actor();}
+        if(community) {
+          if(!communityLoadedFor.equals(actor()))communityLoadedAt.clear();
+          communityLoadedFor=actor();
+          communityLoadedAt.put(target.kind(),android.os.SystemClock.elapsedRealtime());
+        }
         boolean sameActor=actor.equals(actor());
         if(target.kind().equals("profile")&&sameActor&&updateProfileCounts()) {
           // The profile shell is static; only the two counters need to change.
         } else if(target.kind().equals("admin")&&sameActor&&updateAdminPendingCount()) {
           // The admin shell is static; only the pending counter needs to change.
-        } else {
+        } else if(paintedPost==null||!sameActor||!paintedPost.equals(repo.communityPost(target.id()))) {
           refreshPage();
         }
+        if(target.kind().equals("community-detail"))loadCommunityDetailExtras(target.id());
         if(catalog&&!retain&&!immediate&&android.animation.ValueAnimator.areAnimatorsEnabled()){content.setAlpha(.5f);content.animate().alpha(1).setDuration(150).start();}
       });
       return null;
     });
-    worker.execute(navigationRead);
+    navigationWorker.execute(navigationRead);
   }
-  private void cancelNavigation(){navigationEpoch++;navigationHandler.removeCallbacksAndMessages(null);if(navigationRead!=null){navigationRead.cancel(true);navigationRead=null;}if(navigationLoading&&scroll instanceof RefreshScrollView feed)feed.finishRefresh();navigationLoading=false;AdminDashboardScreen.refreshing(content,false);if(refreshBanner!=null&&refreshBanner.getParent() instanceof android.view.ViewGroup parent)parent.removeView(refreshBanner);refreshBanner=null;}
+  private void cancelNavigation(){navigationEpoch++;navigationHandler.removeCallbacksAndMessages(null);if(navigationRead!=null){navigationRead.cancel(true);navigationWorker.remove(navigationRead);navigationRead=null;}if(navigationLoading&&scroll instanceof RefreshScrollView feed)feed.finishRefresh();navigationLoading=false;AdminDashboardScreen.refreshing(content,false);if(refreshBanner!=null&&refreshBanner.getParent() instanceof android.view.ViewGroup parent)parent.removeView(refreshBanner);refreshBanner=null;}
   boolean isPageLoading(){return navigationLoading;}
   boolean pageFailed(){return pageFailed;}
 
@@ -660,7 +678,7 @@ public class MainActivity extends Activity {
       case "upload-photo","review" -> ContentRequest.Query.DISH_TARGET;
       case "community" -> ContentRequest.Query.COMMUNITY_FEED;
       case "community-following" -> ContentRequest.Query.COMMUNITY_FOLLOWING;
-      case "community-detail" -> ContentRequest.Query.COMMUNITY_DETAIL;
+      case "community-detail" -> ContentRequest.Query.COMMUNITY_POST;
       case "community-mine" -> ContentRequest.Query.MY_COMMUNITY_POSTS;
       case "community-favorites" -> ContentRequest.Query.MY_COMMUNITY_FAVORITES;
       case "inbox" -> switch(drafts.getString(draftKey("tab"),"notice")) {
@@ -695,6 +713,7 @@ public class MainActivity extends Activity {
 
   private void renderContent() {
     contentRefresh=null;
+    communityCommentsRefresh=null;
     shell(true);
     displayedLocation=location();
     displayedActor=actor();contentReady=true;buildHeader();
@@ -712,6 +731,7 @@ public class MainActivity extends Activity {
     }
     rememberScroll();
     contentRefresh=null;
+    communityCommentsRefresh=null;
     if(isCommunityDetailRoute() && chatBar!=null) chatBar.removeAllViews();
     content.removeAllViews();
     displayedActor=actor();contentReady=true;
@@ -720,6 +740,19 @@ public class MainActivity extends Activity {
 
   /** A screen can own its changing region while keeping its controls and input views mounted. */
   void onContentRefresh(Runnable refresh) { contentRefresh=refresh; }
+  void onCommunityCommentsRefresh(Runnable refresh) { communityCommentsRefresh=refresh; }
+
+  private void loadCommunityDetailExtras(String postId) {
+    CommunityPost post=repo.communityPost(postId);
+    if(post==null)return;
+    if(post.status().equals("approved"))read("community-comments:"+postId,null,null,
+        ()->repo.reloadCommunityComments(postId),()->{
+          if(communityCommentsRefresh!=null)communityCommentsRefresh.run();
+        },()->{});
+    if(!post.userId().isBlank()&&!post.userId().equals(repo.currentUser().id()))
+      read("community-author-follow:"+post.userId(),null,new TextView(this),
+          ()->repo.loadCommunityAuthorFollow(post.userId()),this::buildHeader,()->{});
+  }
   void refreshContent() { refreshPage(); }
   private boolean isChatRoute() {
     return route()!=null&&"direct-chat".equals(route().kind())&&repo!=null&&repo.currentUser()!=null;
@@ -1130,6 +1163,7 @@ public class MainActivity extends Activity {
   }
   private void startOperation(View trigger,TextView error,String action,String imageDraft,Supplier<String> work,Consumer<String> success) {
     if(writeInFlight) return;
+    communityLoadedAt.clear();
     writeInFlight=true;if(trigger!=null) trigger.setEnabled(false);if(error!=null) error.setText("");
     int ticket=generation;boolean loggedIn=repo.currentUser()!=null;
     OperationStore.Task task=OPERATIONS.start(worker,route(),action,imageDraft,work);pendingOperation=task.id();
@@ -1216,7 +1250,7 @@ public class MainActivity extends Activity {
     PrivateMessageReminders.disable(this);
     for(var stack:stacks.values())for(Route item:stack)if(item.kind().equals("avatar-crop"))discardPhoto(item.id());
     pickingKey=null;avatarPickingActor="";
-    cancelNavigation();contentReady=false;displayedActor="";communityLoadedAt=0;communityLoadedFor="";
+    cancelNavigation();contentReady=false;displayedActor="";communityLoadedAt.clear();communityLoadedFor="";
     if(loginNoticeDialog!=null){loginNoticeDialog.dialog.dismiss();loginNoticeDialog=null;}
     loginNotices.reset();noticeErrorShown="";
     for(String key:drafts.keySet()) if(key.endsWith(":image")) {
@@ -1240,8 +1274,8 @@ public class MainActivity extends Activity {
     for(Runnable callback:callbacks) callback.run();
     if(contentReady&&consumeIncoming()){resumeNavigation=false;render(true);}
     else if(resumeNavigation&&repo!=null&&repo.currentUser()!=null){resumeNavigation=false;render(true);}
-    else if(isCommunityHub()&&route().kind().equals("community")&&repo!=null&&repo.currentUser()!=null&&communityLoadedAt>0
-        &&android.os.SystemClock.elapsedRealtime()-communityLoadedAt>=COMMUNITY_FRESH_MS){render(true);}
+    else if(isCommunityHub()&&repo!=null&&repo.currentUser()!=null&&communityLoadedAt.containsKey(route().kind())
+        &&!freshCommunitySection(route().kind())){render(true);}
     noticeUi.post(this::drainNotices);
     syncPrivateMessageUnread();
   }
@@ -1309,6 +1343,6 @@ public class MainActivity extends Activity {
     }
   }
   @Override protected void onPause() { super.onPause();foreground=false;if(communityPager!=null)communityPager.cancelSwipe();resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
-  @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)Ui.clearImages();}
-  @Override protected void onDestroy() {if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();++generation;cancelNavigation();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW||level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL||level>=android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND)Ui.trimImages();}
+  @Override protected void onDestroy() {if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();++generation;cancelNavigation();navigationWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }
