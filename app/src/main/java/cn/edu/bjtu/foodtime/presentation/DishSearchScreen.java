@@ -13,7 +13,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 final class DishSearchScreen {
   static void show(MainActivity activity, LinearLayout page, MainActivity.Route route) {
-    new DishSearchScreen(activity, page);
+    new DishSearchScreen(activity, page, route);
   }
 
   private final MainActivity activity;
@@ -22,14 +22,17 @@ final class DishSearchScreen {
   private final TextView search, error, status, previous, next;
   private final String requestKey = "dish-search:" + UUID.randomUUID();
   private final String draftKey;
+  private final MainActivity.Route route;
   private String submitted = "";
   private DishSearchPage data;
 
-  private DishSearchScreen(MainActivity activity, LinearLayout page) {
+  private DishSearchScreen(MainActivity activity, LinearLayout page, MainActivity.Route route) {
     this.activity = activity;
     this.page = page;
+    this.route = route;
     draftKey = activity.draftKey("dishSearch");
-    activity.heading(page, "", "跨食堂搜菜", "按菜名查找，看看在哪个食堂能吃到。");
+    activity.heading(page, "", route.kind().equals("dish-pick") ? "选择关联菜品" : "跨食堂搜菜",
+        "按菜名查找，看看在哪个食堂能吃到。");
     input = Ui.field(page, "菜名", false, false);
     input.setHint("例如：鸡腿饭");
     input.setFilters(new InputFilter[] { new InputFilter.LengthFilter(50) });
@@ -104,15 +107,29 @@ final class DishSearchScreen {
     results.removeAllViews();
     if (data != null) {
       for (DishSearchRow dish : data.items()) {
-        String price = dish.price() == null ? "价格待补充" : "¥" + dish.price().stripTrailingZeros().toPlainString();
-        TextView row = Ui.button(activity, dish.name() + "  " + price + "\n"
-            + dish.diningHallName() + " · " + dish.stallName(), false,
-            () -> activity.go("detail", dish.id()));
-        results.addView(row, new LinearLayout.LayoutParams(-1, -2));
-        Ui.gap(results, 8);
+        appendRow(activity, results, dish, () -> select(dish));
       }
     }
     updateStatus();
+  }
+
+  static void appendRow(MainActivity activity, LinearLayout results, DishSearchRow dish, Runnable action) {
+    String price = dish.price() == null ? "价格待补充" : "¥" + dish.price().stripTrailingZeros().toPlainString();
+    TextView row = Ui.button(activity, dish.name() + "  " + price + "\n"
+        + dish.diningHallName() + " · " + dish.stallName(), false, action);
+    results.addView(row, new LinearLayout.LayoutParams(-1, -2));
+    Ui.gap(results, 8);
+  }
+
+  private void select(DishSearchRow dish) {
+    if (route.kind().equals("dish-pick")) {
+      String draft = "community-create:" + route.id() + ":";
+      activity.drafts.putString(draft + "linkedDishId", dish.id());
+      activity.drafts.putString(draft + "linkedDishName", dish.name());
+      activity.back();
+    } else {
+      activity.go("detail", dish.id());
+    }
   }
 
   private void updateStatus() {

@@ -131,6 +131,11 @@ final class CommunityScreen {
     copy.addView(Ui.title(a, post.title(), 22));
     Ui.gap(copy, 6);
     copy.addView(Ui.text(a, post.content(), 16, Design.INK));
+    if (post.linkedDish() != null) {
+      var dish = post.linkedDish();
+      Ui.gap(copy, 8);
+      Ui.action(copy, "菜品 · " + dish.name(), false, () -> a.go("detail", dish.id()));
+    }
     Ui.gap(copy, 8);
     copy.addView(Ui.text(a, format(post.createdAt()), 12, Design.MUTED));
 
@@ -238,14 +243,26 @@ final class CommunityScreen {
     LinearLayout form=Ui.card(page);form.addView(Ui.title(a,"02 · 标题与心得",18));Ui.gap(form,12);
     EditText title=Ui.field(form,"食记标题",false,false);title.setHint("标题，最多50字");title.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(50)});
     EditText content=Ui.field(form,"动态正文",false,true);content.setHint("正文，最多2000字");content.setMinLines(5);content.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(2000)});
+    String dishId = a.drafts.getString(a.draftKey("linkedDishId"), "");
+    if (!dishId.isBlank()) {
+      form.addView(Ui.text(a, "关联菜品 · " + a.drafts.getString(a.draftKey("linkedDishName"), ""), 15, Design.INK));
+      Ui.action(form, "移除关联", false, () -> {
+        a.drafts.remove(a.draftKey("linkedDishId"));
+        a.drafts.remove(a.draftKey("linkedDishName"));
+        a.redraw();
+      });
+    }
+    Ui.action(form, dishId.isBlank() ? "选择关联菜品（可选）" : "更换关联菜品", false,
+        () -> a.go("dish-pick", route.id()));
     TextView error=Ui.text(a,"",13,Design.RED);form.addView(error);MainActivity.Route origin=a.route();
     Ui.submit(form,"盖章发布",error,()->{
       String heading=Validation.text(title.getText().toString(),50,"标题"),body=Validation.text(content.getText().toString(),2000,"正文");
       List<String> photos=selectedPhotos(a);if(photos.isEmpty())throw new IllegalArgumentException("请添加至少1张图片");
-      String fingerprint=heading+"\n"+body+"\n"+String.join("|",photos),key=a.draftKey("requestId");
+      String fingerprint=heading+"\n"+body+"\n"+String.join("|",photos)
+          +(dishId.isBlank()?"":"\n"+dishId),key=a.draftKey("requestId");
       if(!fingerprint.equals(a.drafts.getString(a.draftKey("payload"),""))){a.drafts.putString(key,UUID.randomUUID().toString());a.drafts.putString(a.draftKey("payload"),fingerprint);}
       String requestId=a.drafts.getString(key);
-      return ()->a.repo.submitCommunityPost(heading,body,photos,requestId);
+      return ()->a.repo.submitCommunityPost(heading,body,photos,requestId,dishId);
     },()->{a.clearDraft(origin);a.back();a.message("食记已提交审核，可在我的食记查看进度");});
   }
 

@@ -126,6 +126,8 @@ final class ProfileScreen {
     else if(selected==1) {
       roundedAction(a,panel,action,false,()->a.go("community-mine",""));Ui.gap(panel,10);
       roundedAction(a,panel,"我的收藏",false,()->a.go("community-favorites",""));
+      Ui.gap(panel,10);
+      roundedAction(a,panel,"想吃清单",false,()->a.go("favorite-dishes",""));
     }
     else if(selected==2) roundedAction(a,panel,action,false,() -> a.go("mine-submissions",""));
     else if(selected==3) {

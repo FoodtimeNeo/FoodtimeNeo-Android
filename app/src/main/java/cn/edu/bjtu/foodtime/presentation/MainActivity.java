@@ -154,6 +154,8 @@ public class MainActivity extends Activity {
     screens.put("venue-mine",VenueScreen::mine);
     screens.put("dining", DiningScreen::halls);
     screens.put("dish-search", DishSearchScreen::show);
+    screens.put("dish-pick", DishSearchScreen::show);
+    screens.put("favorite-dishes", FavoriteDishesScreen::show);
     screens.put("community", CommunityScreen::feed);
     screens.put("community-detail", CommunityScreen::detail);
     screens.put("community-create", CommunityScreen::create);
@@ -745,6 +747,8 @@ public class MainActivity extends Activity {
       case "mine-review-replies" -> "我的回复";
       case "detail" -> "菜品详情";
       case "dish-search" -> "跨食堂搜菜";
+      case "dish-pick" -> "关联菜品";
+      case "favorite-dishes" -> "想吃清单";
       case "admin-audit" -> "审核投稿";
       case "admin-data" -> "目录管理";
       case "admin-edit" -> "编辑目录";

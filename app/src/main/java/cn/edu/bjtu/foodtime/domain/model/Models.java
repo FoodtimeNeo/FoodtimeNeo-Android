@@ -167,16 +167,24 @@ public final class Models {
     public static CommunityPostPage empty(){return new CommunityPostPage(List.of(),0,0,false);}
   }
   public record CommunityImage(String url,int width,int height) {}
+  public record LinkedDish(String id, String name) {}
   public record CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
       long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
       boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt,
-      String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage) {
+      String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage,LinkedDish linkedDish) {
     public CommunityPost {imageUrls=imageUrls==null?List.of():List.copyOf(imageUrls);images=images==null?List.of():List.copyOf(images);}
     public CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
         long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
         boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt) {
       this(id,userId,userDisplayName,content,imageUrls,likeCount,commentCount,repostCount,repostOfId,repostAuthor,repostContent,
-          likedByMe,favoritedByMe,status,reviewReason,createdAt,CommunityText.headline(content),"",List.of(),0,"");
+          likedByMe,favoritedByMe,status,reviewReason,createdAt,CommunityText.headline(content),"",List.of(),0,"",null);
+    }
+    public CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
+        long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
+        boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt,
+        String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage) {
+      this(id,userId,userDisplayName,content,imageUrls,likeCount,commentCount,repostCount,repostOfId,repostAuthor,repostContent,
+          likedByMe,favoritedByMe,status,reviewReason,createdAt,title,userAvatarUrl,images,favoriteCount,reviewStage,null);
     }
   }
 
