@@ -103,7 +103,7 @@ CD通过Gradle环境变量传递签名参数，临时密钥只写入runner的临
 
 ### 版本号
 
-`app/build.gradle` 中 `versionCode` 每次发布递增 1，`versionName` 使用语义化版本。当前为 `versionCode 9`、`versionName 1.2.0`。
+`app/build.gradle` 中 `versionCode` 每次发布递增 1，`versionName` 使用语义化版本。v1.5.0 使用 `versionCode 19`。
 
 ### 正式 APK 由 CI 构建
 
