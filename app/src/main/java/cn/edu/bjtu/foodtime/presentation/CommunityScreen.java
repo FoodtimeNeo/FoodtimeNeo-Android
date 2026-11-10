@@ -41,9 +41,15 @@ final class CommunityScreen {
 
   /** Renders cached content immediately and returns the update for the committed page. */
   static Runnable buildFeed(MainActivity a, LinearLayout page, String section, boolean preview) {
-    page.addView(Ui.title(a, "校园食记 · 社区动态", 26));
+    Banner banner = switch (section) {
+      case "community-following" -> new Banner("关注", "看看关注的同学最近都在吃啥，顺便给下一顿找点灵感。");
+      case "community-favorites" -> new Banner("收藏", "把喜欢的校园味道收在这里，馋了就翻一翻，下次再去吃。");
+      case "community-mine" -> new Banner("我的", "把三餐里的小欢喜记下来，回头翻翻，都是自己的校园味道。");
+      default -> new Banner("社区动态", "随手拍、聊美味，看看同学们今天都在打卡什么好吃的。");
+    };
+    page.addView(Ui.title(a, "校园食记 · " + banner.heading(), 26));
     Ui.gap(page, 4);
-    TextView intro = Ui.note(a, "随手拍、聊美味，看看同学们今天都在打卡什么好吃的。");
+    TextView intro = Ui.note(a, banner.intro());
     intro.setTextSize(15);
     page.addView(intro);
     LinearLayout sketches = Ui.row(a);
@@ -56,6 +62,8 @@ final class CommunityScreen {
     renderFeed(a, body, section, preview);
     return () -> renderFeed(a, body, section, false);
   }
+
+  private record Banner(String heading, String intro) {}
 
   private record FeedBody(List<CommunityPost> posts, boolean hasMore, boolean loading, boolean failed) {}
 
