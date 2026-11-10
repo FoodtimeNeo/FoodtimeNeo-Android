@@ -28,6 +28,14 @@ public final class Models {
       String description,
       boolean active) {}
 
+  public record DishSearchRow(String id, String name, BigDecimal price,
+                              String stallName, String diningHallName) {}
+
+  public record DishSearchPage(List<DishSearchRow> items, long total, int page, int size) {
+    public DishSearchPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
   public record User(String id, String email, String displayName, String role, boolean active,
       String avatarUrl, long createdAt, long reviewCount, long followingCount, long followerCount) {
     public User(String id, String email, String displayName, String role, boolean active,

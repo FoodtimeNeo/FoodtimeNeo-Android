@@ -356,6 +356,25 @@ public final class RemoteRepository implements FoodtimeRepository {
     for(Dish d:items) dishes.put(d.id(),d);
     dishLists.put(id,items);
   }
+  @Override public DishSearchPage searchDishes(String query, int page) {
+    JSONObject data = call("GET", "dishes/search?q=" + encode(query) + "&page=" + page + "&size=20", null);
+    List<DishSearchRow> items = new ArrayList<>();
+    JSONArray rows = data.optJSONArray("items");
+    int size = data.optInt("size");
+    long total = data.optLong("total", -1);
+    if (rows == null || size < 1 || total < 0 || data.optInt("page") != page) {
+      throw new IllegalStateException("菜品搜索返回格式异常，请重试");
+    }
+    for (int i = 0; i < rows.length(); i++) {
+      JSONObject row = rows.optJSONObject(i);
+      String id = text(row, "id");
+      if (id.isBlank()) throw new IllegalStateException("菜品搜索返回格式异常，请重试");
+      items.add(new DishSearchRow(id, text(row, "name"), decimal(row, "price"),
+          text(row, "stallName"), text(row, "diningHallName")));
+    }
+    return new DishSearchPage(items, total, page, size);
+  }
+
   private void fetchDetail(String id) {
     fetchDishTarget(id);
     dishReviewPages.put(id,fetchDishReviewPage(id,1));

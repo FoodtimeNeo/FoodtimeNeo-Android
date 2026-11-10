@@ -19,6 +19,8 @@ final class DiningScreen {
     page.setBackground(new FoodDoodleDrawable(a));
     a.heading(page,"01","食堂手账","今天的好心情，从一顿热饭开始。");
     hero(a,page);
+    Ui.action(page,"跨食堂搜菜",false,()->a.go("dish-search",""));
+    Ui.gap(page,12);
     RecommendationSection.show(a,page);
     if (a.repo.halls().isEmpty()) {
       if (a.isPageLoading()) Ui.empty(page, "正在准备食堂…", "热乎的档口马上就来。");

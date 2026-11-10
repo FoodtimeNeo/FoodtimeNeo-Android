@@ -11,6 +11,11 @@ public interface CatalogRepository {
 
   List<Dish> dishes(String stallId);
 
+  /** Searches active dishes across all dining halls on a worker. */
+  default DishSearchPage searchDishes(String query, int page) {
+    throw new UnsupportedOperationException();
+  }
+
   Hall hall(String id);
 
   Stall stall(String id);
