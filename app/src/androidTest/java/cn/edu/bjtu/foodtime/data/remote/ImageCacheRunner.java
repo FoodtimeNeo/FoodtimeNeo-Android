@@ -53,6 +53,8 @@ public final class ImageCacheRunner extends Instrumentation {
       repo.loadImage("/api/v1/media/public?size=full");check(publicReads.get()==2,"Full and thumbnail remain distinct");
       var session=new HttpCookie("FOODTIME_SESSION","test-session-a");session.setPath("/");
       transport.cookieManager().getCookieStore().add(URI.create(base),session);
+      // Clearing or signing out bumps the live generation, which resets when the app restarts.
+      repo.clearImageCache();
       String thumb="/api/v1/media/community?size=thumb",full="/api/v1/media/community?size=full";
       repo.loadImage(thumb);
       check(communityReads.get()==1,"Original is not fetched with thumbnail");
@@ -61,7 +63,7 @@ public final class ImageCacheRunner extends Instrumentation {
       var reopened=new RemoteRepository(base,sameSession).withImageCache(folder);
       int savedBytes=transferred.get();
       check(Arrays.equals(reopened.loadImage(thumb),png)&&Arrays.equals(reopened.loadImage(full),png),
-          "Recreated repository reads both variants from disk");
+          "Recreated repository reads both variants after a previous generation was cleared");
       check(communityReads.get()==2&&transferred.get()==savedBytes,"Warm same-session visits send no media requests");
       restarted.loadImage(thumb);
       check(communityReads.get()==3,"New session cannot reuse private media from disk");
