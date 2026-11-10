@@ -105,6 +105,8 @@ final class FollowListScreen {
       avatar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);avatar.setBackground(Ui.shape(a,Design.ALT,Design.BORDER,999));avatar.setClipToOutline(true);
       LinearLayout.LayoutParams avatarLp=new LinearLayout.LayoutParams(Ui.dp(a,44),Ui.dp(a,44));avatarLp.rightMargin=Ui.dp(a,12);line.addView(avatar,avatarLp);
       LinearLayout copy=Ui.col(a);TextView title=Ui.text(a,name,16,Design.INK);copy.addView(title);Ui.gap(copy,4);
+      title.setFocusable(true);
+      title.setOnClickListener(view -> a.go("community-author", user.id()));
       person.relation=Ui.text(a,"",12,Design.MUTED);copy.addView(person.relation);
       line.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
       person.action=button(a,"");person.action.setTag("follow-action:"+user.id());

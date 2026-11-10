@@ -157,6 +157,9 @@ public class MainActivity extends Activity {
     screens.put("dish-pick", DishSearchScreen::show);
     screens.put("favorite-dishes", FavoriteDishesScreen::show);
     screens.put("community", CommunityScreen::feed);
+    screens.put("community-following", CommunityDiscoveryScreen::show);
+    screens.put("community-search", CommunityDiscoveryScreen::show);
+    screens.put("community-author", CommunityDiscoveryScreen::show);
     screens.put("community-detail", CommunityScreen::detail);
     screens.put("community-create", CommunityScreen::create);
     screens.put("community-mine", CommunityScreen::collection);
@@ -721,6 +724,9 @@ public class MainActivity extends Activity {
       case "venue-write" -> "写点评";
       case "venue-mine" -> "我的点评";
       case "community-detail" -> "社区食记";
+      case "community-following" -> "只看关注";
+      case "community-search" -> "搜索食记";
+      case "community-author" -> "作者主页";
       case "community-create" -> "写一页美食手账";
       case "community-mine" -> "我的食记";
       case "community-favorites" -> "我的收藏";
