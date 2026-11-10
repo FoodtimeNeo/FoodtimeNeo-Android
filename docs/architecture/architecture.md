@@ -11,6 +11,8 @@ FoodtimeApplication装配RemoteRepository、同源HttpTransport、Keystore加密
 
 社区继续遵守同一依赖方向：`CommunityPost/CommunityComment` 与仓库契约位于domain，JSON分页、上传及互动接口映射位于data/remote，`CommunityScreen`只消费内存快照。Feed在一个原生ScrollView中用两列容器和估算高度做瀑布流分配；图片先按稳定比例占位，后台解码后采用真实宽高比并限制极端长图，避免主线程解码和首屏大幅跳动。卡片使用后端保存的title与服务端核验的图片宽高。CommunityComment保存根楼层和实际回复对象，CommunityGallery负责轮播及缩放；CommunityAdminScreen消费完整审核上下文。时间由纯Java CommunityText统一格式化为北京时间。
 
+社区详情使用固定作者栏和评论操作栏。`CommunityDiscussion` 负责平铺评论、单层缩进回复及局部刷新。`CommunityCommentComposer` 在底部显示评论或回复面板，使用窗口的 IME 安全区。草稿按帖子或实际回复目标保存，提交重试复用请求号，成功只清理此次草稿。
+
 `CatalogList` 复用食堂、档口、菜品的本地名称搜索与计数，调用domain中的`CatalogSearch`做全角、大小写及多关键词匹配，不查询其他父级或发起额外接口请求。关键词沿用Activity按路由保存的草稿，返回及重建可恢复；退出时随草稿一起清除。目录缺封面不预留空图，有图使用80dp缩略图；其他宽图缺省占位缩短为120dp，保持上传、图册和点评入口可达。
 
 “我的评论”只展示已发布评论，空态可进入投稿审核记录。“我的提交”按当前用户的既有投稿快照筛选类型和审核状态，显示匹配数与总数，不增加接口参数或新模型。两个筛选条件使用Activity的路由草稿保存，切换栏目及重建页面后恢复，退出时清除；无匹配记录可清除筛选，无任何投稿时可进入食堂目录。

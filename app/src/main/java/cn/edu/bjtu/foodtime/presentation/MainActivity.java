@@ -653,7 +653,7 @@ public class MainActivity extends Activity {
   /** Rebuild only the page body after a background refresh, keeping the shell and scroll view stable. */
   private void refreshPage() {
     if(!displayedLocation.equals(location())) { renderContent(); return; }
-    if(isChatRoute()) buildHeader();
+    if(isChatRoute() || isCommunityDetailRoute()) buildHeader();
     if(displayedActor.equals(actor())&&contentRefresh!=null) {
       contentRefresh.run();
       noticeUi.post(this::drainNotices);
@@ -661,6 +661,7 @@ public class MainActivity extends Activity {
     }
     rememberScroll();
     contentRefresh=null;
+    if(isCommunityDetailRoute() && chatBar!=null) chatBar.removeAllViews();
     content.removeAllViews();
     displayedActor=actor();contentReady=true;
     renderPage(false);
@@ -672,8 +673,8 @@ public class MainActivity extends Activity {
   private boolean isChatRoute() {
     return route()!=null&&"direct-chat".equals(route().kind())&&repo!=null&&repo.currentUser()!=null;
   }
-  /** 聊天输入条固定在底部；每次内容重建时由 ChatScreen 填充。 */
-  void setChatComposer(LinearLayout composer) {
+  /** Fixed actions for chat and community detail, outside the scroll view. */
+  void setDetailBottomBar(LinearLayout composer) {
     if(chatBar==null)return;
     chatBar.removeAllViews();
     chatBar.addView(composer,new LinearLayout.LayoutParams(-1,-2));
@@ -681,7 +682,8 @@ public class MainActivity extends Activity {
 
   private void renderPage(boolean firstPaint) {
     try {
-      if (stacks.get(tab).size() > 1&&!LoadingScreen.catalog(route())) Ui.decorateSubpage(content, route().kind().hashCode());
+      if (stacks.get(tab).size() > 1 && !LoadingScreen.catalog(route()) && !isCommunityDetailRoute())
+        Ui.decorateSubpage(content, route().kind().hashCode());
       Screen s = screens.get(route().kind());
       if (s == null) content.addView(Ui.title(this, tab.equals("profile") ? "我的" : tab.equals("dashboard") ? "数据" : tab.equals("admin") ? "管理" : tab.equals("community") ? "社区" : "食堂", 30));
       else s.show(this, content, route());
@@ -753,6 +755,10 @@ public class MainActivity extends Activity {
   }
   private void buildHeader() {
     header.removeAllViews();
+    if (isCommunityDetailRoute()) {
+      CommunityScreen.detailHeader(this, header, repo.communityPost(route().id()));
+      return;
+    }
     if (isChatRoute()) {
       buildChatHeader();
       return;
@@ -801,6 +807,7 @@ public class MainActivity extends Activity {
   }
   private void shell(boolean navigation) {
     boolean chat=isChatRoute();
+    boolean post=isCommunityDetailRoute();
     root = Ui.col(this);
     root.setBackgroundColor(Design.BAR);
     root.setOnApplyWindowInsetsListener(
@@ -832,7 +839,8 @@ public class MainActivity extends Activity {
               WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
                   | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
     header = Ui.col(this);
-    header.setPadding(Ui.dp(this, 14), Ui.dp(this, 8), Ui.dp(this, 14), Ui.dp(this, 8));
+    header.setPadding(Ui.dp(this, post ? 4 : 14), Ui.dp(this, post ? 3 : 8),
+        Ui.dp(this, post ? 8 : 14), Ui.dp(this, post ? 3 : 8));
     root.addView(header, new LinearLayout.LayoutParams(-1, -2));
     View rule = new View(this);
     rule.setBackgroundColor(Design.BORDER);
@@ -841,16 +849,16 @@ public class MainActivity extends Activity {
     scroll.setFillViewport(true);
     content = Ui.col(this);
     content.setBackgroundColor(Design.PAPER);
-    if (chat) content.setPadding(0, 0, 0, 0);
+    if (chat || post) content.setPadding(0, 0, 0, 0);
     else content.setPadding(Ui.dp(this, 14), Ui.dp(this, 24), Ui.dp(this, 14), Ui.dp(this, 24));
     scroll.addView(content);
     root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
-    if (chat) {
+    if (chat || post) {
       chatBar = Ui.col(this);
       chatBar.setBackgroundColor(Design.PAPER);
       root.addView(chatBar, new LinearLayout.LayoutParams(-1, -2));
     } else chatBar = null;
-    if (navigation && !chat) {
+    if (navigation && !chat && !post) {
       LinearLayout nav = Ui.row(this);
       nav.setBackground(Ui.shape(this, Design.PAPER, Design.BORDER, 0));
       addTab(nav, "食堂", "dining");
@@ -862,6 +870,10 @@ public class MainActivity extends Activity {
     }
     setContentView(root);
     root.requestApplyInsets();
+  }
+
+  private boolean isCommunityDetailRoute() {
+    return route()!=null && "community-detail".equals(route().kind()) && repo!=null && repo.currentUser()!=null;
   }
 
   private void addTab(LinearLayout nav, String label, String key) {
@@ -995,6 +1007,10 @@ public class MainActivity extends Activity {
     String action=trigger instanceof TextView text?text.getText().toString():"";
     startOperation(trigger,error,action,null,() -> {work.run();return null;},ignored -> success.run());
   }
+
+  void requestCommunityComment(View trigger, TextView error, boolean reply, Supplier<String> work, Consumer<String> success) {
+    startOperation(trigger, error, reply ? "提交回复" : "提交评论", null, work, success);
+  }
   boolean operationInFlight() { return writeInFlight; }
   /** Coalesce reads per resource, without dropping other floors or blocking navigation/writes. */
   void read(String key,View trigger,TextView error,Runnable work,Runnable success,Runnable finished) {
@@ -1068,7 +1084,7 @@ public class MainActivity extends Activity {
     }
     if(task.origin().kind().equals("community-detail")&&Set.of("提交评论","提交回复").contains(task.action())){
       String prefix=task.origin().kind()+":"+task.origin().id()+":";
-      for(String key:List.of("评论内容","replyRoot","replyTarget","replyName","commentPayload","commentRequestId"))drafts.remove(prefix+key);
+      CommunityCommentComposer.completeSubmission(drafts, prefix);
       message("已提交审核，通过前仅自己可见");
     }
     if(task.action().equals("发布回复")) {EmbeddedReviewReplies.completeSubmission(this);message("回复已提交，审核通过后公开");}

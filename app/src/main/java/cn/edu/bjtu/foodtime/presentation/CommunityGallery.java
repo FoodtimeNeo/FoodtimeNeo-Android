@@ -4,6 +4,7 @@ import android.annotation.SuppressLint;
 import android.view.*;
 import android.widget.*;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityPost;
+import cn.edu.bjtu.foodtime.domain.model.Models.CommunityImage;
 import java.util.List;
 
 /** Inline thumbnails and navigation. The dialog owns the full-screen image lifecycle. */
@@ -21,6 +22,10 @@ final class CommunityGallery extends LinearLayout {
   private CommunityPhotoDialog viewer;
 
   CommunityGallery(MainActivity activity,List<String> images){
+    this(activity, images, List.of());
+  }
+
+  CommunityGallery(MainActivity activity, List<String> images, List<CommunityImage> dimensions) {
     super(activity);this.activity=activity;this.images=List.copyOf(images);setOrientation(VERTICAL);
     if(images.isEmpty()){addView(Ui.text(activity,"这篇食记没有配图",14,Design.MUTED));strip=null;viewport=null;dots=null;previous=null;next=null;return;}
     strip=Ui.row(activity);
@@ -46,7 +51,11 @@ final class CommunityGallery extends LinearLayout {
     addView(viewport,new LinearLayout.LayoutParams(-1,-2));
     int initial=activity.getResources().getDisplayMetrics().widthPixels-Ui.dp(activity,48);
     for(int i=0;i<images.size();i++){
-      final int page=i;FrameLayout frame=(FrameLayout)Ui.image(activity,Ui.thumb(images.get(i)),"食记图片 "+(i+1)+" / "+images.size()+"，点击放大",false);
+      final int page=i;
+      String label="食记图片 "+(i+1)+" / "+images.size()+"，点击放大";
+      FrameLayout frame=(FrameLayout)Ui.communityDetailImage(activity,Ui.thumb(images.get(i)),label,
+          i < dimensions.size() ? dimensions.get(i) : null);
+      frame.setTag("community-gallery-image:" + i);
       ((ImageView)frame.getChildAt(0)).setScaleType(ImageView.ScaleType.FIT_CENTER);
       frame.setClickable(true);frame.setFocusable(true);frame.setOnClickListener(v->open(page));
       strip.addView(frame,new LinearLayout.LayoutParams(initial,-2));
