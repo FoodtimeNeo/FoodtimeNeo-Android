@@ -202,7 +202,7 @@ public class MainActivity extends Activity {
     screens.put("venue-mine",VenueScreen::mine);
     screens.put("dining", DiningScreen::halls);
     screens.put("dish-search", DishSearchScreen::show);
-    screens.put("dish-pick", DishSearchScreen::show);
+    screens.put("dish-pick", DishPickerScreen::show);
     screens.put("favorite-dishes", FavoriteDishesScreen::show);
     screens.put("community", CommunityScreen::feed);
     screens.put("community-following", CommunityDiscoveryScreen::show);
@@ -454,6 +454,7 @@ public class MainActivity extends Activity {
       finish();
       return;
     }
+    if (route().kind().equals("dish-pick")) clearDraft(route());
     rememberScroll();
     ArrayList<Route> s = stacks.get(tab);
     if (s.size() > 1) {
