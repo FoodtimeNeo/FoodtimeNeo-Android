@@ -42,6 +42,7 @@ final class InboxScreen {
     TextView messageTab = segment(a, "系统消息", tab.equals("message"), () -> select.accept("message"));
     long directUnread = a.repo.directUnreadCount();
     TextView chatTab = segment(a, directUnread > 0 ? "私信 " + directUnread : "私信", tab.equals("chat"), () -> select.accept("chat"));
+    chatTab.setTag("inbox-direct-unread-tab");
     segments[0]=noticeTab;segments[1]=messageTab;segments[2]=chatTab;
     tabs.addView(noticeTab, new LinearLayout.LayoutParams(0, -2, 1));
     tabs.addView(messageTab, new LinearLayout.LayoutParams(0, -2, 1));
@@ -63,6 +64,14 @@ final class InboxScreen {
     };
     a.onContentRefresh(refresh);
     refresh.run();
+  }
+
+  static void updateDirectBadge(MainActivity activity) {
+    if (activity.root == null) return;
+    TextView tab = activity.root.findViewWithTag("inbox-direct-unread-tab");
+    if (tab == null) return;
+    long count = activity.repo.directUnreadCount();
+    tab.setText(count > 0 ? "私信 " + count : "私信");
   }
 
   private static TextView segment(MainActivity a, String label, boolean active, Runnable run) {

@@ -14,6 +14,7 @@ import cn.edu.bjtu.foodtime.domain.repository.RepositoryException;
 import cn.edu.bjtu.foodtime.domain.model.Models.AppRelease;
 import cn.edu.bjtu.foodtime.domain.model.Models.Conversation;
 import cn.edu.bjtu.foodtime.domain.model.Models.Notice;
+import cn.edu.bjtu.foodtime.domain.model.CommunityShareLink;
 import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.function.*;
@@ -68,6 +69,9 @@ public class MainActivity extends Activity {
   private final List<Runnable> deferredReads=new ArrayList<>();
   private final android.os.Handler noticeUi=new android.os.Handler(android.os.Looper.getMainLooper());
   private String noticeErrorShown="";
+  private static final int REQUEST_PRIVATE_MESSAGE_NOTIFICATION = 1092;
+  private String incomingPost = "";
+  private boolean incomingInbox;
   private String actor(){var user=repo==null?null:repo.currentUser();return user==null?"":user.id()+":"+user.role();}
   private void drainNotices() {
     if(loginNotices==null||updateCheckPending)return;
@@ -129,8 +133,52 @@ public class MainActivity extends Activity {
       avatarPickingActor = state.getString("avatarPickingActor", "");
       Bundle positions = state.getBundle("scrollPositions");
       if (positions != null) scrollPositions.putAll(positions);
+      incomingPost = state.getString("incomingPost", "");
+      incomingInbox = state.getBoolean("incomingInbox");
+    } else {
+      captureIncoming(getIntent());
     }
     restore();
+  }
+
+  @Override protected void onNewIntent(Intent intent) {
+    super.onNewIntent(intent);
+    setIntent(intent);
+    captureIncoming(intent);
+    if (contentReady && consumeIncoming()) render(true);
+  }
+
+  private void captureIncoming(Intent intent) {
+    if (intent == null) return;
+    if (PrivateMessageReminders.OPEN_INBOX.equals(intent.getAction())) {
+      incomingInbox = true;
+      incomingPost = "";
+    } else if (Intent.ACTION_VIEW.equals(intent.getAction())) {
+      String id = CommunityShareLink.postId(intent.getDataString());
+      if (!id.isEmpty()) {
+        incomingPost = id;
+        incomingInbox = false;
+      }
+    }
+  }
+
+  private boolean consumeIncoming() {
+    if (repo.currentUser() == null || writeInFlight || pendingOperation != 0
+        || (!incomingInbox && incomingPost.isEmpty())) return false;
+    if (contentReady) rememberScroll();
+    Route target;
+    if (incomingInbox) {
+      tab = "profile";
+      target = new Route("inbox", "");
+      drafts.putString("inbox::tab", "chat");
+    } else {
+      tab = "community";
+      target = new Route("community-detail", incomingPost);
+    }
+    if (!target.equals(route())) stacks.get(tab).add(target);
+    incomingInbox = false;
+    incomingPost = "";
+    return true;
   }
 
   public void restore() {
@@ -227,6 +275,10 @@ public class MainActivity extends Activity {
     }
     if (tab.equals("admin") && !repo.currentUser().isAdmin()) tab = "dining";
     if (tab.equals("dashboard") && !repo.currentUser().role().equals("superadmin")) tab = "dining";
+    consumeIncoming();
+    if (PrivateMessageReminders.configured(this, repo.currentUser().id())) {
+      PrivateMessageReminders.ensureScheduled(this);
+    }
     loginNotices.check(repo,inboxWorker);
     render();
     updateCheckPending = true;
@@ -433,6 +485,8 @@ public class MainActivity extends Activity {
     state.putLong("pendingOperation",pendingOperation);
     state.putBoolean("authRegistration",authRegistration);
     state.putString("tab", tab);
+    state.putString("incomingPost", incomingPost);
+    state.putBoolean("incomingInbox", incomingInbox);
     for (String key : stacks.keySet()) {
       ArrayList<String> saved = new ArrayList<>();
       for (Route route : stacks.get(key)) saved.add(route.kind() + "|" + route.id());
@@ -1084,6 +1138,7 @@ public class MainActivity extends Activity {
           else if(loggedIn&&repo.currentUser()==null) {
             clearNavigation();showAuth(false);message("登录已失效，请重新登录");
           } else if(error!=null) error.setText(safeMessage(failure));else message(safeMessage(failure));
+          if (consumeIncoming()) render(true);
         };
         if(stateSaved) deferredCompletion=complete;else complete.run();
       });
@@ -1151,6 +1206,7 @@ public class MainActivity extends Activity {
   }
   public void signedOut() {clearNavigation();showAuth(false);}
   private void clearNavigation() {
+    PrivateMessageReminders.disable(this);
     for(var stack:stacks.values())for(Route item:stack)if(item.kind().equals("avatar-crop"))discardPhoto(item.id());
     pickingKey=null;avatarPickingActor="";
     cancelNavigation();contentReady=false;displayedActor="";communityLoadedAt=0;communityLoadedFor="";
@@ -1175,10 +1231,75 @@ public class MainActivity extends Activity {
     if(deferredCompletion!=null) {Runnable callback=deferredCompletion;deferredCompletion=null;callback.run();}
     List<Runnable> callbacks=new ArrayList<>(deferredReads);deferredReads.clear();
     for(Runnable callback:callbacks) callback.run();
-    if(resumeNavigation&&repo!=null&&repo.currentUser()!=null){resumeNavigation=false;render(true);}
+    if(contentReady&&consumeIncoming()){resumeNavigation=false;render(true);}
+    else if(resumeNavigation&&repo!=null&&repo.currentUser()!=null){resumeNavigation=false;render(true);}
     else if(tab.equals("community")&&repo!=null&&repo.currentUser()!=null&&communityLoadedAt>0
         &&android.os.SystemClock.elapsedRealtime()-communityLoadedAt>=COMMUNITY_FRESH_MS){render(true);}
     noticeUi.post(this::drainNotices);
+    syncPrivateMessageUnread();
+  }
+
+  private void syncPrivateMessageUnread() {
+    var user = repo.currentUser();
+    if (user == null || !contentReady) return;
+    Route location = route();
+    boolean chat = location.kind().equals("direct-chat");
+    read("resume-direct-unread:" + location.kind() + ":" + location.id(), null, new TextView(this), () -> {
+      long unread = repo.refreshDirectUnread();
+      if (chat && unread > 0) repo.refresh(new ContentRequest(ContentRequest.Query.CONVERSATIONS, location.id()));
+    }, () -> {
+      ProfileScreen.updateUnreadBadge(this);
+      InboxScreen.updateDirectBadge(this);
+      if (chat && repo.directUnreadCount() > 0) refreshContent();
+      else PrivateMessageReminders.update(this, user.id(), repo.directUnreadCount());
+    }, () -> {});
+  }
+
+  boolean privateMessageRemindersConfigured() {
+    var user = repo.currentUser();
+    return user != null && PrivateMessageReminders.configured(this, user.id());
+  }
+
+  void togglePrivateMessageReminders() {
+    if (privateMessageRemindersConfigured()) {
+      PrivateMessageReminders.disable(this);
+      updateReminderToggle();
+      return;
+    }
+    if (android.os.Build.VERSION.SDK_INT >= 33
+        && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+      requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, REQUEST_PRIVATE_MESSAGE_NOTIFICATION);
+      return;
+    }
+    enablePrivateMessageReminders();
+  }
+
+  @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] grantResults) {
+    super.onRequestPermissionsResult(code, permissions, grantResults);
+    if (code == REQUEST_PRIVATE_MESSAGE_NOTIFICATION) {
+      if (grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
+        enablePrivateMessageReminders();
+      } else {
+        message("系统未允许通知，可在系统设置中开启。");
+      }
+    }
+  }
+
+  private void enablePrivateMessageReminders() {
+    var user = repo.currentUser();
+    if (user == null) return;
+    if (PrivateMessageReminders.enable(this, user.id(), repo.directUnreadCount())) {
+      updateReminderToggle();
+    } else {
+      message("未能开启私信提醒，请检查系统通知设置。");
+    }
+  }
+
+  private void updateReminderToggle() {
+    TextView control = root == null ? null : root.findViewWithTag("private-message-reminder-toggle");
+    if (control != null) {
+      control.setText(privateMessageRemindersConfigured() ? "关闭私信提醒" : "开启私信提醒");
+    }
   }
   @Override protected void onPause() { super.onPause();foreground=false;resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)Ui.clearImages();}

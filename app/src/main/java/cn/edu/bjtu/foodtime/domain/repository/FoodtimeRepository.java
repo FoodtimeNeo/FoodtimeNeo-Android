@@ -123,6 +123,7 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default void loadMoreConversations() { throw new UnsupportedOperationException(); }
   default Conversation conversation(String id) { return null; }
   default long directUnreadCount() { return 0; }
+  default long refreshDirectUnread() { return directUnreadCount(); }
   /** 会话消息按时间正序缓存；cursor 用于加载更早的消息。 */
   default DirectMessagePage conversationMessages(String conversationId) { return DirectMessagePage.empty(); }
   default void loadMoreConversationMessages(String conversationId) { throw new UnsupportedOperationException(); }
