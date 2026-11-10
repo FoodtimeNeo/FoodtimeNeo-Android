@@ -40,7 +40,7 @@ public class CommunityUiRunner extends Instrumentation {
    if(sample.imageUrls().size()>1){
     click("›");check(find(activity.root,"第2张，共"+sample.imageUrls().size()+"张",true)!=null,"Native gallery advances to the next image");
     main(()->{View target=find(activity.root,"食记图片 2 / "+sample.imageUrls().size()+"，点击放大",true);while(target!=null&&!target.isClickable())target=target.getParent() instanceof View parent?parent:null;if(target==null)throw new AssertionError("Missing gallery image");target.performClick();});
-    dialog("放大");dialog("缩小");dialog("关闭");check(true,"Full-screen zoom controls and close are usable");click("‹");
+    dialog("⋮");dialog("放大");dialog("⋮");dialog("缩小");dialog("×");check(true,"Full-screen zoom controls and close are usable");click("‹");
    }
    capture("sample-detail");main(()->activity.scroll.fullScroll(View.FOCUS_DOWN));capture("sample-replies");
   }
