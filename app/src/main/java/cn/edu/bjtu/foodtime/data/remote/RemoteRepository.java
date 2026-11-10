@@ -973,6 +973,10 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
 
   @Override public long directUnreadCount(){return directUnread;}
+  @Override public long refreshDirectUnread() {
+    directUnread = getDirectUnreadCount();
+    return directUnread;
+  }
   public long getDirectUnreadCount() {
     return call("GET","users/me/conversations/unread-count",null).optLong("unreadCount");
   }

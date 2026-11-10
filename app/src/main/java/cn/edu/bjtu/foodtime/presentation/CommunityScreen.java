@@ -6,6 +6,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.*;
 import cn.edu.bjtu.foodtime.domain.model.CommunityText;
+import cn.edu.bjtu.foodtime.domain.model.CommunityShareLink;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import cn.edu.bjtu.foodtime.domain.validation.Validation;
 import cn.edu.bjtu.foodtime.domain.validation.CommunityPermissions;
@@ -166,8 +167,7 @@ final class CommunityScreen {
   private static void sharePost(MainActivity activity, String id) {
     android.content.Intent send = new android.content.Intent(android.content.Intent.ACTION_SEND);
     send.setType("text/plain");
-    send.putExtra(android.content.Intent.EXTRA_TEXT,
-        "https://bjtufoodtime.top/community/posts/" + android.net.Uri.encode(id));
+    send.putExtra(android.content.Intent.EXTRA_TEXT, CommunityShareLink.postUrl(android.net.Uri.encode(id)));
     activity.startActivity(android.content.Intent.createChooser(send, "分享帖子"));
   }
 
