@@ -424,7 +424,14 @@ public class MainActivity extends Activity {
 
   void restoreCommunityScroll(ScrollView view, String section) {
     int offset = scrollPositions.getInt("community:" + section + ":", 0);
-    view.post(() -> view.scrollTo(0, offset));
+    if (offset == 0) return;
+    view.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+      @Override public void onLayoutChange(View v, int left, int top, int right, int bottom,
+          int oldLeft, int oldTop, int oldRight, int oldBottom) {
+        view.removeOnLayoutChangeListener(this);
+        view.scrollTo(0, offset);
+      }
+    });
   }
 
   void commitCommunityPage(CommunityPager owner, String section, CommunityPager.Page page) {
