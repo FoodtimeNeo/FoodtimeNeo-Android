@@ -356,6 +356,21 @@ public final class RemoteRepository implements FoodtimeRepository {
     for(Dish d:items) dishes.put(d.id(),d);
     dishLists.put(id,items);
   }
+  @Override public List<Hall> loadHalls() {
+    fetchHalls();
+    return halls();
+  }
+
+  @Override public List<Stall> loadStalls(String hallId) {
+    fetchStalls(hallId);
+    return stalls(hallId);
+  }
+
+  @Override public List<Dish> loadDishes(String stallId) {
+    fetchDishes(stallId);
+    return dishes(stallId);
+  }
+
   @Override public DishSearchPage searchDishes(String query, int page) {
     return dishRows("dishes/search?q=" + encode(query) + "&page=" + page + "&size=20", page);
   }
