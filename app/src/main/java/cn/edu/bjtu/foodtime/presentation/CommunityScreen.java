@@ -16,46 +16,6 @@ import java.util.*;
 
 /** Native two-column campus food community, backed by the Backend P3 community contract. */
 final class CommunityScreen {
-  private static final List<String> SECTIONS = List.of("community-following", "community",
-      "community-favorites", "community-mine");
-  private static final List<String> TAB_LABELS = List.of("关注", "发现", "收藏", "我的食记");
-
-  static boolean isSection(String kind) { return SECTIONS.contains(kind); }
-
-  static void swipe(MainActivity a, int direction) {
-    if (!a.isCommunityHub()) return;
-    int next = SECTIONS.indexOf(a.route().kind()) + direction;
-    if (next >= 0 && next < SECTIONS.size()) a.replaceRoute(SECTIONS.get(next), "");
-  }
-
-  static void tabs(MainActivity a, LinearLayout header) {
-    LinearLayout tabs = Ui.row(a);
-    for (int index = 0; index < SECTIONS.size(); index++) {
-      String section = SECTIONS.get(index);
-      boolean active = section.equals(a.route().kind());
-      FrameLayout tab = new FrameLayout(a);
-      tab.setBackground(Ui.ripple(a, Design.BAR, 0, 8));
-      TextView label = Ui.text(a, TAB_LABELS.get(index), 15, active ? Design.RED : Design.MUTED);
-      label.setGravity(Gravity.CENTER);
-      if (active) label.setTypeface(Design.body(), android.graphics.Typeface.BOLD);
-      tab.addView(label, new FrameLayout.LayoutParams(-1, -1));
-      if (active) {
-        View underline = new View(a);
-        underline.setBackground(Ui.shape(a, Design.RED, 0, 2));
-        tab.addView(underline, new FrameLayout.LayoutParams(Ui.dp(a, 18), Ui.dp(a, 3),
-            Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL));
-      }
-      tab.setContentDescription(TAB_LABELS.get(index));
-      tab.setSelected(active);
-      tab.setFocusable(true);
-      tab.setOnClickListener(view -> {
-        if (!active) a.replaceRoute(section, "");
-      });
-      tabs.addView(tab, new LinearLayout.LayoutParams(0, Ui.dp(a, 40), 1));
-    }
-    header.addView(tabs, new LinearLayout.LayoutParams(-1, -2));
-  }
-
   static ImageButton iconButton(MainActivity a, int icon, String label, Runnable action) {
     ImageButton button = new ImageButton(a);
     button.setImageResource(icon);
@@ -76,6 +36,11 @@ final class CommunityScreen {
   }
 
   static void feed(MainActivity a,LinearLayout page,MainActivity.Route route) {
+    a.onContentRefresh(buildFeed(a, page, route.kind(), false));
+  }
+
+  /** Renders cached content immediately and returns the update for the committed page. */
+  static Runnable buildFeed(MainActivity a, LinearLayout page, String section, boolean preview) {
     page.addView(Ui.title(a, "校园食记 · 社区动态", 26));
     Ui.gap(page, 4);
     TextView intro = Ui.note(a, "随手拍、聊美味，看看同学们今天都在打卡什么好吃的。");
@@ -88,14 +53,13 @@ final class CommunityScreen {
     Ui.gap(page, 8);
     LinearLayout body = Ui.col(a);
     page.addView(body);
-    Runnable draw = () -> renderFeed(a, body, route.kind());
-    a.onContentRefresh(draw);
-    draw.run();
+    renderFeed(a, body, section, preview);
+    return () -> renderFeed(a, body, section, false);
   }
 
   private record FeedBody(List<CommunityPost> posts, boolean hasMore, boolean loading, boolean failed) {}
 
-  private static void renderFeed(MainActivity a, LinearLayout body, String section) {
+  private static void renderFeed(MainActivity a, LinearLayout body, String section, boolean preview) {
     boolean following = section.equals("community-following");
     boolean favorites = section.equals("community-favorites");
     boolean collection = favorites || section.equals("community-mine");
@@ -117,8 +81,8 @@ final class CommunityScreen {
       hasMore = a.repo.hasMoreCommunityPosts();
       loadMore = a.repo::loadMoreCommunityPosts;
     }
-    FeedBody next = new FeedBody(posts, hasMore, posts.isEmpty() && a.isPageLoading(),
-        posts.isEmpty() && a.pageFailed());
+    FeedBody next = new FeedBody(posts, hasMore, posts.isEmpty() && (preview || a.isPageLoading()),
+        !preview && posts.isEmpty() && a.pageFailed());
     if (next.equals(body.getTag())) return;
     body.setTag(next);
     body.removeAllViews();
@@ -150,7 +114,7 @@ final class CommunityScreen {
         body.addView(more);
         more.setOnClickListener(view -> {
           if (!a.isPageLoading()) a.read("community-more:" + section, more, null, loadMore,
-              () -> renderFeed(a, body, section), () -> {});
+              () -> renderFeed(a, body, section, false), () -> {});
         });
       }
     }
