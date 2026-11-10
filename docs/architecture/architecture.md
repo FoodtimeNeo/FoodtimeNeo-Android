@@ -11,6 +11,8 @@ FoodtimeApplication装配RemoteRepository、同源HttpTransport、Keystore加密
 
 社区继续遵守同一依赖方向：`CommunityPost/CommunityComment` 与仓库契约位于domain，JSON分页、上传及互动接口映射位于data/remote，`CommunityScreen`只消费内存快照。Feed在一个原生ScrollView中用两列容器和估算高度做瀑布流分配；图片先按稳定比例占位，后台解码后采用真实宽高比并限制极端长图，避免主线程解码和首屏大幅跳动。卡片使用后端保存的title与服务端核验的图片宽高。CommunityComment保存根楼层和实际回复对象，CommunityGallery负责轮播及缩放；CommunityAdminScreen消费完整审核上下文。时间由纯Java CommunityText统一格式化为北京时间。
 
+社区详情使用固定作者栏和评论操作栏。`CommunityDiscussion` 负责平铺评论、单层缩进回复及局部刷新。`CommunityCommentComposer` 在底部显示评论或回复面板，使用窗口的 IME 安全区。草稿按帖子或实际回复目标保存，提交重试复用请求号，成功只清理此次草稿。
+
 `CatalogList` 复用食堂、档口、菜品的本地名称搜索与计数，调用domain中的`CatalogSearch`做全角、大小写及多关键词匹配，不查询其他父级或发起额外接口请求。关键词沿用Activity按路由保存的草稿，返回及重建可恢复；退出时随草稿一起清除。目录缺封面不预留空图，有图使用80dp缩略图；其他宽图缺省占位缩短为120dp，保持上传、图册和点评入口可达。
 
 “我的评论”只展示已发布评论，空态可进入投稿审核记录。“我的提交”按当前用户的既有投稿快照筛选类型和审核状态，显示匹配数与总数，不增加接口参数或新模型。两个筛选条件使用Activity的路由草稿保存，切换栏目及重建页面后恢复，退出时清除；无匹配记录可清除筛选，无任何投稿时可进入食堂目录。
@@ -24,6 +26,8 @@ OperationStore在进程内保留提交结果；Activity重建后恢复结果和�
 新增功能先定义实际需要的业务契约和DTO映射，再实现数据和页面，按必要风险补充真实接口/设备验证；不为数据库没有的模型增加客户端假数据。
 
 静态表单不触发页面级读取；菜品目标、图册和完整详情使用不同 ContentRequest。信箱按标签取数，信箱和私信通过当前路径、身份约束下的局部回调更新动态区域，保留固定控件与编辑器。详细行为见[页面按区域刷新](../modules/incremental-page-refresh.md)。
+
+用户搜索由 `UserSearchScreen` 通过显式后台读取更新结果区域，`UserSearchPage` 为只读分页快照；不作为整个页面的 `ContentRequest`。行操作、身份隔离和设备验收入口见[搜索用户](../modules/user-search.md)。
 
 点评回复采用独立ContentRequest查询：公开列表每页20条游标加载、个人记录按page分页；加载更多只更新缓存和当前页面。两类点赞在worker写入，直接使用服务器状态更新按钮；回复点赞同时更新缓存，避免加载更多重绘时倒退。
 

@@ -114,220 +114,99 @@ final class CommunityScreen {
   static void detail(MainActivity a,LinearLayout page,MainActivity.Route route) {
     CommunityPost post=a.repo.communityPost(route.id());
     if(post==null) throw new IllegalArgumentException("动态不存在或暂不可见");
-    a.heading(page,"02.1","社区食记","");
     if(post.status().equals("pending")) {
-      LinearLayout notice=Ui.card(page);notice.addView(Ui.text(a,"这篇食记正在审核，通过前仅自己可见。",14,Design.RED));
+      TextView notice = Ui.text(a, "这篇食记正在审核，通过前仅自己可见。", 14, Design.RED);
+      notice.setPadding(Ui.dp(a, 14), Ui.dp(a, 10), Ui.dp(a, 14), Ui.dp(a, 10));
+      page.addView(notice);
     }
-    page.addView(new CommunityGallery(a,post.imageUrls()),new LinearLayout.LayoutParams(-1,-2));
-    Ui.gap(page,12);
-    LinearLayout author=Ui.row(a);
-    String authorName=post.userDisplayName().isBlank()?"校园干饭人":post.userDisplayName();
-    if(!post.userAvatarUrl().isBlank()){View avatar=Ui.image(a,post.userAvatarUrl(),"作者头像",false);avatar.setBackground(Ui.shape(a,Design.ALT,0,20));avatar.setClipToOutline(true);LinearLayout.LayoutParams avatarLp=new LinearLayout.LayoutParams(Ui.dp(a,36),Ui.dp(a,36));avatarLp.rightMargin=Ui.dp(a,8);author.addView(avatar,avatarLp);}
-    author.addView(Ui.title(a,authorName,18),new LinearLayout.LayoutParams(0,-2,1));
-    author.addView(Ui.text(a,format(post.createdAt()),12,Design.MUTED));
-    User viewer=a.repo.currentUser();
-    if(viewer!=null&&!post.userId().isBlank()&&!post.userId().equals(viewer.id())) {
-      FollowState state=a.repo.followState(post.userId());
-      boolean followed=state!=null&&state.followed();
-      TextView followButton=Ui.button(a,followed?"已关注":"关注",false,() -> {});
-      followButton.setContentDescription(followed?"已关注作者，点击取消":"关注作者");
-      followButton.setBackground(Ui.ripple(a,Design.PAPER,Design.RED,19));
-      followButton.setTextColor(followed?Design.MUTED:Design.RED);
-      followButton.setOnClickListener(v -> a.request(followButton,null,
-          () -> a.repo.setFollow(post.userId(),!followed),
-          () -> { a.message(!followed?"已关注作者":"已取消关注"); a.render(); }));
-      LinearLayout.LayoutParams followLp=new LinearLayout.LayoutParams(-2,-2);followLp.leftMargin=Ui.dp(a,8);
-      author.addView(followButton,followLp);
-      TextView chatButton=Ui.button(a,"私信",false,()->{});
-      chatButton.setContentDescription("给作者发私信");
-      chatButton.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,19));
-      chatButton.setTextColor(Design.INK);
-      chatButton.setOnClickListener(v -> {
-        final Conversation[] started={null};
-        a.read("start-chat:"+post.userId(),v,null,
-            () -> started[0]=a.repo.startConversation(post.userId()),
-            () -> {if(started[0]!=null)a.go("direct-chat",started[0].id());},() -> {});
-      });
-      LinearLayout.LayoutParams chatLp=new LinearLayout.LayoutParams(-2,-2);chatLp.leftMargin=Ui.dp(a,6);
-      author.addView(chatButton,chatLp);
+    CommunityGallery gallery = null;
+    if (!post.imageUrls().isEmpty()) {
+      gallery = new CommunityGallery(a, post.imageUrls(), post.images());
+      gallery.setPost(post);
+      page.addView(gallery);
     }
-    page.addView(author);
-    Ui.gap(page,16);
-    page.addView(Ui.title(a,post.title(),24));Ui.gap(page,10);
-    page.addView(Ui.text(a,post.content(),16,Design.INK));
+    LinearLayout copy = Ui.col(a);
+    copy.setPadding(Ui.dp(a, 14), Ui.dp(a, 14), Ui.dp(a, 14), Ui.dp(a, 14));
+    page.addView(copy);
+    copy.addView(Ui.title(a, post.title(), 22));
+    Ui.gap(copy, 6);
+    copy.addView(Ui.text(a, post.content(), 16, Design.INK));
+    Ui.gap(copy, 8);
+    copy.addView(Ui.text(a, format(post.createdAt()), 12, Design.MUTED));
 
     if(!post.repostOfId().isBlank()) {
-      Ui.gap(page,14);LinearLayout quoted=Ui.card(page);
+      Ui.gap(copy,10);LinearLayout quoted=Ui.card(copy);
       quoted.addView(Ui.text(a,"转自 @"+(post.repostAuthor().isBlank()?"校园干饭人":post.repostAuthor()),13,Design.MUTED));
       Ui.gap(quoted,6);quoted.addView(Ui.text(a,post.repostContent(),14,Design.INK));
     }
 
-    if(post.status().equals("rejected")){Ui.gap(page,12);page.addView(Ui.text(a,"未通过审核："+post.reviewReason(),14,Design.RED));}
+    if(post.status().equals("rejected")){Ui.gap(copy,12);copy.addView(Ui.text(a,"未通过审核："+post.reviewReason(),14,Design.RED));}
     if(CommunityPermissions.canRemove(a.repo.currentUser(),post.userId()))
-      Ui.action(page,"删除这篇食记",false,()->CommunityRemoval.confirm(a,"posts",post.id(),post.userId(),post.title(),a::back));
-    if(!post.status().equals("approved"))return;
-    Ui.gap(page,18);LinearLayout actions=Ui.row(a);
-    // 点赞/收藏只就地更新按钮，避免整页重建带来的闪烁与滚动跳动。
-    final boolean[] liked={post.likedByMe()},favorited={post.favoritedByMe()};
-    final long[] likeCount={post.likeCount()},favoriteCount={post.favoriteCount()};
-    TextView like=Ui.button(a,"",false,() -> {});
-    Runnable paintLike=()->{
-      like.setText((liked[0]?"♥ 已赞 ":"♡ 点赞 ")+likeCount[0]);
-      like.setTextColor(liked[0]?Design.RED:Design.MUTED);
-      like.setContentDescription((liked[0]?"取消点赞":"点赞")+"，当前"+likeCount[0]+"赞");
-    };
-    paintLike.run();
-    like.setOnClickListener(v -> a.request(v,null,
-        () -> {CommunityAction state=a.repo.setCommunityLike("post",post.id(),!liked[0]);liked[0]=state.active();likeCount[0]=state.count();},
-        paintLike));
-    TextView favorite=Ui.button(a,"",false,() -> {});
-    Runnable paintFavorite=()->{
-      favorite.setText((favorited[0]?"★ 已收藏 ":"☆ 收藏 ")+favoriteCount[0]);
-      favorite.setTextColor(favorited[0]?Design.GOLD:Design.MUTED);
-      favorite.setContentDescription((favorited[0]?"取消收藏":"收藏")+"，当前"+favoriteCount[0]+"个收藏");
-    };
-    paintFavorite.run();
-    favorite.setOnClickListener(v -> a.request(v,null,
-        () -> {CommunityAction state=a.repo.setCommunityFavorite(post.id(),!favorited[0]);favorited[0]=state.active();favoriteCount[0]=state.count();},
-        paintFavorite));
-    LinearLayout.LayoutParams actionLp=new LinearLayout.LayoutParams(0,-2,1);actionLp.rightMargin=Ui.dp(a,6);
-    actions.addView(like,actionLp);LinearLayout.LayoutParams favoriteLp=new LinearLayout.LayoutParams(0,-2,1);favoriteLp.leftMargin=Ui.dp(a,6);
-    actions.addView(favorite,favoriteLp);page.addView(actions);
+      Ui.action(copy,"删除这篇食记",false,()->CommunityRemoval.confirm(a,"posts",post.id(),post.userId(),post.title(),a::back));
+    if (post.status().equals("approved")) {
+      CommunityDiscussion discussion = new CommunityDiscussion(a, page, post);
+      TextView postLike = discussion.show();
+      if (gallery != null) gallery.setPostActions(new CommunityPhotoDialog.PostActions(
+          () -> sharePost(a, post.id()), discussion::scrollToComments, postLike));
+    }
+  }
 
-    if(!post.status().equals("approved"))return;
-    Ui.gap(page,28);LinearLayout threadList=Ui.card(page);threadList.addView(Ui.title(a,"同学们的回应 · "+post.commentCount(),22));Ui.gap(threadList,14);
-    var roots=a.repo.communityRoots(post.id());
-    if(roots.items().isEmpty())Ui.empty(threadList,"还没有评论","分享真实、有用的美食体验；审核后公开。");
-    for(CommunityComment root:roots.items()){
-      comment(a,threadList,root,root);
-      var replies=a.repo.communityReplies(root.id());
-      if(!replies.items().isEmpty()){
-        LinearLayout floor=Ui.col(a);floor.setPadding(Ui.dp(a,10),0,Ui.dp(a,10),0);floor.setBackground(Ui.shape(a,Design.ALT,0,8));
-        LinearLayout.LayoutParams floorLp=new LinearLayout.LayoutParams(-1,-2);floorLp.leftMargin=Ui.dp(a,42);threadList.addView(floor,floorLp);
-        for(CommunityComment reply:replies.items())comment(a,floor,reply,root);
-      }
-      if(replies.hasMore()){
-        TextView more=Ui.button(a,"展开更多回复",false,()->{});threadList.addView(more);
-        more.setOnClickListener(v->a.read("community-replies:"+root.id(),v,null,()->a.repo.loadCommunityReplies(post.id(),root.id(),true),a::redraw,()->{}));
-      }
-      Ui.gap(threadList,12);
+  private static void sharePost(MainActivity activity, String id) {
+    android.content.Intent send = new android.content.Intent(android.content.Intent.ACTION_SEND);
+    send.setType("text/plain");
+    send.putExtra(android.content.Intent.EXTRA_TEXT,
+        "https://bjtufoodtime.top/community/posts/" + android.net.Uri.encode(id));
+    activity.startActivity(android.content.Intent.createChooser(send, "分享帖子"));
+  }
+
+  static void detailHeader(MainActivity a, LinearLayout header, CommunityPost post) {
+    LinearLayout bar = Ui.row(a);
+    bar.setGravity(Gravity.CENTER_VERTICAL);
+    header.addView(bar);
+    TextView back = CommunityDiscussion.action(a, "‹", a::back);
+    back.setTextSize(27);
+    back.setContentDescription("返回上一级");
+    bar.addView(back);
+    if (post == null) {
+      bar.addView(Ui.title(a, "社区食记", 18), new LinearLayout.LayoutParams(0, -2, 1));
+      return;
     }
-    if(roots.hasMore()){
-      TextView more=Ui.button(a,"加载更多评论",false,()->{});threadList.addView(more);
-      more.setOnClickListener(v->a.read("community-roots:"+post.id(),v,null,()->a.repo.loadMoreCommunityComments(post.id()),a::redraw,()->{}));
-    }
-    LinearLayout composer=Ui.card(page);
-    String rootId=a.drafts.getString(a.draftKey("replyRoot"),""),targetId=a.drafts.getString(a.draftKey("replyTarget"),"");
-    if(!rootId.isBlank()){
-      composer.addView(Ui.text(a,"回复 "+a.drafts.getString(a.draftKey("replyName"),"同学"),14,Design.RED));
-      Ui.action(composer,"取消回复",false,()->{a.drafts.remove(a.draftKey("replyRoot"));a.drafts.remove(a.draftKey("replyTarget"));a.redraw();});
-    }
-    EditText input=Ui.field(composer,"评论内容",false,true);input.setHint("分享美食体验（最多500字）");
-    input.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});
-    TextView error=Ui.text(a,"",13,Design.RED);composer.addView(error);
-    final String[] created=new String[1];
-    Ui.submit(composer,rootId.isBlank()?"提交评论":"提交回复",error,()->{
-      String body=Validation.text(input.getText().toString(),500,"评论"),key=a.draftKey("commentRequestId");
-      String fingerprint=rootId+"|"+targetId+"|"+body;
-      if(!fingerprint.equals(a.drafts.getString(a.draftKey("commentPayload"),""))){a.drafts.putString(key,UUID.randomUUID().toString());a.drafts.putString(a.draftKey("commentPayload"),fingerprint);}
-      String requestId=a.drafts.getString(key);
-      String scope=rootId,target=targetId;
-      return ()->created[0]=a.repo.submitCommunityComment(post.id(),body,scope,target,requestId);
-    },()->{
-      for(String key:List.of("评论内容","replyRoot","replyTarget","replyName","commentPayload","commentRequestId"))a.drafts.remove(a.draftKey(key));
-      a.message("已提交审核，通过前仅自己可见");
-      // 保留滚动位置，避免提交后整页跳回顶部。
-      a.redraw();
-      // 审核完成后自动刷新一次，不用再手动进入帖子。
-      if(created[0]!=null)watchApproval(a,post.id(),rootId,created[0],0);
+    String name = post.userDisplayName().isBlank() ? "校园干饭人" : post.userDisplayName();
+    bar.addView(CommunityDiscussion.avatar(a, post.userAvatarUrl(), name, 32));
+    TextView author = Ui.text(a, name, 16, Design.INK);
+    author.setPadding(Ui.dp(a, 8), 0, Ui.dp(a, 6), 0);
+    author.setSingleLine();
+    author.setEllipsize(TextUtils.TruncateAt.END);
+    bar.addView(author, new LinearLayout.LayoutParams(0, -2, 1));
+    User viewer = a.repo.currentUser();
+    if (viewer == null || post.userId().isBlank() || post.userId().equals(viewer.id())) return;
+
+    FollowState state = a.repo.followState(post.userId());
+    TextView follow = CommunityDiscussion.action(a, "", () -> {});
+    paintFollow(follow, state != null && state.followed());
+    follow.setOnClickListener(v -> {
+      boolean next = !follow.isSelected();
+      FollowState[] result = {null};
+      a.request(follow, null, () -> result[0] = a.repo.setFollow(post.userId(), next),
+          () -> paintFollow(follow, result[0].followed()));
     });
-
-    String focusPrefix="community-detail:"+post.id()+":";
-    String focus=a.drafts.getString(focusPrefix+"focusComment","");
-    if(!focus.isBlank()) {
-      String focusRoot=a.drafts.getString(focusPrefix+"focusRoot","");
-      android.view.View target=a.content.findViewWithTag("community-comment:"+focus);
-      if(target!=null) {
-        clearFocusDrafts(a,focusPrefix);
-        a.scroll.post(()->highlightComment(a,target));
-      } else if(!focusRoot.isBlank()&&!a.drafts.getBoolean(focusPrefix+"focusTried",false)) {
-        a.drafts.putBoolean(focusPrefix+"focusTried",true);
-        a.read("community-focus:"+post.id()+":"+focus,null,null,
-            () -> a.repo.ensureCommunityCommentVisible(post.id(),focusRoot,focus),
-            a::redraw,() -> {});
-      } else {
-        clearFocusDrafts(a,focusPrefix);
-      }
-    }
+    bar.addView(follow);
+    TextView chat = CommunityDiscussion.action(a, "私信", () -> {});
+    chat.setContentDescription("给作者发私信");
+    chat.setOnClickListener(v -> {
+      Conversation[] started = {null};
+      a.read("start-chat:" + post.userId(), v, null,
+          () -> started[0] = a.repo.startConversation(post.userId()),
+          () -> { if (started[0] != null) a.go("direct-chat", started[0].id()); }, () -> {});
+    });
+    bar.addView(chat);
   }
 
-  private static void clearFocusDrafts(MainActivity a,String prefix) {
-    a.drafts.remove(prefix+"focusComment");a.drafts.remove(prefix+"focusRoot");a.drafts.remove(prefix+"focusTried");
-  }
-
-  private static void highlightComment(MainActivity a,android.view.View target) {
-    target.setBackground(Ui.shape(a,Design.ALT,Design.RED,12));
-    int[] targetPos=new int[2],scrollPos=new int[2];
-    target.getLocationOnScreen(targetPos);a.scroll.getLocationOnScreen(scrollPos);
-    int y=a.scroll.getScrollY()+targetPos[1]-scrollPos[1]-Ui.dp(a,80);
-    a.scroll.smoothScrollTo(0,Math.max(0,y));
-    a.getWindow().getDecorView().postDelayed(()->target.setBackground(null),2600);
-  }
-
-  /** 提交后短轮询：仍待审则 2 秒后再查，通过/驳回后刷新一次列表。最多约 24 秒。 */
-  private static void watchApproval(MainActivity a,String postId,String rootId,String commentId,int attempt){
-    if(attempt>=12||a.isFinishing()) return;
-    final String[] status=new String[1];
-    a.read("comment-status:"+commentId,null,null,
-        ()->status[0]=a.repo.communityCommentStatus(commentId),
-        ()->{
-          if(status[0]==null) return;
-          if(status[0].equals("pending")){
-            a.getWindow().getDecorView().postDelayed(()->watchApproval(a,postId,rootId,commentId,attempt+1),2000);
-          }else{
-            a.read("comment-reload:"+postId,null,null,
-                ()->{if(rootId.isBlank())a.repo.reloadCommunityComments(postId);else a.repo.reloadCommunityReplies(postId,rootId);},
-                a::redraw,()->{});
-          }
-        },()->{});
-  }
-
-  private static void comment(MainActivity a,LinearLayout page,CommunityComment item,CommunityComment root){
-    LinearLayout line=Ui.row(a);line.setGravity(Gravity.TOP);line.setTag("community-comment:"+item.id());LinearLayout avatar=Ui.col(a);
-    if(!item.userAvatarUrl().isBlank()&&!item.deleted())avatar.addView(Ui.image(a,item.userAvatarUrl(),"头像",false),new LinearLayout.LayoutParams(Ui.dp(a,32),Ui.dp(a,32)));
-    else{TextView initial=Ui.text(a,item.deleted()?"·":item.userDisplayName().isBlank()?"同":item.userDisplayName().substring(0,1),13,Design.MUTED);initial.setGravity(Gravity.CENTER);initial.setBackground(Ui.shape(a,Design.ALT,0,16));avatar.addView(initial,new LinearLayout.LayoutParams(Ui.dp(a,32),Ui.dp(a,32)));}
-    LinearLayout.LayoutParams avatarLp=new LinearLayout.LayoutParams(Ui.dp(a,32),-2);avatarLp.rightMargin=Ui.dp(a,10);line.addView(avatar,avatarLp);
-    LinearLayout body=Ui.col(a);line.addView(body,new LinearLayout.LayoutParams(0,-2,1));page.addView(line);Ui.gap(page,10);
-    body.addView(Ui.text(a,item.deleted()?"原评论已删除":item.userDisplayName(),13,Design.MUTED));Ui.gap(body,4);
-    String prefix=item.rootCommentId().isBlank()?"":"回复 "+item.replyToDisplayName()+"：";
-    body.addView(Ui.text(a,item.deleted()?"这条评论已删除，楼内回复仍可查看。":prefix+item.content(),15,item.deleted()?Design.MUTED:Design.INK));
-    body.addView(Ui.text(a,format(item.createdAt())+(item.status().equals("pending")?" · 审核中，仅自己可见":item.status().equals("rejected")?" · 未通过："+item.reviewReason():""),11,Design.MUTED));
-    LinearLayout actions=Ui.row(a);body.addView(actions);
-    if(!item.deleted()&&item.status().equals("approved")){
-      final boolean[] commentLiked={item.likedByMe()};
-      final long[] commentLikes={item.likeCount()};
-      TextView like=Ui.button(a,"",false,()->{});actions.addView(like);
-      Runnable paintComment=()->{
-        like.setText((commentLiked[0]?"♥ ":"♡ ")+commentLikes[0]);
-        like.setTextColor(commentLiked[0]?Design.RED:Design.MUTED);
-        like.setContentDescription((commentLiked[0]?"取消点赞":"点赞")+"，当前"+commentLikes[0]+"赞");
-      };
-      paintComment.run();
-      like.setOnClickListener(v->a.request(v,null,
-          ()->{CommunityAction state=a.repo.setCommunityLike("comment",item.id(),!commentLiked[0]);commentLiked[0]=state.active();commentLikes[0]=state.count();},
-          paintComment));
-    }
-    if(!item.deleted()&&item.status().equals("approved")&&!root.deleted())actions.addView(Ui.button(a,"回复",false,()->{
-      a.drafts.putString(a.draftKey("replyRoot"),root.id());a.drafts.putString(a.draftKey("replyTarget"),item.id());a.drafts.putString(a.draftKey("replyName"),item.userDisplayName());a.redraw();
-    }));
-    if(!item.deleted()&&CommunityPermissions.canRemove(a.repo.currentUser(),item.userId())){
-      TextView remove=Ui.button(a,"删除",false,()->{});actions.addView(remove);
-      remove.setOnClickListener(v->CommunityRemoval.confirm(a,"comments",item.id(),item.userId(),item.content(),()->{
-        if(item.id().equals(a.drafts.getString(a.draftKey("replyRoot"),""))||item.id().equals(a.drafts.getString(a.draftKey("replyTarget"),"")))
-          for(String key:List.of("replyRoot","replyTarget","replyName"))a.drafts.remove(a.draftKey(key));
-        a.render();
-      }));
-    }
+  private static void paintFollow(TextView button, boolean followed) {
+    button.setSelected(followed);
+    button.setText(followed ? "已关注" : "关注");
+    button.setTextColor(followed ? Design.MUTED : Design.RED);
+    button.setContentDescription(followed ? "已关注作者，点击取消" : "关注作者");
   }
 
   private static float coverRatio(CommunityPost post){

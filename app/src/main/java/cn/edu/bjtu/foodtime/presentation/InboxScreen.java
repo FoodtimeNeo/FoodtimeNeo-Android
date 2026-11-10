@@ -13,6 +13,7 @@ import java.util.*;
 final class InboxScreen {
   static void inbox(MainActivity a, LinearLayout page, MainActivity.Route route) {
     a.heading(page, "04", "通知信箱", "公告与系统消息都在这里，点开即标为已读。");
+    Ui.action(page,"搜索用户",false,()->a.go("user-search",""));
     LinearLayout unreadArea = Ui.col(a);
     page.addView(unreadArea,new LinearLayout.LayoutParams(-1,-2));
     if(a.loginNoticeFailed()) Ui.action(page,"重试登录公告",false,a::retryLoginNotice);

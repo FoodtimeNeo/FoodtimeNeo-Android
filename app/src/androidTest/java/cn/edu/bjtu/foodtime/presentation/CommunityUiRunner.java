@@ -29,6 +29,19 @@ public class CommunityUiRunner extends Instrumentation {
  private boolean hasButton(View root,String value){if(root instanceof TextView t&&t.getText().toString().equals(value)&&root.isClickable())return true;if(root instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++)if(hasButton(group.getChildAt(i),value))return true;return false;}
  private void cardButton(String content,String button){main(()->{View scope=text(content);while(scope!=null&&!hasButton(scope,button))scope=scope.getParent() instanceof View parent?parent:null;if(scope==null)throw new AssertionError("Missing scoped button "+button);View target=find(scope,button,false);target.performClick();});}
  private void dialog(String label)throws Exception{long end=System.currentTimeMillis()+5000;while(System.currentTimeMillis()<end){AccessibilityNodeInfo root=getUiAutomation().getRootInActiveWindow();if(root!=null)for(var node:root.findAccessibilityNodeInfosByText(label))if(node.isClickable()&&label.contentEquals(node.getText())&&node.performAction(AccessibilityNodeInfo.ACTION_CLICK))return;Thread.sleep(80);}throw new AssertionError("Missing dialog button "+label);}
+ private void sheetField(String label,String value)throws Exception {
+   long end=System.currentTimeMillis()+5000;
+   while(System.currentTimeMillis()<end){
+     AccessibilityNodeInfo root=getUiAutomation().getRootInActiveWindow();
+     if(root!=null)for(var node:root.findAccessibilityNodeInfosByText(label)){
+       if(!node.isEditable())continue;
+       Bundle text=new Bundle();text.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,value);
+       if(node.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,text))return;
+     }
+     Thread.sleep(80);
+   }
+   throw new AssertionError("Missing sheet editor "+label);
+ }
  private void capture(String name)throws Exception{waitForIdleSync();Thread.sleep(350);Bitmap image=getUiAutomation().takeScreenshot();if(image==null)throw new AssertionError("Screenshot unavailable");File folder=new File(getTargetContext().getFilesDir(),"community-ui-evidence");folder.mkdirs();try(var out=new FileOutputStream(new File(folder,name+".png"))){image.compress(Bitmap.CompressFormat.PNG,100,out);}finally{image.recycle();}}
  private String argument(Bundle args,String name){String value=args==null?null:args.getString(name);if(value==null||value.isBlank())throw new IllegalArgumentException("请通过 -e "+name+" 提供本地测试参数");return value;}
  @Override public void onCreate(Bundle args){userAccount=argument(args,"userAccount");adminAccount=argument(args,"adminAccount");testPassword=argument(args,"testPassword");evidenceOnly="true".equals(args.getString("evidenceOnly"));super.onCreate(args);start();}
@@ -40,7 +53,7 @@ public class CommunityUiRunner extends Instrumentation {
    if(sample.imageUrls().size()>1){
     click("›");check(find(activity.root,"第2张，共"+sample.imageUrls().size()+"张",true)!=null,"Native gallery advances to the next image");
     main(()->{View target=find(activity.root,"食记图片 2 / "+sample.imageUrls().size()+"，点击放大",true);while(target!=null&&!target.isClickable())target=target.getParent() instanceof View parent?parent:null;if(target==null)throw new AssertionError("Missing gallery image");target.performClick();});
-    dialog("放大");dialog("缩小");dialog("关闭");check(true,"Full-screen zoom controls and close are usable");click("‹");
+    dialog("⋮");dialog("放大");dialog("⋮");dialog("缩小");dialog("×");check(true,"Full-screen zoom controls and close are usable");click("‹");
    }
    capture("sample-detail");main(()->activity.scroll.fullScroll(View.FOCUS_DOWN));capture("sample-replies");
   }
@@ -74,13 +87,12 @@ public class CommunityUiRunner extends Instrumentation {
    check(post.status().equals("pending")&&post.images().size()==2&&post.images().get(0).width()==40,"Native form sends title, ordered photos and real pending state");
    click(title);loaded("community-detail");check(text("这篇食记正在审核，通过前仅自己可见。")!=null,"Pending detail is labelled private");check(find(activity.root,"评论内容",true)==null,"Pending post has no public comment composer");
    administrator.moderateCommunity("posts",id,"approve","");main(activity::render);loaded("community-detail");
-   field("评论内容","页面一级评论 "+run);click("提交评论");loaded("community-detail");
+   click("有话要说，快来评论");sheetField("评论内容","页面一级评论 "+run);dialog("发送");loaded("community-detail");
    CommunityComment root=real.communityRoots(id).items().stream().filter(c->c.content().equals("页面一级评论 "+run)).findFirst().orElseThrow();check(root.status().equals("pending"),"Native submitted comment stays pending until approved");
    administrator.moderateCommunity("comments",root.id(),"approve","");administrator.submitCommunityComment(id,"另一位同学的楼内回复 "+run,root.id(),root.id(),UUID.randomUUID().toString());administrator.refresh(new ContentRequest(ContentRequest.Query.COMMUNITY_DETAIL,id));
    CommunityComment other=administrator.communityReplies(root.id()).items().stream().filter(c->c.content().contains(run)).findFirst().orElseThrow();administrator.moderateCommunity("comments",other.id(),"approve","");main(activity::render);loaded("community-detail");
    String otherText="回复 "+authorName+"：另一位同学的楼内回复 "+run;cardButton(otherText,"回复");
-   check(activity.drafts.getString(activity.draftKey("replyRoot")).equals(root.id())&&activity.drafts.getString(activity.draftKey("replyTarget")).equals(other.id()),"Native reply selection carries root and actual target IDs");
-   field("评论内容","页面互相回复 "+run);click("提交回复");loaded("community-detail");
+   sheetField("回复 @"+adminName,"页面互相回复 "+run);dialog("发送");loaded("community-detail");
    CommunityComment nested=real.communityReplies(root.id()).items().stream().filter(c->c.content().equals("页面互相回复 "+run)).findFirst().orElseThrow();check(nested.replyToUserId().equals(administrator.currentUser().id()),"Reply targets the other author on the server");administrator.moderateCommunity("comments",nested.id(),"approve","");main(activity::render);loaded("community-detail");
    int[] firstPosition={0,0},nestedPosition={0,0};main(()->{text(otherText).getLocationOnScreen(firstPosition);text("回复 "+adminName+"：页面互相回复 "+run).getLocationOnScreen(nestedPosition);});check(firstPosition[0]==nestedPosition[0],"Both replies have exactly one UI indentation level");
    cardButton(otherText,"♡ 0");await(()->real.communityReplies(root.id()).items().stream().anyMatch(c->c.id().equals(other.id())&&c.likedByMe()&&c.likeCount()==1),"native reply like");check(true,"Reply like updates from server count");capture("replies");

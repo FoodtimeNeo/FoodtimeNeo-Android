@@ -36,6 +36,14 @@ public class FollowRepositoryTest {
       if(path.endsWith("/profile")){
         code=profileStatus.get();body=new JSONObject().put("id",actor.get()).put("email","20260001@bjtu.edu.cn").put("displayName","测试用户").put("role","user").put("status","active").put("followingCount",following.size()).put("followerCount",fans.size());
       }else if(path.contains("/auth/csrf"))body=new JSONObject().put("token","local-token");
+      else if(path.startsWith("/api/v1/users/search?")) {
+        code=status.get();int number=Integer.parseInt(path.split("page=")[1].split("&")[0]);
+        String query=URLDecoder.decode(path.split("q=")[1].split("&")[0],StandardCharsets.UTF_8);
+        int total=query.equals("没人")?0:25;var items=new JSONArray();
+        for(int i=(number-1)*20+1;i<=Math.min(total,number*20);i++)items.put(new JSONObject()
+            .put("id",target(i)).put("displayName","食客 "+i).put("avatarUrl",JSONObject.NULL).put("followedByMe",following.contains(i)));
+        body=malformed.get()!=null?new JSONObject(malformed.get()):new JSONObject().put("items",items).put("total",total).put("page",number).put("size",20);
+      }
       else if(path.contains("/following?")||path.contains("/followers?")) {
         code=status.get();boolean followers=path.contains("/followers?");int page=Integer.parseInt(path.split("page=")[1].split("&")[0]);
         var values=new ArrayList<>(followers?fans:following);values.sort(Comparator.reverseOrder());var items=new JSONArray();
@@ -70,4 +78,41 @@ public class FollowRepositoryTest {
   private void block(String path){blockedPath=path;started=new CountDownLatch(1);release=new CountDownLatch(1);}
   @Test public void lateAppendCannotOverwriteRefresh()throws Exception{load(false);block("/api/v1/users/"+id(1)+"/following?page=2&size=20");var late=workers.submit(()->repo.loadMoreFollows(false));assertTrue(started.await(5,TimeUnit.SECONDS));repo.loadFollows(false);release.countDown();assertThrows(ExecutionException.class,()->late.get(5,TimeUnit.SECONDS));assertEquals(1,repo.following().page());assertEquals(20,repo.following().items().size());}
   @Test public void lateAccountResponseCannotPublishOldList()throws Exception{block("/api/v1/users/"+id(1)+"/following?page=1&size=20");var late=workers.submit(()->load(false));assertTrue(started.await(5,TimeUnit.SECONDS));actor.set(id(2));load(true);release.countDown();assertThrows(ExecutionException.class,()->late.get(5,TimeUnit.SECONDS));assertEquals(0,repo.following().page());assertEquals(1,repo.followers().page());}
+
+  @Test public void userSearchUsesTwentyRowsAndSnapshotReadsAreLocal() {
+    repo.restoreSession();repo.loadUserSearch(" 食客 ",1);
+    var result=repo.userSearchResults();
+    assertEquals("食客",result.query());assertEquals(20,result.items().size());assertEquals(25,result.total());assertTrue(result.hasMore());
+    assertTrue(calls.contains("GET /api/v1/users/search?q="+URLEncoder.encode("食客",StandardCharsets.UTF_8)+"&page=1&size=20"));
+    int before=calls.size();repo.userSearchResults();assertEquals(before,calls.size());
+    assertFalse(calls.stream().anyMatch(path->path.contains("/following?")));
+  }
+  @Test public void followingWithoutLoadedListsUsesServerCount() {
+    repo.restoreSession();repo.setFollow(target(125),true);
+    assertEquals(46,repo.currentUser().followingCount());
+    assertTrue(repo.followState(target(125)).followed());
+  }
+  @Test public void userSearchPaginationAndBlankQueriesDoNotMixResults() {
+    repo.restoreSession();repo.loadUserSearch("食客",1);repo.loadUserSearch("食客",2);
+    assertEquals(25,repo.userSearchResults().items().size());assertFalse(repo.userSearchResults().hasMore());
+    assertEquals(25,repo.userSearchResults().items().stream().map(row->row.id()).distinct().count());
+    repo.loadUserSearch("没人",1);assertTrue(repo.userSearchResults().items().isEmpty());
+    int before=calls.size();repo.loadUserSearch(" ",1);assertEquals(before,calls.size());assertEquals(0,repo.userSearchResults().page());
+  }
+  @Test public void followingFromSearchUpdatesTheSameSnapshotWithoutRepeatingTheSearch() {
+    repo.restoreSession();repo.loadUserSearch("食客",1);long count=calls.stream().filter(path->path.contains("/users/search?")).count();
+    repo.setFollow(target(1),false);assertFalse(repo.userSearchResults().items().get(0).followedByMe());
+    assertEquals(count,calls.stream().filter(path->path.contains("/users/search?")).count());
+  }
+  @Test public void failedUserSearchAppendPreservesThePreviousPage() {
+    repo.restoreSession();repo.loadUserSearch("食客",1);var before=repo.userSearchResults();status.set(503);
+    assertThrows(RepositoryException.class,()->repo.loadUserSearch("食客",2));assertSame(before,repo.userSearchResults());
+    status.set(200);repo.loadUserSearch("食客",2);assertEquals(25,repo.userSearchResults().items().size());
+  }
+  @Test public void lateUserSearchCannotRestoreAnotherAccountsResults()throws Exception {
+    repo.restoreSession();block("/api/v1/users/search?q="+URLEncoder.encode("食客",StandardCharsets.UTF_8)+"&page=1&size=20");
+    var late=workers.submit(()->repo.loadUserSearch("食客",1));assertTrue(started.await(5,TimeUnit.SECONDS));
+    actor.set(id(2));repo.restoreSession();release.countDown();
+    assertThrows(ExecutionException.class,()->late.get(5,TimeUnit.SECONDS));assertEquals(0,repo.userSearchResults().page());
+  }
 }

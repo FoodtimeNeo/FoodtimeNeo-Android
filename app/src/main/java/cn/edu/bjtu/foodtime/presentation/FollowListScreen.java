@@ -36,6 +36,7 @@ final class FollowListScreen {
     ListView(MainActivity activity,LinearLayout page,boolean followers) {
       a=activity;fans=followers;
       a.heading(page,"","我的关系","");
+      Ui.action(page,"搜索用户",false,()->a.go("user-search",""));
       LinearLayout tabRow=Ui.row(a);
       for(int i=0;i<2;i++) {
         boolean selected=(i==1)==fans;int index=i;
