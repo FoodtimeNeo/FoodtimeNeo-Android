@@ -73,6 +73,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile List<User> userList=List.of();
   private volatile List<CommunityPost> communityFeed=List.of();
   private volatile CommunityPostPage ownCommunityPosts=CommunityPostPage.empty(),ownCommunityFavorites=CommunityPostPage.empty();
+  private volatile CommunityFeedSlice followingFeed = new CommunityFeedSlice(List.of(), 0, "");
   private volatile CommunityAuditPage communityAudit=CommunityAuditPage.empty();
   private volatile CommunityAuditDetail communityAuditDetail;
   private volatile String communityCursor="";
@@ -262,6 +263,7 @@ public final class RemoteRepository implements FoodtimeRepository {
         AiAssessment ai=communityAudit.items().stream().filter(item->item.id().equals(parts[1])).map(Submission::ai).findFirst().orElse(assessment(data.optJSONObject("post")));
         communityAuditDetail=new CommunityAuditDetail(cacheCommunityPost(data.optJSONObject("post")),comment==null?null:communityComment(comment),root==null?null:communityComment(root),target==null?null:communityComment(target),ai,text(data,"userEmail"));
       }
+      case COMMUNITY_FOLLOWING -> loadCommunityFollowing(false);
       case MY_COMMUNITY_POSTS -> loadCommunityCollection(false,false);
       case MY_COMMUNITY_FAVORITES -> loadCommunityCollection(true,false);
       case COMMUNITY_DETAIL -> {
@@ -658,6 +660,17 @@ public final class RemoteRepository implements FoodtimeRepository {
     communityFeed=List.copyOf(result);communityCursor=text(data,"nextCursor");communityHasMore=data.optBoolean("hasMore");
   }
   @Override public void loadMoreCommunityPosts(){if(communityHasMore)loadCommunityFeed(true);}
+  @Override public CommunityFeedSlice communityFollowing() { return followingFeed; }
+  @Override public void loadMoreCommunityFollowing() { loadCommunityFollowing(true); }
+
+  private void loadCommunityFollowing(boolean append) {
+    CommunityFeedSlice prior = followingFeed;
+    if (append && prior.nextCursor().isEmpty()) return;
+    CommunityFeedSlice page = discoverPosts("", true, "", append ? prior.nextCursor() : "");
+    List<CommunityPost> items = new ArrayList<>(append ? prior.items() : List.of());
+    items.addAll(page.items());
+    followingFeed = new CommunityFeedSlice(items, page.total(), page.nextCursor());
+  }
   @Override public CommunityAuthor communityAuthor(String userId) {
     JSONObject profile = call("GET", "community/authors/" + encode(userId), null);
     return new CommunityAuthor(text(profile, "id"), text(profile, "displayName"), text(profile, "avatarUrl"));
@@ -1329,6 +1342,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     avatarUploads.clear();csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
 
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
+    followingFeed = new CommunityFeedSlice(List.of(), 0, "");
     communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();communityAudit=CommunityAuditPage.empty();communityAuditDetail=null;communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
     dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();
     ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();

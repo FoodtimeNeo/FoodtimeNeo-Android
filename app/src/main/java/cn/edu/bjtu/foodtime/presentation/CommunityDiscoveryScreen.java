@@ -34,9 +34,9 @@ final class CommunityDiscoveryScreen {
     this.activity = activity;
     this.page = page;
     authorId = route.kind().equals("community-author") ? route.id() : "";
-    following = route.kind().equals("community-following");
+    following = route.kind().equals("community-search") && route.id().equals("following");
     if (authorId.isEmpty()) {
-      activity.heading(page, "", following ? "只看关注" : "搜索食记", "按食记标题或正文里的关键词查找。");
+      activity.heading(page, "", following ? "搜索关注的食记" : "搜索食记", "按食记标题或正文里的关键词查找。");
       input = Ui.field(page, "食记关键词", false, false);
       input.setHint("菜名、档口或关键词");
       input.setFilters(new InputFilter[] {new InputFilter.LengthFilter(50)});
@@ -63,7 +63,7 @@ final class CommunityDiscoveryScreen {
     more = Ui.button(activity, "加载更多", false, () -> load(submitted, true));
     more.setVisibility(View.GONE);
     page.addView(more);
-    if (input == null || following || input.length() > 0) page.post(this::search);
+    if (input == null || input.length() > 0) page.post(this::search);
   }
 
   private void search() {

@@ -49,6 +49,8 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   }
   default void loadMoreCommunityPosts(){throw new UnsupportedOperationException();}
   default boolean hasMoreCommunityPosts(){return false;}
+  default CommunityFeedSlice communityFollowing() { return new CommunityFeedSlice(List.of(), 0, ""); }
+  default void loadMoreCommunityFollowing() {}
   default String submitCommunityComment(String postId, String content) {
     throw new UnsupportedOperationException("此数据源不支持社区评论");
   }
