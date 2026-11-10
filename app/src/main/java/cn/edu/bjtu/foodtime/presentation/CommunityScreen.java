@@ -255,19 +255,10 @@ final class CommunityScreen {
     LinearLayout form=Ui.card(page);form.addView(Ui.title(a,"02 · 标题与心得",18));Ui.gap(form,12);
     EditText title=Ui.field(form,"食记标题",false,false);title.setHint("标题，最多50字");title.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(50)});
     EditText content=Ui.field(form,"动态正文",false,true);content.setHint("正文，最多2000字");content.setMinLines(5);content.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(2000)});
-    String dishId = a.drafts.getString(a.draftKey("linkedDishId"), "");
-    if (!dishId.isBlank()) {
-      form.addView(Ui.text(a, "关联菜品 · " + a.drafts.getString(a.draftKey("linkedDishName"), ""), 15, Design.INK));
-      Ui.action(form, "移除关联", false, () -> {
-        a.drafts.remove(a.draftKey("linkedDishId"));
-        a.drafts.remove(a.draftKey("linkedDishName"));
-        a.redraw();
-      });
-    }
-    Ui.action(form, dishId.isBlank() ? "选择关联菜品（可选）" : "更换关联菜品", false,
-        () -> a.go("dish-pick", route.id()));
+    DishPickerScreen.show(a, form);
     TextView error=Ui.text(a,"",13,Design.RED);form.addView(error);MainActivity.Route origin=a.route();
     Ui.submit(form,"盖章发布",error,()->{
+      String dishId = a.drafts.getString(a.draftKey("linkedDishId"), "");
       String heading=Validation.text(title.getText().toString(),50,"标题"),body=Validation.text(content.getText().toString(),2000,"正文");
       List<String> photos=selectedPhotos(a);if(photos.isEmpty())throw new IllegalArgumentException("请添加至少1张图片");
       String fingerprint=heading+"\n"+body+"\n"+String.join("|",photos)
