@@ -83,6 +83,7 @@ public final class HttpTransport {
   private record Exchange(HttpURLConnection connection, URI target, Thread caller, long ticket,
                           java.util.concurrent.ScheduledFuture<?> cancellation) { }
   private Exchange open(String method,String path,String contentType,String csrf,Map<String,String> extra) throws IOException {
+    if(Thread.currentThread().isInterrupted())throw new java.io.InterruptedIOException("Request cancelled");
     URI target = base.resolve(path.startsWith("/") ? path.substring(1) : path);
     if (!base.getScheme().equals(target.getScheme()) || !base.getAuthority().equals(target.getAuthority())) {
       throw new IllegalArgumentException("Requests must remain on the configured API origin");

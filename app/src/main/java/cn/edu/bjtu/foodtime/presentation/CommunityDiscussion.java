@@ -51,6 +51,7 @@ final class CommunityDiscussion {
     section.addView(rows);
     page.addView(section);
     TextView postLike = buildDock();
+    activity.onCommunityCommentsRefresh(this::paint);
     paint();
     focusFromNotice();
     return postLike;
