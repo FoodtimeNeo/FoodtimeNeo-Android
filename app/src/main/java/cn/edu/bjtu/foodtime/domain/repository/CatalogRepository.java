@@ -15,6 +15,9 @@ public interface CatalogRepository {
   default DishSearchPage searchDishes(String query, int page) {
     throw new UnsupportedOperationException();
   }
+  default DishSearchPage favoriteDishes(int page) { throw new UnsupportedOperationException(); }
+  default boolean dishFavorite(String dishId) { throw new UnsupportedOperationException(); }
+  default boolean setDishFavorite(String dishId, boolean saved) { throw new UnsupportedOperationException(); }
 
   Hall hall(String id);
 

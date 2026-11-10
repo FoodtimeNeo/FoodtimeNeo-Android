@@ -101,11 +101,45 @@ final class DishScreen {
     action.addView(
         Ui.button(a, "写点评", true, () -> a.go("review", d.id())),
         new LinearLayout.LayoutParams(0, Ui.dp(a, 48), 1));
+    if (a.repo.currentUser() != null && !"visitor".equals(a.repo.currentUser().role())) {
+      TextView favorite = Ui.button(a, "想吃", false, () -> {});
+      LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, Ui.dp(a, 48), 1);
+      params.leftMargin = Ui.dp(a, 8);
+      action.addView(favorite, params);
+      setupFavorite(a, favorite, d.id());
+    }
     page.addView(action);
     Ui.gap(page, 20);
     page.addView(Ui.title(a, "评论", 25));
     Ui.gap(page, 12);
     new DishReviewSection(a,page,d.id(),paintRating);
+  }
+
+  private static void setupFavorite(MainActivity activity, TextView button, String dishId) {
+    boolean[] loaded = {false}, saved = {false};
+    String readKey = "dish-favorite:" + View.generateViewId();
+    Runnable paint = () -> {
+      button.setText(saved[0] ? "已想吃" : "想吃");
+      button.setSelected(saved[0]);
+    };
+    Runnable load = () -> {
+      if (!button.isAttachedToWindow()) return;
+      button.setText("正在读取…");
+      activity.read(readKey, button, new TextView(activity),
+          () -> saved[0] = activity.repo.dishFavorite(dishId), () -> {
+            loaded[0] = true;
+            paint.run();
+          }, () -> button.setText("重试收藏状态"));
+    };
+    button.setOnClickListener(view -> {
+      if (!loaded[0]) {
+        load.run();
+        return;
+      }
+      boolean next = !saved[0];
+      activity.request(button, null, () -> saved[0] = activity.repo.setDishFavorite(dishId, next), paint);
+    });
+    button.post(load);
   }
 
   private static FrameLayout detailPhoto(MainActivity a,Dish dish) {
