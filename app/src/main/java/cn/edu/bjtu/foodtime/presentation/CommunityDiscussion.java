@@ -9,6 +9,7 @@ import cn.edu.bjtu.foodtime.domain.model.CommunityText;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityAction;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityComment;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityPost;
+import cn.edu.bjtu.foodtime.domain.model.Models.User;
 import cn.edu.bjtu.foodtime.domain.validation.CommunityPermissions;
 
 /** The comment region owns pagination and row updates inside the scrollable post. */
@@ -172,6 +173,10 @@ final class CommunityDiscussion {
           item.id(), item.userId(), item.content(), activity::render));
       remove.setTextColor(Design.MUTED);
       meta.addView(remove);
+    }
+    User viewer = activity.repo.currentUser();
+    if (approved && viewer != null && !viewer.id().equals(item.userId())) {
+      meta.addView(action(activity, "举报", () -> ContentSafety.report(activity, "comment", item.id())));
     }
     meta.addView(new View(activity), new LinearLayout.LayoutParams(0, 1, 1));
     if (approved) meta.addView(toggle("community-comment-like:" + item.id(), item.likedByMe(), item.likeCount(),

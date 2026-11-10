@@ -192,6 +192,7 @@ public class MainActivity extends Activity {
     screens.put("admin-edit", AdminScreen::edit);
     screens.put("admin-reviews", AdminScreen::reviews);
     screens.put("admin-notices", AdminNoticesScreen::settings);
+    screens.put("admin-reports", ReportsScreen::show);
     screens.put("admin-notice-create", AdminNoticesScreen::create);
     screens.put("admin-users", AdminScreen::users);
     screens.put("admin-dashboard", AdminDashboardScreen::show);
@@ -752,6 +753,7 @@ public class MainActivity extends Activity {
       case "admin-users" -> "用户管理";
       case "admin-logs" -> "审核日志";
       case "admin-notices" -> "公告管理";
+      case "admin-reports" -> "举报处理";
       default -> "正在加载";
     };
   }
@@ -800,6 +802,17 @@ public class MainActivity extends Activity {
         ()->repo.refresh(new ContentRequest(ContentRequest.Query.CONVERSATIONS,route().id())),
         this::refreshContent,()->{}));
     bar.addView(refresh,new LinearLayout.LayoutParams(Ui.dp(this,48),Ui.dp(this,48)));
+    if (conversation != null) {
+      TextView safety = Ui.button(this, "⋯", false, () -> {});
+      safety.setContentDescription("私信拉黑管理");
+      safety.setOnClickListener(view -> ContentSafety.manageBlock(this, view, conversation.other().id(), blocked -> {
+        String version = draftKey("chatBlockVersion");
+        drafts.putLong(version, drafts.getLong(version) + 1);
+        drafts.putBoolean(draftKey("chatBlocked"), blocked);
+        refreshContent();
+      }));
+      bar.addView(safety, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
+    }
   }
 
   void pinNoticeActions(LinearLayout actions) {

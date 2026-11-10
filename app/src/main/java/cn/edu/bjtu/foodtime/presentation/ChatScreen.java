@@ -31,7 +31,7 @@ final class ChatScreen {
 
     if (!a.repo.conversationMessages(route.id()).items().isEmpty())
       a.scroll.post(() -> a.scroll.fullScroll(View.FOCUS_DOWN));
-    a.onContentRefresh(() -> {
+    Runnable refresh = () -> {
       list.removeAllViews();
       renderMessages(a, list, route.id());
       Conversation current = a.repo.conversation(route.id());
@@ -39,7 +39,7 @@ final class ChatScreen {
         a.read("chat-read:" + route.id(), null, null,
             () -> a.repo.readConversation(route.id()), () -> {}, () -> {});
       }
-    });
+    };
 
     LinearLayout bar = Ui.col(a);
     View rule = new View(a);
@@ -74,7 +74,29 @@ final class ChatScreen {
     send.setBackground(Ui.ripple(a, Design.RED, 0, 22));
     composer.addView(send, new LinearLayout.LayoutParams(-2, -2));
     bar.addView(composer, new LinearLayout.LayoutParams(-1, -2));
+    TextView blockInfo = Ui.text(a, "已拉黑该用户，可在右上角解除。", 14, Design.MUTED);
+    blockInfo.setPadding(Ui.dp(a, 14), Ui.dp(a, 10), Ui.dp(a, 14), Ui.dp(a, 10));
+    bar.addView(blockInfo);
+    Runnable showComposer = () -> {
+      boolean blocked = a.drafts.getBoolean(a.draftKey("chatBlocked"));
+      composer.setVisibility(blocked ? View.GONE : View.VISIBLE);
+      blockInfo.setVisibility(blocked ? View.VISIBLE : View.GONE);
+    };
+    showComposer.run();
     a.setDetailBottomBar(bar);
+    boolean[] blocked = {false};
+    String versionKey = a.draftKey("chatBlockVersion");
+    long version = a.drafts.getLong(versionKey);
+    a.read("chat-block-state:" + route.id(), null, new TextView(a),
+        () -> blocked[0] = a.repo.blockedByMe(conversation.other().id()), () -> {
+          if (version != a.drafts.getLong(versionKey)) return;
+          a.drafts.putBoolean(a.draftKey("chatBlocked"), blocked[0]);
+          showComposer.run();
+        }, () -> {});
+    a.onContentRefresh(() -> {
+      refresh.run();
+      showComposer.run();
+    });
 
     send.setOnClickListener(v -> {
       String body = input.getText().toString().trim();
@@ -132,6 +154,10 @@ final class ChatScreen {
     TextView time = Ui.text(a, CommunityText.publishedAt(message.createdAt()), 10, Design.MUTED);
     time.setGravity(mine ? Gravity.END : Gravity.START);
     bubble.addView(time, new LinearLayout.LayoutParams(-2, -2));
+    if (!mine) {
+      bubble.addView(CommunityDiscussion.action(a, "举报", () -> ContentSafety.report(a, "message", message.id())),
+          new LinearLayout.LayoutParams(-2, -2));
+    }
     line.addView(bubble, new LinearLayout.LayoutParams(-2, -2));
     list.addView(line, new LinearLayout.LayoutParams(-1, -2));
     Ui.gap(list, 7);
