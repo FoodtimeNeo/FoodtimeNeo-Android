@@ -118,7 +118,9 @@ final class CommunityScreen {
     if(post.status().equals("pending")) {
       LinearLayout notice=Ui.card(page);notice.addView(Ui.text(a,"这篇食记正在审核，通过前仅自己可见。",14,Design.RED));
     }
-    page.addView(new CommunityGallery(a,post.imageUrls()),new LinearLayout.LayoutParams(-1,-2));
+    CommunityGallery gallery = new CommunityGallery(a, post.imageUrls());
+    gallery.setPost(post);
+    page.addView(gallery,new LinearLayout.LayoutParams(-1,-2));
     Ui.gap(page,12);
     LinearLayout author=Ui.row(a);
     String authorName=post.userDisplayName().isBlank()?"校园干饭人":post.userDisplayName();
@@ -196,6 +198,9 @@ final class CommunityScreen {
 
     if(!post.status().equals("approved"))return;
     Ui.gap(page,28);LinearLayout threadList=Ui.card(page);threadList.addView(Ui.title(a,"同学们的回应 · "+post.commentCount(),22));Ui.gap(threadList,14);
+    gallery.setPostActions(new CommunityPhotoDialog.PostActions(
+        () -> sharePost(a, post.id()),
+        () -> threadList.post(() -> scrollTo(a, threadList, 0)), like));
     var roots=a.repo.communityRoots(post.id());
     if(roots.items().isEmpty())Ui.empty(threadList,"还没有评论","分享真实、有用的美食体验；审核后公开。");
     for(CommunityComment root:roots.items()){
@@ -267,11 +272,23 @@ final class CommunityScreen {
 
   private static void highlightComment(MainActivity a,android.view.View target) {
     target.setBackground(Ui.shape(a,Design.ALT,Design.RED,12));
+    scrollTo(a, target, 80);
+    a.getWindow().getDecorView().postDelayed(()->target.setBackground(null),2600);
+  }
+
+  private static void scrollTo(MainActivity a, View target, int offsetDp) {
     int[] targetPos=new int[2],scrollPos=new int[2];
     target.getLocationOnScreen(targetPos);a.scroll.getLocationOnScreen(scrollPos);
-    int y=a.scroll.getScrollY()+targetPos[1]-scrollPos[1]-Ui.dp(a,80);
+    int y=a.scroll.getScrollY()+targetPos[1]-scrollPos[1]-Ui.dp(a,offsetDp);
     a.scroll.smoothScrollTo(0,Math.max(0,y));
-    a.getWindow().getDecorView().postDelayed(()->target.setBackground(null),2600);
+  }
+
+  private static void sharePost(MainActivity a, String id) {
+    android.content.Intent send = new android.content.Intent(android.content.Intent.ACTION_SEND);
+    send.setType("text/plain");
+    send.putExtra(android.content.Intent.EXTRA_TEXT,
+        "https://bjtufoodtime.top/community/posts/" + android.net.Uri.encode(id));
+    a.startActivity(android.content.Intent.createChooser(send, "分享帖子"));
   }
 
   /** 提交后短轮询：仍待审则 2 秒后再查，通过/驳回后刷新一次列表。最多约 24 秒。 */

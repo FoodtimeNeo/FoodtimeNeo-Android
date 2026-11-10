@@ -85,6 +85,9 @@ final class ImageLoader {
     return ()->{current.listeners.remove(listener);if(current.listeners.isEmpty()&&TASKS.get(key)==current){TASKS.remove(key);current.future.cancel(true);WORK.purge();}};
   }
   static void bind(MainActivity a,FrameLayout frame,ImageView image,TextView placeholder,String path,Consumer<Bitmap> display) {
+    bind(a,frame,image,placeholder,path,display,()->{});
+  }
+  static void bind(MainActivity a,FrameLayout frame,ImageView image,TextView placeholder,String path,Consumer<Bitmap> display,Runnable onFailure) {
     final Runnable[] release={null};final boolean[] completed={false},failed={false};final int[] generation={0};
     Runnable check=()->{
       boolean visible=!paused&&frame.isAttachedToWindow()&&frame.getWindowVisibility()==View.VISIBLE&&frame.getGlobalVisibleRect(new Rect())&&frame.getWidth()>0;
@@ -94,7 +97,7 @@ final class ImageLoader {
       int ticket=++generation[0];
       release[0]=subscribe(a,path,bound,bitmap->{
         if(a.isDestroyed()||ticket!=generation[0]||!frame.isAttachedToWindow())return;
-        if(bitmap==null){failed[0]=true;placeholder.setText("图片加载失败，点此重试");placeholder.setClickable(true);placeholder.setFocusable(true);placeholder.setVisibility(View.VISIBLE);return;}
+        if(bitmap==null){failed[0]=true;placeholder.setText("图片加载失败，点此重试");placeholder.setClickable(true);placeholder.setFocusable(true);placeholder.setVisibility(View.VISIBLE);onFailure.run();return;}
         completed[0]=true;image.setImageBitmap(bitmap);placeholder.setClickable(false);placeholder.setFocusable(false);placeholder.setVisibility(View.GONE);display.accept(bitmap);
       });
     };
