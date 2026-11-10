@@ -183,17 +183,21 @@ final class CommunityDiscussion {
       int activeColor, java.util.function.Function<Boolean, CommunityAction> write) {
     TextView button = action(activity, "", () -> {});
     button.setTag(tag);
-    java.util.function.Consumer<CommunityAction> paint = state -> {
-      button.setSelected(state.active());
-      button.setText((state.active() ? on : off) + " " + state.count());
-      button.setTextColor(state.active() ? activeColor : Design.INK);
-      button.setContentDescription((state.active() ? "取消" : "") + label + "，当前 " + state.count());
+    java.util.function.BiConsumer<TextView, CommunityAction> paint = (view, state) -> {
+      view.setSelected(state.active());
+      view.setText((state.active() ? on : off) + " " + state.count());
+      view.setTextColor(state.active() ? activeColor : Design.INK);
+      view.setContentDescription((state.active() ? "取消" : "") + label + "，当前 " + state.count());
     };
-    paint.accept(new CommunityAction(active, total));
+    paint.accept(button, new CommunityAction(active, total));
     button.setOnClickListener(v -> {
       boolean next = !button.isSelected();
       CommunityAction[] result = {null};
-      activity.request(button, null, () -> result[0] = write.apply(next), () -> paint.accept(result[0]));
+      activity.request(button, null, () -> result[0] = write.apply(next), () -> {
+        // An approval refresh can replace the comment row while this write is in flight.
+        TextView current = activity.root.findViewWithTag(tag);
+        if (current != null) paint.accept(current, result[0]);
+      });
     });
     return button;
   }
