@@ -36,6 +36,14 @@ public final class Models {
     public boolean hasMore() { return (long) page * size < total; }
   }
 
+  public record ReportRow(String id, String type, String targetUserId, String postId,
+                          String reason, String excerpt) {}
+
+  public record ReportPage(List<ReportRow> items, long total, int page, int size) {
+    public ReportPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
   public record User(String id, String email, String displayName, String role, boolean active,
       String avatarUrl, long createdAt, long reviewCount, long followingCount, long followerCount) {
     public User(String id, String email, String displayName, String role, boolean active,

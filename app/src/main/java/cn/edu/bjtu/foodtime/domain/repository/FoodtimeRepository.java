@@ -25,6 +25,12 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default AdminDashboard adminDashboard() { return null; }
   default DailyRecommendations dailyRecommendations() { return null; }
 
+  default boolean blockedByMe(String userId) { throw new UnsupportedOperationException(); }
+  default void setBlocked(String userId, boolean blocked) { throw new UnsupportedOperationException(); }
+  default void reportContent(String type, String id, String reason) { throw new UnsupportedOperationException(); }
+  default ReportPage reports(int page) { throw new UnsupportedOperationException(); }
+  default void reviewReport(String id) { throw new UnsupportedOperationException(); }
+
   default List<CommunityPost> communityPosts() { return List.of(); }
   default boolean communityPrototypeEnabled() { return false; }
   default CommunityPost communityPost(String id) { return null; }

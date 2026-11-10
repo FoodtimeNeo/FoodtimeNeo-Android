@@ -1053,6 +1053,35 @@ public final class RemoteRepository implements FoodtimeRepository {
     messagePage=new MessagePage(items,messagePage.total(),messagePage.hasMore());
     messageUnread=0;
   }
+  @Override public boolean blockedByMe(String userId) {
+    return call("GET", "users/" + encode(userId) + "/block", null).optBoolean("blocked");
+  }
+
+  @Override public void setBlocked(String userId, boolean blocked) {
+    call(blocked ? "PUT" : "DELETE", "users/" + encode(userId) + "/block", null);
+  }
+
+  @Override public void reportContent(String type, String id, String reason) {
+    call("POST", "reports", json("targetType", type, "targetId", id, "reason", reason));
+  }
+
+  @Override public ReportPage reports(int page) {
+    JSONObject result = call("GET", "admin/reports?page=" + page + "&size=20", null);
+    JSONArray rows = result.optJSONArray("items");
+    if (rows == null) throw new IllegalStateException("举报列表返回格式异常");
+    List<ReportRow> items = new ArrayList<>();
+    for (int i = 0; i < rows.length(); i++) {
+      JSONObject row = rows.optJSONObject(i);
+      items.add(new ReportRow(text(row, "id"), text(row, "targetType"), text(row, "targetUserId"),
+          text(row, "postId"), text(row, "reason"), text(row, "excerpt")));
+    }
+    return new ReportPage(items, result.optLong("total"), page, result.optInt("size", 20));
+  }
+
+  @Override public void reviewReport(String id) {
+    call("PUT", "admin/reports/" + encode(id) + "/review", null);
+  }
+
   private static String encode(String value) { try { return java.net.URLEncoder.encode(value,"UTF-8"); } catch(java.io.UnsupportedEncodingException e) { throw new IllegalStateException(e); } }
   private AdminNotice adminNoticeRow(JSONObject j) { return new AdminNotice(text(j,"id"),text(j,"title"),text(j,"content")); }
   @Override public AdminNoticePage adminNotices(int page,String query) {

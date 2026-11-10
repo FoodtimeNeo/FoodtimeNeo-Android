@@ -200,6 +200,9 @@ final class CommunityScreen {
           () -> { if (started[0] != null) a.go("direct-chat", started[0].id()); }, () -> {});
     });
     bar.addView(chat);
+    if (post.status().equals("approved")) {
+      bar.addView(CommunityDiscussion.action(a, "举报", () -> ContentSafety.report(a, "post", post.id())));
+    }
   }
 
   private static void paintFollow(TextView button, boolean followed) {
