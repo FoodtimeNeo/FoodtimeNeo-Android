@@ -265,6 +265,14 @@ public final class Ui {
     return imageFrame(c,path,label,Math.max(.72f,Math.min(1.45f,fallbackHeightRatio)),true,false);
   }
 
+  static View communityDetailImage(Context context, String path, String label,
+      cn.edu.bjtu.foodtime.domain.model.Models.CommunityImage dimensions) {
+    if (dimensions == null || dimensions.width() <= 0 || dimensions.height() <= 0)
+      return communityImage(context, path, label, .75f);
+    float ratio = (float) dimensions.height() / dimensions.width();
+    return imageFrame(context, path, label, Math.max(.45f, Math.min(1.45f, ratio)), false, false);
+  }
+
   public static View image(Context c, String path, String label, boolean wide) {
     return imageFrame(c,path,label,wide?9f/16f:1f,false,wide);
   }

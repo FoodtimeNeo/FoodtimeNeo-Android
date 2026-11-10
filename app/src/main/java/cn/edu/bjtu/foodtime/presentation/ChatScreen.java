@@ -74,7 +74,7 @@ final class ChatScreen {
     send.setBackground(Ui.ripple(a, Design.RED, 0, 22));
     composer.addView(send, new LinearLayout.LayoutParams(-2, -2));
     bar.addView(composer, new LinearLayout.LayoutParams(-1, -2));
-    a.setChatComposer(bar);
+    a.setDetailBottomBar(bar);
 
     send.setOnClickListener(v -> {
       String body = input.getText().toString().trim();
