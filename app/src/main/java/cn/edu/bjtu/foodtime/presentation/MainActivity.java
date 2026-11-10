@@ -36,6 +36,7 @@ public class MainActivity extends Activity {
   String tab = "dining";
   LinearLayout root, content, header;
   ScrollView scroll;
+  private CommunityPager communityPager;
   final Bundle drafts = new Bundle();
   final Bundle scrollPositions = new Bundle();
   String pickingKey;
@@ -418,7 +419,24 @@ public class MainActivity extends Activity {
 
   boolean isCommunityHub() {
     return tab.equals("community") && stacks.get(tab).size() == 1
-        && CommunityScreen.isSection(route().kind());
+        && CommunityPager.isSection(route().kind());
+  }
+
+  void restoreCommunityScroll(ScrollView view, String section) {
+    int offset = scrollPositions.getInt("community:" + section + ":", 0);
+    view.post(() -> view.scrollTo(0, offset));
+  }
+
+  void commitCommunityPage(CommunityPager owner, String section, CommunityPager.Page page) {
+    if (communityPager != owner || !isCommunityHub()) return;
+    rememberScroll();
+    cancelNavigation();
+    stacks.get(tab).set(0, new Route(section, ""));
+    scroll = page.scroll();
+    content = page.content();
+    contentRefresh = page.update();
+    displayedLocation = location();
+    render();
   }
   public Route route() {
     ArrayList<Route> s = stacks.get(tab);
@@ -526,10 +544,13 @@ public class MainActivity extends Activity {
     ContentRequest query=query(target);
     if(query==null) { renderContent(); return; }
     boolean community=target.kind().equals("community");
+    boolean keepCommunityPage = isCommunityHub() && contentReady && contentRefresh != null
+        && displayedLocation.equals(location()) && displayedActor.equals(actor);
     boolean freshCommunity=community&&!force&&communityLoadedAt>0&&communityLoadedFor.equals(actor)
         &&android.os.SystemClock.elapsedRealtime()-communityLoadedAt<COMMUNITY_FRESH_MS;
     if(freshCommunity) {
-      renderContent();
+      if (keepCommunityPage) refreshPage();
+      else renderContent();
       return;
     }
     boolean catalog=LoadingScreen.catalog(target),dashboard=target.kind().equals("admin-dashboard");
@@ -539,8 +560,7 @@ public class MainActivity extends Activity {
     LinearLayout[] bodyHolder={null};
     if(immediate) {
       // Static/cached shell paints first; live data is merged in after the read completes.
-      if (!(force && isCommunityHub() && contentReady && contentRefresh != null
-          && displayedLocation.equals(location()) && displayedActor.equals(actor))) renderContent();
+      if (!keepCommunityPage) renderContent();
       if(dashboard)AdminDashboardScreen.refreshing(content,true);
       navigationHandler.postDelayed(()->{
         if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
@@ -720,7 +740,8 @@ public class MainActivity extends Activity {
       }
     }
     int offset = scrollPositions.getInt(location(), 0);
-    scroll.post(() -> scroll.scrollTo(0, offset));
+    ScrollView displayedScroll = scroll;
+    displayedScroll.post(() -> displayedScroll.scrollTo(0, offset));
     noticeUi.post(this::drainNotices);
   }
 
@@ -804,13 +825,13 @@ public class MainActivity extends Activity {
     brand.setEllipsize(android.text.TextUtils.TruncateAt.END);
     brand.setGravity(Gravity.CENTER_VERTICAL);
     bar.addView(brand, new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1));
-    if (isCommunityHub()) {
+    if (communityPager != null) {
       bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_search,
           "搜索食记", () -> go("community-search", route().kind().equals("community-following") ? "following" : "")),
           new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
       bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_home,
           "回到食堂首页", this::home), new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
-      CommunityScreen.tabs(this, header);
+      communityPager.bindTabs(header);
     } else {
       TextView home = Ui.button(this, "⌂", false, this::home);
       home.setContentDescription("回到食堂首页");
@@ -896,34 +917,21 @@ public class MainActivity extends Activity {
     rule.setBackgroundColor(Design.BORDER);
     root.addView(rule, new LinearLayout.LayoutParams(-1, Ui.dp(this, 1)));
     boolean hub = navigation && isCommunityHub();
-    FrameLayout feedFrame = hub ? new FrameLayout(this) : null;
+    communityPager = hub ? new CommunityPager(this, route().kind()) : null;
     if (hub) {
-      ProgressBar indicator = new ProgressBar(this);
-      indicator.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Design.RED));
-      indicator.setPadding(Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8), Ui.dp(this, 8));
-      indicator.setBackground(Ui.shape(this, Design.PAPER, Design.BORDER, 24));
-      indicator.setElevation(Ui.dp(this, 3));
-      indicator.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-      indicator.setVisibility(View.INVISIBLE);
-      scroll = new RefreshScrollView(this, indicator, () -> !navigationLoading,
-          this::refreshCurrent, direction -> CommunityScreen.swipe(this, direction));
-      feedFrame.addView(scroll, new FrameLayout.LayoutParams(-1, -1));
-      FrameLayout.LayoutParams indicatorSize = new FrameLayout.LayoutParams(Ui.dp(this, 42), Ui.dp(this, 42),
-          Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-      feedFrame.addView(indicator, indicatorSize);
-      View create = CommunityScreen.createButton(this);
-      FrameLayout.LayoutParams createSize = new FrameLayout.LayoutParams(Ui.dp(this, 54), Ui.dp(this, 54),
-          Gravity.BOTTOM | Gravity.END);
-      createSize.setMargins(0, 0, Ui.dp(this, 18), Ui.dp(this, 15));
-      feedFrame.addView(create, createSize);
-    } else scroll = new ScrollView(this);
-    scroll.setFillViewport(true);
-    content = Ui.col(this);
-    content.setBackgroundColor(Design.PAPER);
-    if (chat || post) content.setPadding(0, 0, 0, 0);
-    else content.setPadding(Ui.dp(this, 14), Ui.dp(this, hub ? 15 : 24), Ui.dp(this, 14), Ui.dp(this, hub ? 76 : 24));
-    scroll.addView(content);
-    root.addView(hub ? feedFrame : scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+      scroll = communityPager.current().scroll();
+      content = communityPager.current().content();
+      root.addView(communityPager.frame, new LinearLayout.LayoutParams(-1, 0, 1));
+    } else {
+      scroll = new ScrollView(this);
+      scroll.setFillViewport(true);
+      content = Ui.col(this);
+      content.setBackgroundColor(Design.PAPER);
+      if (chat || post) content.setPadding(0, 0, 0, 0);
+      else content.setPadding(Ui.dp(this, 14), Ui.dp(this, 24), Ui.dp(this, 14), Ui.dp(this, 24));
+      scroll.addView(content);
+      root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+    }
     if (chat || post) {
       chatBar = Ui.col(this);
       chatBar.setBackgroundColor(Design.PAPER);
@@ -1293,7 +1301,7 @@ public class MainActivity extends Activity {
       control.setText(privateMessageRemindersConfigured() ? "关闭私信提醒" : "开启私信提醒");
     }
   }
-  @Override protected void onPause() { super.onPause();foreground=false;resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
+  @Override protected void onPause() { super.onPause();foreground=false;if(communityPager!=null)communityPager.cancelSwipe();resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level>=android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW)Ui.clearImages();}
   @Override protected void onDestroy() {if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();++generation;cancelNavigation();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }

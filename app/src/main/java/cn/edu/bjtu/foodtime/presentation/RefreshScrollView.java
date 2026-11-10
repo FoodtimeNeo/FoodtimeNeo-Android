@@ -8,28 +8,31 @@ import android.view.ViewConfiguration;
 import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.ScrollView;
 import java.util.function.BooleanSupplier;
-import java.util.function.IntConsumer;
 
 /** Locks the gesture to its first axis and keeps the refresh indicator outside the feed layout. */
 final class RefreshScrollView extends ScrollView {
+  interface SwipeListener {
+    void move(float dx);
+    void end(float dx, boolean commit);
+  }
   private enum Axis { UNDECIDED, SCROLL, PULL, SWIPE }
 
   private final View indicator;
   private final BooleanSupplier canRefresh;
   private final Runnable refresh;
-  private final IntConsumer switchSection;
+  private final SwipeListener swipe;
   private final int slop, threshold;
   private float startX, startY;
   private boolean fromTop, refreshing;
   private Axis axis = Axis.UNDECIDED;
 
   RefreshScrollView(Context context, View indicator, BooleanSupplier canRefresh,
-      Runnable refresh, IntConsumer switchSection) {
+      Runnable refresh, SwipeListener swipe) {
     super(context);
     this.indicator = indicator;
     this.canRefresh = canRefresh;
     this.refresh = refresh;
-    this.switchSection = switchSection;
+    this.swipe = swipe;
     slop = ViewConfiguration.get(context).getScaledTouchSlop();
     threshold = Ui.dp(context, 88);
     setOverScrollMode(OVER_SCROLL_NEVER);
@@ -56,23 +59,24 @@ final class RefreshScrollView extends ScrollView {
   @Override public boolean onTouchEvent(MotionEvent event) {
     updateAxis(event);
     if (axis != Axis.PULL && axis != Axis.SWIPE) return super.onTouchEvent(event);
-    float dx = event.getX() - startX;
-    float dy = event.getY() - startY;
+    // The scroll view itself moves under the finger during a horizontal swipe.
+    float dx = event.getRawX() - startX;
+    float dy = event.getRawY() - startY;
     switch (event.getActionMasked()) {
       case MotionEvent.ACTION_MOVE -> {
         if (axis == Axis.PULL) showPull(dy);
+        else swipe.move(dx);
       }
       case MotionEvent.ACTION_UP -> {
         if (axis == Axis.PULL) {
           if (dy >= threshold && canRefresh.getAsBoolean()) beginRefresh();
           else finishRefresh();
-        } else if (Math.abs(dx) >= threshold && Math.abs(dx) > Math.abs(dy)) {
-          post(() -> switchSection.accept(dx < 0 ? 1 : -1));
-        }
+        } else swipe.end(dx, Math.abs(dx) >= threshold && Math.abs(dx) > Math.abs(dy));
         axis = Axis.UNDECIDED;
       }
       case MotionEvent.ACTION_CANCEL, MotionEvent.ACTION_POINTER_DOWN -> {
         if (axis == Axis.PULL) finishRefresh();
+        else swipe.end(dx, false);
         axis = Axis.SCROLL;
       }
       default -> { }
@@ -82,15 +86,15 @@ final class RefreshScrollView extends ScrollView {
 
   private void updateAxis(MotionEvent event) {
     if (event.getActionMasked() == MotionEvent.ACTION_DOWN) {
-      startX = event.getX();
-      startY = event.getY();
+      startX = event.getRawX();
+      startY = event.getRawY();
       fromTop = !canScrollVertically(-1);
       axis = Axis.UNDECIDED;
     }
     if (axis != Axis.UNDECIDED || event.getActionMasked() != MotionEvent.ACTION_MOVE
         || event.getPointerCount() != 1) return;
-    float dx = Math.abs(event.getX() - startX);
-    float dy = event.getY() - startY;
+    float dx = Math.abs(event.getRawX() - startX);
+    float dy = event.getRawY() - startY;
     if (dx <= slop && Math.abs(dy) <= slop) return;
     if (dx > Math.abs(dy) * 1.3f) axis = Axis.SWIPE;
     else if (fromTop && dy > slop && !refreshing && canRefresh.getAsBoolean()) axis = Axis.PULL;
