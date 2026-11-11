@@ -194,14 +194,33 @@ public final class RemoteRepository implements FoodtimeRepository {
     call("POST","auth/login",json("account",account.strip(),"password",password));
     csrf=null; token(); profile(); return user;
   }
+  @Override public RegistrationPolicy registrationPolicy() {
+    JSONObject data=call("GET","auth/registration-policy",null);
+    String mode=text(data,"mode");
+    if(!mode.equals("open")&&!mode.equals("invitation")&&!mode.equals("closed"))
+      throw new RepositoryException(0,"INVALID_RESPONSE","注册策略响应异常，请稍后重试",0);
+    String revision=text(data,"revision");
+    if(revision.isBlank())throw new RepositoryException(0,"INVALID_RESPONSE","注册策略响应异常，请稍后重试",0);
+    return new RegistrationPolicy(mode,data.optBoolean("canSendEmailCode",false),
+        data.optBoolean("invitationRequired",false),revision);
+  }
   @Override public String sendVerificationCode(String email) {
     Validation.email(email);
     call("POST","auth/register/email-code",json("email",email.strip()));
     return ""; // Verification codes only arrive by email; never return or invent a client code.
   }
   @Override public void register(String email,String password,String code) {
+    register(email,password,code,null);
+  }
+  @Override public void register(String email,String password,String code,String invitationCode) {
     Validation.email(email); Validation.password(password,true);
-    call("POST","auth/register",json("email",email.strip(),"password",password,"verificationCode",code));
+    JSONObject body=json("email",email.strip(),"password",password,"verificationCode",code);
+    String invite=invitationCode==null?"":invitationCode.strip();
+    if(!invite.isEmpty()) {
+      try { body.put("invitationCode",invite); }
+      catch(JSONException failure) { throw new IllegalArgumentException("邀请码不合法",failure); }
+    }
+    call("POST","auth/register",body);
   }
   @Override public long sendPasswordResetCode(String email) {
     var response=call("POST","auth/password-reset/email-code",json("email",Validation.accountEmail(email)));

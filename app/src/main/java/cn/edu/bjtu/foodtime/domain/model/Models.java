@@ -4,6 +4,11 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public final class Models {
+  /** Public registration capabilities; never contains limits, invitation inventory or account state. */
+  public record RegistrationPolicy(String mode, boolean canSendEmailCode, boolean invitationRequired, String revision) {
+    public boolean closed() { return "closed".equals(mode); }
+    public static RegistrationPolicy open() { return new RegistrationPolicy("open", true, false, "open:email"); }
+  }
   public record DailyRecommendations(java.time.LocalDate date, String algorithmVersion, List<RecommendedDish> items) {
     public DailyRecommendations { items=List.copyOf(items); }
   }
