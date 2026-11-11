@@ -2,6 +2,7 @@ package cn.edu.bjtu.foodtime.domain.repository;
 
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import cn.edu.bjtu.foodtime.domain.model.FeedbackModels;
+import cn.edu.bjtu.foodtime.domain.model.NoticeSchedule;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -92,13 +93,17 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
     throw new UnsupportedOperationException("此数据源不支持收藏");
   }
   /** Announcement inbox, newest first. Refreshed by ContentRequest NOTICES on a worker. */
-  record AdminNotice(String id,String title,String content) {}
+  record AdminNotice(String id,String title,String content,NoticeSchedule schedule,String status) {
+    public AdminNotice(String id,String title,String content){this(id,title,content,new NoticeSchedule("","","","",false,true,false),"paused");}
+  }
   record AdminNoticePage(List<AdminNotice> items,long total) {}
   default AdminNoticePage adminNotices(int page,String query) { throw new UnsupportedOperationException(); }
   default AdminNotice adminNotice(String id) { throw new UnsupportedOperationException(); }
   default String noticeSetting() { throw new UnsupportedOperationException(); }
   default void setNoticeSetting(String id) { throw new UnsupportedOperationException(); }
   default AdminNotice saveNotice(String id,String content) { throw new UnsupportedOperationException(); }
+  default AdminNotice saveNotice(String id,String content,NoticeSchedule schedule) {throw new UnsupportedOperationException();}
+  default AdminNotice saveNoticeSchedule(String id,NoticeSchedule schedule) {throw new UnsupportedOperationException();}
   default NoticePage notices() { return NoticePage.empty(); }
   default void loadMoreNotices() { throw new UnsupportedOperationException(); }
   /** Personal system messages, newest first. Refreshed by ContentRequest MESSAGES on a worker. */
@@ -127,6 +132,7 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default void markNoticeRead(String id) {}
   /** Login-only check. Null means no configured announcement or this user opted out. */
   default Notice currentNotice() { return null; }
+  default List<Notice> currentNotices() {var current=currentNotice();return current==null?List.of():List.of(current);}
   default void confirmNotice(String id, boolean dontShowAgain) {}
   default void readMessage(String id) {}
   default void readAllMessages() {}

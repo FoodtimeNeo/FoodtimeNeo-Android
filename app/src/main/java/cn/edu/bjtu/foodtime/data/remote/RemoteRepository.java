@@ -4,6 +4,7 @@ import cn.edu.bjtu.foodtime.data.prototype.CommunityPrototype;
 import cn.edu.bjtu.foodtime.domain.model.CommunityText;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import cn.edu.bjtu.foodtime.domain.model.FeedbackModels;
+import cn.edu.bjtu.foodtime.domain.model.NoticeSchedule;
 import cn.edu.bjtu.foodtime.domain.repository.*;
 import cn.edu.bjtu.foodtime.domain.validation.Validation;
 import org.json.*;
@@ -891,7 +892,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     JSONObject data=call("GET","users/me/notices/current",null);
     if(data.length()==0||data.optBoolean("dontShowAgain"))return null;
     if(text(data,"id").isEmpty()||!data.has("content"))throw new RepositoryException(502,"INVALID_RESPONSE","公告响应异常",0);
-    return new Notice(text(data,"id"),text(data,"content"),time(data,"createdTime"));
+    return notice(data);
   }
   @Override public void confirmNotice(String id,boolean dontShowAgain) {
     call("POST","users/me/notices/"+id+"/confirm",json("dontShowAgain",dontShowAgain));
@@ -1240,7 +1241,10 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public FeedbackModels.ImportResult importFeedback(String csv) {return FeedbackJson.imported(feedbackCall(true,"POST","/import",json("csv",csv)));}
 
   private static String encode(String value) { try { return java.net.URLEncoder.encode(value,"UTF-8"); } catch(java.io.UnsupportedEncodingException e) { throw new IllegalStateException(e); } }
-  private AdminNotice adminNoticeRow(JSONObject j) { return new AdminNotice(text(j,"id"),text(j,"title"),text(j,"content")); }
+  private AdminNotice adminNoticeRow(JSONObject j) {
+    return new AdminNotice(text(j,"id"),text(j,"title"),text(j,"content"),new NoticeSchedule(text(j,"publishedAt"),text(j,"displayStartsAt"),
+        text(j,"displayEndsAt"),text(j,"expiresOn"),j.optBoolean("isUpdate"),j.optBoolean("published",true),j.optBoolean("enabled")),text(j,"status"));
+  }
   @Override public AdminNoticePage adminNotices(int page,String query) {
     JSONObject result=call("GET","admin/notices/search?page="+page+"&size=6&q="+encode(query),null);
     JSONArray rows=result.optJSONArray("items");List<AdminNotice> items=new ArrayList<>();
@@ -1253,8 +1257,20 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public AdminNotice saveNotice(String id,String content) {
     return adminNoticeRow(call(id==null||id.isEmpty()?"POST":"PUT",id==null||id.isEmpty()?"admin/notices/markdown":"admin/notices/"+id+"/markdown",json("content",content)));
   }
+  private static Object nullable(String text){return text==null||text.isBlank()?JSONObject.NULL:text;}
+  private static JSONObject scheduleJson(NoticeSchedule value){return json("publishedAt",nullable(value.publishedAt()),"displayStartsAt",nullable(value.displayStartsAt()),
+      "displayEndsAt",nullable(value.displayEndsAt()),"expiresOn",nullable(value.expiresOn()),"isUpdate",value.isUpdate(),"published",value.published(),"enabled",value.enabled());}
+  @Override public AdminNotice saveNotice(String id,String content,NoticeSchedule schedule) {
+    return adminNoticeRow(call(id==null||id.isBlank()?"POST":"PUT",id==null||id.isBlank()?"admin/notices/markdown":"admin/notices/"+encode(id)+"/markdown",json("content",content,"schedule",scheduleJson(schedule))));
+  }
+  @Override public AdminNotice saveNoticeSchedule(String id,NoticeSchedule schedule){return adminNoticeRow(call("PUT","admin/notices/"+encode(id)+"/schedule",scheduleJson(schedule)));}
+  @Override public List<Notice> currentNotices(){
+    List<Notice> result=list("users/me/notices/current-set",this::notice);
+    if(result.size()>2||result.stream().anyMatch(item->item.id().isBlank()||item.content().isBlank())||result.stream().map(Notice::id).distinct().count()!=result.size())throw new RepositoryException(502,"INVALID_NOTICE_RESPONSE","公告响应异常，请重试",0);
+    return result;
+  }
   private Notice notice(JSONObject j) {
-    return new Notice(text(j,"id"),text(j,"content"),time(j,"publishedAt"));
+    return new Notice(text(j,"id"),text(j,"content"),time(j,j.has("publishedAt")?"publishedAt":"createdTime"),j.optBoolean("isUpdate"));
   }
   private Message message(JSONObject j) {
     return new Message(text(j,"id"),text(j,"title"),text(j,"body"),text(j,"category"),

@@ -304,12 +304,14 @@ public class MainActivity extends Activity {
     releaseChecking = true;
     final AppRelease[] release = {null};
     final RuntimeException[] failure = {null};
-    read("app-release", null, null,
-        () -> {
+    // Release metadata is public and remains valid when login changes the page generation.
+    // A discarded page callback must never leave the announcement gate permanently closed.
+    worker.execute(() -> {
           try { release[0] = repo.appRelease(); }
           catch (RuntimeException error) { failure[0] = error; }
-        },
-        () -> {
+          runOnUiThread(() -> {
+            if(isDestroyed())return;
+            Runnable complete=() -> {
           releaseChecking = false;
           releaseChecked = true;
           if (failure[0] != null) {
@@ -324,7 +326,10 @@ public class MainActivity extends Activity {
             return;
           }
           showUpdateDialog(info);
-        }, () -> {});
+            };
+            if(stateSaved)deferredReads.add(complete);else complete.run();
+          });
+        });
   }
 
   /** 更新提示优先于公告：更新弹窗和下载进度都结束前，不弹公告。 */
@@ -1302,6 +1307,7 @@ public class MainActivity extends Activity {
     else if(isCommunityHub()&&repo!=null&&repo.currentUser()!=null&&communityLoadedAt.containsKey(route().kind())
         &&!freshCommunitySection(route().kind())){render(true);}
     noticeUi.post(this::drainNotices);
+    if(contentReady&&repo!=null&&repo.currentUser()!=null&&loginNotices!=null)loginNotices.foreground(repo,inboxWorker);
     syncPrivateMessageUnread();
   }
 

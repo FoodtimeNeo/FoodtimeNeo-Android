@@ -51,6 +51,7 @@ public final class LoginNoticeRunner extends Instrumentation {
     return (FoodtimeRepository)java.lang.reflect.Proxy.newProxyInstance(FoodtimeRepository.class.getClassLoader(),new Class[]{FoodtimeRepository.class},(p,method,args)->{
       if(method.getName().equals("refresh"))return null;
       if(method.getName().equals("currentNotice")){loads.incrementAndGet();return suppressed.get()?null:new Notice("fixture",CONTENT,0);}
+      if(method.getName().equals("currentNotices")){loads.incrementAndGet();return suppressed.get()?java.util.List.of():java.util.List.of(new Notice("fixture",CONTENT,0));}
       if(method.getName().equals("confirmNotice")){if(failConfirm.getAndSet(false))throw new RepositoryException(503,"TEMP","暂时不可用",0);suppressed.set((boolean)args[1]);return null;}
       try{return method.invoke(local,args);}catch(InvocationTargetException e){throw e.getCause();}
     });
