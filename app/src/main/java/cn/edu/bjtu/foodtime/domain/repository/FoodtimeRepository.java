@@ -126,6 +126,10 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   /** 访客绑定学校邮箱：先发验证码，再带验证码绑定并刷新当前用户。 */
   default void sendSchoolEmailCode(String email) { throw new UnsupportedOperationException("此数据源不支持绑定学校邮箱"); }
   default void bindSchoolEmail(String email, String code) { throw new UnsupportedOperationException("此数据源不支持绑定学校邮箱"); }
+  default cn.edu.bjtu.foodtime.domain.model.AccountLifecycle.Summary accountLifecycle(){throw new UnsupportedOperationException();}
+  default cn.edu.bjtu.foodtime.domain.model.AccountLifecycle.Sent sendAccountActionCode(boolean deletion){throw new UnsupportedOperationException();}
+  default String unbindSchoolEmail(String code){throw new UnsupportedOperationException();}
+  default String deleteAccount(String code){throw new UnsupportedOperationException();}
   default long unreadCount() { return 0; }
   /** Incremental announcement feed for background polling; does not reset page caches. */
   default NoticeFeed noticeFeed(long sinceSeq, int limit) { return NoticeFeed.empty(); }

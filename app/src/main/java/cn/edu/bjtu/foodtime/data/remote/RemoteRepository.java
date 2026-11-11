@@ -5,6 +5,7 @@ import cn.edu.bjtu.foodtime.domain.model.CommunityText;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import cn.edu.bjtu.foodtime.domain.model.FeedbackModels;
 import cn.edu.bjtu.foodtime.domain.model.NoticeSchedule;
+import cn.edu.bjtu.foodtime.domain.model.AccountLifecycle;
 import cn.edu.bjtu.foodtime.domain.repository.*;
 import cn.edu.bjtu.foodtime.domain.validation.Validation;
 import org.json.*;
@@ -224,6 +225,32 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public void logout() {
     try { call("POST","auth/logout",null); }
     finally { clear(); }
+  }
+  private static RepositoryException invalidAccount(){return new RepositoryException(502,"INVALID_ACCOUNT_RESPONSE","账号状态响应异常，请重新读取后再操作",0);}
+  private static String accountInstant(JSONObject row,String key){String value=text(row,key);try{Instant.parse(value);return value;}catch(RuntimeException invalid){throw invalidAccount();}}
+  private User accountActor(){User actor=user;if(actor==null)throw new RepositoryException(401,"UNAUTHENTICATED","请重新登录",0);if(actor.isAdmin())throw new RepositoryException(403,"ACCOUNT_ACTION_FORBIDDEN","管理员和超级管理员不能注销、绑定或解绑学校邮箱",0);return actor;}
+  private void sameAccount(User actor){if(user==null||!user.id().equals(actor.id())||!user.role().equals(actor.role()))throw new RepositoryException(409,"SESSION_CHANGED","账号状态已变化，请重新读取",0);}
+  @Override public AccountLifecycle.Summary accountLifecycle(){
+    JSONObject row=call("GET","users/me/account-lifecycle",null);
+    if(text(row,"verificationEmail").isBlank()||!(row.opt("canDelete") instanceof Boolean)||!(row.opt("canUnbind") instanceof Boolean))throw invalidAccount();
+    String next=text(row,"deletionCodeAvailableAt");if(!next.isBlank())accountInstant(row,"deletionCodeAvailableAt");
+    return new AccountLifecycle.Summary(text(row,"verificationEmail"),text(row,"schoolEmail"),row.optBoolean("canDelete"),row.optBoolean("canUnbind"),next);
+  }
+  @Override public AccountLifecycle.Sent sendAccountActionCode(boolean deletion){
+    User actor=accountActor();JSONObject row=call("POST","users/me/account-lifecycle/"+(deletion?"deletion-code":"unbind-code"),null);sameAccount(actor);
+    if(text(row,"verificationEmail").isBlank())throw invalidAccount();
+    return new AccountLifecycle.Sent(accountInstant(row,"expiresAt"),accountInstant(row,"nextSendAt"),text(row,"verificationEmail"));
+  }
+  private static String actionCode(String input){if(input==null||!input.strip().matches("[0-9]{6}"))throw new IllegalArgumentException("请填写 6 位邮箱验证码");return input.strip();}
+  @Override public String unbindSchoolEmail(String code){
+    User actor=accountActor();JSONObject row=call("POST","users/me/account-lifecycle/unbind",json("verificationCode",actionCode(code)));sameAccount(actor);
+    JSONObject profile=row.optJSONObject("profile");if(profile==null||!text(profile,"id").equals(actor.id())||!text(profile,"role").equals("visitor"))throw invalidAccount();
+    String reusable=accountInstant(row,"schoolEmailReusableAt");synchronized(dashboardLock){user=person(profile);clearRecommendations();}return reusable;
+  }
+  @Override public String deleteAccount(String code){
+    User actor=accountActor();JSONObject row=call("POST","users/me/account-lifecycle/delete",json("verificationCode",actionCode(code)));
+    if(user!=null&&!user.id().equals(actor.id()))throw new RepositoryException(409,"SESSION_CHANGED","账号状态已变化，请重新读取",0);
+    if(!Boolean.TRUE.equals(row.opt("deleted")))throw invalidAccount();String reusable=accountInstant(row,"emailsReusableAt");clear();return reusable;
   }
   @Override public void changePassword(String oldPassword,String newPassword) {
     Validation.password(newPassword,true);
@@ -1450,7 +1477,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     return new FollowState(state.optBoolean("followed"),state.optLong("followerCount"));
   }
 
-  private User person(JSONObject j) { return new User(text(j,"id"),text(j,"email"),text(j,"displayName"),text(j,"role"),!text(j,"status").equals("disabled"),text(j,"avatarUrl"),time(j,"createdAt"),j.optLong("reviewCount"),j.optLong("followingCount"),j.optLong("followerCount")); }
+  private User person(JSONObject j) { return new User(text(j,"id"),text(j,"email"),text(j,"displayName"),text(j,"role"),!Set.of("disabled","deleted").contains(text(j,"status")),text(j,"avatarUrl"),time(j,"createdAt"),j.optLong("reviewCount"),j.optLong("followingCount"),j.optLong("followerCount"),text(j,"status").equals("deleted")); }
   private String joined(JSONObject j,boolean dish) {
     List<String> names=new ArrayList<>();
     for(String key: dish?List.of("diningHallName","stallName","dishName"):List.of("diningHallName","stallName")) {
