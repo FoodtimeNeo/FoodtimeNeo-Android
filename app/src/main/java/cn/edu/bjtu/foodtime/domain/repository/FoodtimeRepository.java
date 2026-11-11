@@ -193,6 +193,9 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   void removeReviewAsAdmin(String reviewId);
   default void removeReviewAsAdmin(String reviewId,String reason) { removeReviewAsAdmin(reviewId); }
   default void removeEntity(String table,String id) { throw new UnsupportedOperationException("此数据源不支持删除"); }
+  default CatalogImagePage managedImages(String table,String id,int page) { throw new UnsupportedOperationException("此数据源不支持图片管理"); }
+  default void addManagedImage(String table,String id,String file) { throw new UnsupportedOperationException("此数据源不支持图片管理"); }
+  default void removeManagedImage(String table,String id,String imageId) { throw new UnsupportedOperationException("此数据源不支持图片管理"); }
 
   List<User> users();
 

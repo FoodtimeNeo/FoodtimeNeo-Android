@@ -123,7 +123,9 @@ final class AdminScreen {
     guard(a);String[] args=route.id().split("~",-1);String table=args[0],value=args.length>1?args[1]:"";
     boolean creating=route.kind().equals("admin-new");AdminEntity item=creating?null:a.repo.entity(table,value);
     if(!creating&&item==null) throw new IllegalArgumentException("记录不存在");
-    a.heading(page,"",(creating?"新增":"编辑")+label(table),"");LinearLayout form=Ui.card(page);
+    a.heading(page,"",(creating?"新增":"编辑")+label(table),"");
+    if(!creating) CatalogQuickActions.images(a,page,table,value);
+    LinearLayout form=Ui.card(page);
     EditText name=Ui.field(form,"名称",false,false),description=Ui.field(form,"描述（可选）",false,true);
     description.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});
     EditText price=table.equals("dishes")?Ui.field(form,"价格（元）",false,false):null;
@@ -138,6 +140,7 @@ final class AdminScreen {
     String imageKey=a.draftKey("image"),image=a.drafts.getString(imageKey,item==null?"":item.coverImageUrl());
     if(!table.equals("dishes")) {
       form.addView(Ui.image(a,image,"暂无封面",true));Ui.gap(form,16);Ui.action(form,"选择封面",false,() -> a.pickImage(imageKey));Ui.gap(form,16);
+      if(!image.isBlank()) Ui.action(form,"移除封面",false,() -> { a.drafts.putString(imageKey,""); a.render(); });
     }
     TextView error=Ui.text(a,"",14,Design.RED);form.addView(error);Ui.gap(form,12);
     Ui.submit(form,"保存",error,() -> {

@@ -153,6 +153,9 @@ public final class Models {
   }
 
   public record Photo(String id, String dishId, String imageUrl, String userId) {}
+  public record CatalogImagePage(List<Photo> items, long total, int page, boolean hasMore) {
+    public CatalogImagePage { items = List.copyOf(items); }
+  }
 
   /** Published community post returned by the Backend community feed. */
   public record CommunityAuditPage(String type,String status,int page,long total,List<Submission> items){

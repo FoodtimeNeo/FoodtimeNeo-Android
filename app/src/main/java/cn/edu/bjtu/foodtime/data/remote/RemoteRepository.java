@@ -98,6 +98,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile NoticeFeed lastFeed=NoticeFeed.empty();
   private volatile boolean communityHasMore;
   private final Map<String,String> communityUploads=new ConcurrentHashMap<>();
+  private final Map<String,String> catalogUploads=new ConcurrentHashMap<>();
   private final Map<String,String> avatarUploads=new ConcurrentHashMap<>();
 
   public RemoteRepository(String baseUrl,HttpTransport http) {
@@ -1230,6 +1231,25 @@ public final class RemoteRepository implements FoodtimeRepository {
         "price",type.equals("dishes")?Validation.price(price):null,"coverImageUrl",reference,"status",active?"active":"inactive"));
   }
   @Override public void removeEntity(String type,String id) { call("DELETE","admin/catalog/"+table(type)+"/"+id,null); }
+  private String managedImagePath(String type,String id) { return "admin/catalog/"+table(type)+"/"+id+"/images"; }
+  @Override public CatalogImagePage managedImages(String type,String id,int page) {
+    JSONObject data=call("GET",managedImagePath(type,id)+"?page="+page+"&size=12",null);
+    List<Photo> items=new ArrayList<>();
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null) throw new RepositoryException(0,"INVALID_RESPONSE","图片列表响应异常",0);
+    for(int i=0;i<rows.length();i++) { JSONObject row=rows.optJSONObject(i); if(row==null) throw new RepositoryException(0,"INVALID_RESPONSE","图片列表响应异常",0); items.add(new Photo(text(row,"id"),id,text(row,"imageUrl"),"")); }
+    long total=data.optLong("total");
+    return new CatalogImagePage(items,total,page,(long)page*12<total);
+  }
+  @Override public void addManagedImage(String type,String id,String file) {
+    String key=type+":"+id+":"+file;
+    String reference=catalogUploads.computeIfAbsent(key,ignored -> upload(file));
+    call("POST",managedImagePath(type,id),json("imageUrl",reference));
+    catalogUploads.remove(key,reference);
+  }
+  @Override public void removeManagedImage(String type,String id,String imageId) {
+    call("DELETE",managedImagePath(type,id)+"/"+imageId,null);
+  }
   @Override public void removeReviewAsAdmin(String id) { throw new IllegalArgumentException("请填写删除原因"); }
   @Override public void removeReviewAsAdmin(String id,String reason) { call("DELETE","admin/reviews/"+id,json("reason",reason)); }
   @Override public void updateUser(String id,String role,boolean active) { call("PUT","admin/users/"+id,json("role",role,"status",active?"active":"disabled")); }
@@ -1385,6 +1405,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private RepositoryException missing(String message) { return new RepositoryException(404,"NOT_FOUND",message,0); }
   private RepositoryException unavailable() { return new RepositoryException(0,"NETWORK_UNAVAILABLE","连接失败，请检查服务后重试",0); }
   private void clear() {
+    catalogUploads.clear();
     venues.clear();
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(true);}
     synchronized(dashboardLock) {user=null;dashboardSnapshot=null;dashboardRequest++;resetFollows();clearRecommendations();}
