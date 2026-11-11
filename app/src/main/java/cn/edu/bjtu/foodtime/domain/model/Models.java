@@ -42,7 +42,18 @@ public final class Models {
       boolean active) {}
 
   public record DishSearchRow(String id, String name, BigDecimal price,
-                              String stallName, String diningHallName) {}
+                              String stallName, String diningHallName,
+                              BigDecimal averageScore, long reviewCount) {
+    public DishSearchRow(String id,String name,BigDecimal price,String stallName,String diningHallName) {
+      this(id,name,price,stallName,diningHallName,null,0);
+    }
+  }
+
+  public record DishSearchFilters(List<String> diningHallIds, BigDecimal minPrice,
+                                  BigDecimal maxPrice, BigDecimal minRating, String sort) {
+    public DishSearchFilters { diningHallIds = diningHallIds == null ? List.of() : List.copyOf(diningHallIds); }
+    public static DishSearchFilters empty() { return new DishSearchFilters(List.of(), null, null, null, "relevance"); }
+  }
 
   public record DishSearchPage(List<DishSearchRow> items, long total, int page, int size) {
     public DishSearchPage { items = List.copyOf(items); }
