@@ -15,3 +15,7 @@ Bitmap LRU按堆的1/8分配，最多32MiB；私有`cacheDir/media-v2`磁盘LRU�
 “我的→账号→清理图片缓存”仅清理图片，不删除会话、草稿或信箱状态。
 
 `CommunityCoverCacheRunner` 为上述时序问题提供原生回归，仅允许 `.covercachecheck` 独立调试包和 `http://127.0.0.1:18085/api/v1/` 本机夹具。`-e stress true` 覆盖 40 次左右切换、逐阶段双列 drawable、10 次深滚动退出重进首帧、详情返回、前后台、仅磁盘缓存、重复解码与绑定泄漏、过期、`no-store`、403、账号切换和门控迟到响应。测试须使用独立夹具；不连接生产服务，不代表用户实机验收。
+
+## 相册优先图片选择（2026-11-12）
+
+图片入口统一通过 `ImagePicker`：设备实际可解析系统 Photo Picker 时优先打开系统相册选择器，失败或不可用时回退 `ACTION_OPEN_DOCUMENT` 文件选择；不申请整库存储权限。头像单选、发帖按剩余名额多选，投稿/管理/证据入口复用同一适配器。选择结果可能在 `data` 或 `ClipData` 中返回，统一由 `ImagePicker.firstUri` 读取；选中后立即由 `PhotoImport` 复制到应用私有目录，不依赖临时 URI 长期可读。取消不删除已有草稿图片；超额、重复 URI、不可读/云端离线文件由现有导入流程拒绝并提示。演示/测试仍可通过 `MainActivity.imagePickerIntent()` 获得文件选择 Intent。
