@@ -1171,6 +1171,19 @@ public final class RemoteRepository implements FoodtimeRepository {
     return call("GET", "users/" + encode(userId) + "/block", null).optBoolean("blocked");
   }
 
+  @Override public BlockedUserPage blockedUsers(int page) {
+    if(page < 1) throw new IllegalArgumentException("页码无效");
+    final String owner;
+    synchronized(dashboardLock){owner=recommendationOwner();}
+    if(owner.isEmpty())throw new RepositoryException(401,"AUTH_REQUIRED","请先登录",0);
+    JSONObject result=call("GET", "users/me/blocks?page="+page+"&size=20", null);
+    synchronized(dashboardLock){
+      if(!owner.equals(recommendationOwner()))
+        throw new RepositoryException(409,"ACCOUNT_CHANGED","账号已变更，请重新打开黑名单",0);
+    }
+    return BlockedUsersJson.page(result,page);
+  }
+
   @Override public void setBlocked(String userId, boolean blocked) {
     call(blocked ? "PUT" : "DELETE", "users/" + encode(userId) + "/block", null);
   }

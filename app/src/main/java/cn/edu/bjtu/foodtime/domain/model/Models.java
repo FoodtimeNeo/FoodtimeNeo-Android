@@ -39,6 +39,12 @@ public final class Models {
   public record ReportRow(String id, String type, String targetUserId, String postId,
                           String reason, String excerpt) {}
 
+  public record BlockedUser(String id, String displayName, String avatarUrl) {}
+  public record BlockedUserPage(List<BlockedUser> items, long total, int page, int size) {
+    public BlockedUserPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
   public record ReportPage(List<ReportRow> items, long total, int page, int size) {
     public ReportPage { items = List.copyOf(items); }
     public boolean hasMore() { return (long) page * size < total; }
