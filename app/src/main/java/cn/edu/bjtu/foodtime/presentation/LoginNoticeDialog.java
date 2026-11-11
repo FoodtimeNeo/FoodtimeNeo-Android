@@ -12,6 +12,7 @@ final class LoginNoticeDialog {
     this.controller=controller;
     LinearLayout body=Ui.col(activity);
     body.setPadding(Ui.dp(activity,20),Ui.dp(activity,12),Ui.dp(activity,20),Ui.dp(activity,8));
+    body.addView(Ui.text(activity,cn.edu.bjtu.foodtime.domain.model.NoticeTimes.display(java.time.Instant.ofEpochMilli(controller.pending.publishedAt()).toString()),12,Design.MUTED));
     ScrollView scroll=new ScrollView(activity);
     TextView markdown=Ui.text(activity,"",16,Design.INK);
     NoticeMarkdown.render(markdown,controller.pending.content());
@@ -23,7 +24,7 @@ final class LoginNoticeDialog {
     choice.setOnCheckedChangeListener((button,checked)->controller.dontShowAgain=checked);
     body.addView(choice);
     failure=Ui.text(activity,"",14,Design.RED);failure.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);body.addView(failure);
-    dialog=new AlertDialog.Builder(activity).setTitle("系统公告").setView(body).setPositiveButton("确认",null).create();
+    dialog=new AlertDialog.Builder(activity).setTitle(controller.pending.isUpdate()?"更新公告":"系统公告").setView(body).setPositiveButton("确认",null).create();
     dialog.setCanceledOnTouchOutside(false);
     dialog.setOnCancelListener(d->controller.close());
     dialog.setOnShowListener(d->{dialog.getButton(-1).setOnClickListener(v->activity.confirmLoginNotice());update();});

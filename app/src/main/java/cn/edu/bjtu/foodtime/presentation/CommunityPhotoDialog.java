@@ -1,6 +1,9 @@
 package cn.edu.bjtu.foodtime.presentation;
 
 import android.app.Dialog;
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.drawable.GradientDrawable;
@@ -14,6 +17,7 @@ import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.WindowInsets;
+import android.view.animation.PathInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -22,6 +26,7 @@ import android.widget.TextView;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityPost;
 import cn.edu.bjtu.foodtime.domain.model.CommunityText;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.function.IntConsumer;
 
 /** The viewport owns gestures and zoom. Chrome is laid out separately above it. */
@@ -37,6 +42,7 @@ final class CommunityPhotoDialog {
   private final TextView original, counter, previous, next;
   private FrameLayout originalLayer;
   private int page;
+  private record PhotoLayer(FrameLayout view, int page, boolean full) {}
 
   CommunityPhotoDialog(MainActivity activity, List<String> images, int index, boolean thumbnailFirst,
       CommunityPost post, PostActions actions, IntConsumer onPageChanged) {
@@ -223,15 +229,16 @@ final class CommunityPhotoDialog {
 
   private void changePage(int index) {
     if (index < 0 || index >= images.size()) return;
-    showPage(index);
-    onPageChanged.accept(index);
+    canvas.settleTo(index);
   }
 
   private void showPage(int index) {
     page = index;
-    canvas.removeAllViews();
-    canvas.resetZoom();
     originalLayer = null;
+    canvas.swipeOffset = 0;
+    canvas.ensureNearby();
+    canvas.pruneLayers();
+    canvas.resetZoom();
     String url = images.get(index);
     String thumbnail = Ui.thumb(url);
     original.setVisibility(thumbnailFirst && !thumbnail.equals(fullUrl(url)) ? View.VISIBLE : View.GONE);
@@ -239,7 +246,6 @@ final class CommunityPhotoDialog {
     counter.setText((index + 1) + "/" + images.size());
     previous.setVisibility(index > 0 ? View.VISIBLE : View.GONE);
     next.setVisibility(index + 1 < images.size() ? View.VISIBLE : View.GONE);
-    addPhoto(thumbnailFirst ? thumbnail : url, false);
   }
 
   private static String fullUrl(String url) {
@@ -253,17 +259,17 @@ final class CommunityPhotoDialog {
   }
 
   private void loadOriginal() {
-    if (originalLayer != null) canvas.removeView(originalLayer);
+    if (originalLayer != null) canvas.removeLayer(originalLayer);
     setOriginalStatus("原图加载中…", false);
-    originalLayer = addPhoto(fullUrl(images.get(page)), true);
+    originalLayer = addPhoto(fullUrl(images.get(page)), true, page);
   }
 
-  private FrameLayout addPhoto(String url, boolean full) {
+  private FrameLayout addPhoto(String url, boolean full, int imagePage) {
     FrameLayout layer = new FrameLayout(activity);
-    layer.setTag(full ? "photo-full" : "photo-thumb");
+    layer.setTag(imagePage == page ? full ? "photo-full" : "photo-thumb" : "photo-neighbor:" + imagePage);
     ImageView image = new ImageView(activity);
     image.setScaleType(ImageView.ScaleType.MATRIX);
-    image.setContentDescription("第 " + (page + 1) + " 张图片");
+    image.setContentDescription("第 " + (imagePage + 1) + " 张图片");
     layer.addView(image, new FrameLayout.LayoutParams(-1, -1));
     TextView placeholder = Ui.text(activity, "图片加载中…", 14, Color.WHITE);
     placeholder.setGravity(Gravity.CENTER);
@@ -271,10 +277,11 @@ final class CommunityPhotoDialog {
     if (!full) layer.addView(placeholder, new FrameLayout.LayoutParams(-2, -2, Gravity.CENTER));
     ImageLoader.bind(activity, layer, image, placeholder, url, bitmap -> {
       canvas.updateImages();
-      if (full) setOriginalStatus("已加载原图", false);
+      if (full && page == imagePage && layer == originalLayer) setOriginalStatus("已加载原图", false);
     }, () -> {
-      if (full) setOriginalStatus("重试加载原图", true);
-    });
+      if (full && page == imagePage && layer == originalLayer) setOriginalStatus("重试加载原图", true);
+    }, true);
+    canvas.layers.add(new PhotoLayer(layer, imagePage, full));
     canvas.addView(layer, new FrameLayout.LayoutParams(-1, -1));
     return layer;
   }
@@ -286,6 +293,77 @@ final class CommunityPhotoDialog {
     private final boolean hasPost;
     private float scale = 1, shiftX, shiftY, downX, downY, focusX, focusY;
     private boolean multiplePointers;
+    private final List<PhotoLayer> layers = new ArrayList<>();
+    private float swipeOffset, initialOffset;
+    private int swipeAxis;
+    private ValueAnimator settling;
+
+    void ensurePage(int imagePage) {
+      if (imagePage < 0 || imagePage >= images.size() ||
+          layers.stream().anyMatch(layer -> layer.page() == imagePage && !layer.full())) return;
+      String url = images.get(imagePage);
+      addPhoto(thumbnailFirst ? Ui.thumb(url) : url, false, imagePage);
+    }
+
+    void ensureNearby() { for (int i = page - 1; i <= page + 1; i++) ensurePage(i); }
+
+    void removeLayer(FrameLayout view) {
+      layers.removeIf(layer -> layer.view() == view);
+      removeView(view);
+    }
+
+    void pruneLayers() {
+      for (PhotoLayer layer : List.copyOf(layers)) {
+        if (Math.abs(layer.page() - page) > 1 || (layer.full() && layer.page() != page))
+          removeLayer(layer.view());
+        else layer.view().setTag(layer.page() == page ? layer.full() ? "photo-full" : "photo-thumb" : "photo-neighbor:" + layer.page());
+      }
+    }
+
+    void stopSettling() {
+      ValueAnimator previous = settling;
+      settling = null;
+      if (previous != null) previous.cancel();
+    }
+
+    void settleTo(int target) {
+      stopSettling();
+      int nextPage = Math.max(0, Math.min(images.size() - 1, target));
+      ensurePage(nextPage);
+      float destination = (page - nextPage) * getWidth();
+      if (getWidth() == 0 || Math.abs(destination - swipeOffset) < .5f) {
+        finishSwipe(nextPage);
+        return;
+      }
+      settling = ValueAnimator.ofFloat(swipeOffset, destination);
+      settling.setDuration(280);
+      settling.setInterpolator(new PathInterpolator(.22f, .68f, 0, 1));
+      settling.addUpdateListener(animation -> {
+        swipeOffset = (float) animation.getAnimatedValue();
+        updatePositions();
+      });
+      settling.addListener(new AnimatorListenerAdapter() {
+        @Override public void onAnimationEnd(Animator animation) {
+          if (settling != animation) return;
+          settling = null;
+          finishSwipe(nextPage);
+        }
+      });
+      settling.start();
+    }
+
+    private void finishSwipe(int target) {
+      swipeOffset = 0;
+      if (target != page) {
+        showPage(target);
+        onPageChanged.accept(target);
+      } else { updatePositions(); pruneLayers(); }
+    }
+
+    private void updatePositions() {
+      for (PhotoLayer layer : layers)
+        layer.view().setTranslationX((layer.page() - page) * getWidth() + swipeOffset);
+    }
 
     PhotoCanvas(boolean hasPost) {
       super(activity);
@@ -337,25 +415,48 @@ final class CommunityPhotoDialog {
     @Override public boolean onTouchEvent(MotionEvent event) {
       int action = event.getActionMasked();
       if (action == MotionEvent.ACTION_DOWN) {
+        stopSettling();
+        initialOffset = swipeOffset;
+        swipeAxis = 0;
         multiplePointers = false;
         downX = event.getX();
         downY = event.getY();
       } else if (action == MotionEvent.ACTION_POINTER_DOWN) {
         multiplePointers = true;
+        settleTo(page);
       }
       pinch.onTouchEvent(event);
       taps.onTouchEvent(event);
-      if (action == MotionEvent.ACTION_UP && !multiplePointers && scale == 1) {
-        float dx = event.getX() - downX;
-        float dy = event.getY() - downY;
-        if (Math.abs(dx) > dp(44) && Math.abs(dx) > 1.3f * Math.abs(dy)) changePage(page + (dx < 0 ? 1 : -1));
+      if (action == MotionEvent.ACTION_MOVE && !multiplePointers && scale == 1) {
+        float dx = event.getX() - downX, dy = event.getY() - downY;
+        if (swipeAxis == 0 && Math.max(Math.abs(dx), Math.abs(dy)) > dp(8))
+          swipeAxis = Math.abs(dx) > 1.2f * Math.abs(dy) ? 1 : -1;
+        if (swipeAxis == 1) {
+          float offset = Math.max(-getWidth(), Math.min(getWidth(), initialOffset + dx));
+          if ((page == 0 && offset > 0) || (page == images.size() - 1 && offset < 0)) offset *= .25f;
+          swipeOffset = offset;
+          updatePositions();
+        }
       }
+      if (action == MotionEvent.ACTION_UP && !multiplePointers && scale == 1) {
+        float threshold = Math.min(dp(80), Math.max(dp(40), getWidth() * .18f));
+        int direction = swipeAxis == 1 && Math.abs(swipeOffset) > threshold ? swipeOffset < 0 ? 1 : -1 : 0;
+        settleTo(page + direction);
+      }
+      if (action == MotionEvent.ACTION_CANCEL) settleTo(page);
       return true;
     }
 
     @Override protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
       super.onSizeChanged(width, height, oldWidth, oldHeight);
+      stopSettling();
+      swipeOffset = 0;
       updateImages();
+    }
+
+    @Override protected void onDetachedFromWindow() {
+      stopSettling();
+      super.onDetachedFromWindow();
     }
 
     void resetZoom() {
@@ -381,29 +482,30 @@ final class CommunityPhotoDialog {
     }
 
     void updateImages() {
+      updatePositions();
       ImageView active = null;
-      for (int i = getChildCount() - 1; i >= 0 && active == null; i--) {
-        ImageView image = imageAt(i);
+      for (int i = layers.size() - 1; i >= 0 && active == null; i--) {
+        if (layers.get(i).page() != page) continue;
+        ImageView image = (ImageView) layers.get(i).view().getChildAt(0);
         if (image.getDrawable() != null) active = image;
       }
-      if (active == null || getWidth() == 0 || getHeight() == 0) return;
-      int width = active.getDrawable().getIntrinsicWidth(), height = active.getDrawable().getIntrinsicHeight();
-      float factor = fit(width, height);
-      shiftX = limit(shiftX, width * factor - getWidth());
-      shiftY = limit(shiftY, height * factor - getHeight());
-      for (int i = 0; i < getChildCount(); i++) {
-        ImageView image = imageAt(i);
+      if (getWidth() == 0 || getHeight() == 0) return;
+      if (active != null) {
+        int width = active.getDrawable().getIntrinsicWidth(), height = active.getDrawable().getIntrinsicHeight();
+        float factor = fit(width, height);
+        shiftX = limit(shiftX, width * factor - getWidth());
+        shiftY = limit(shiftY, height * factor - getHeight());
+      }
+      for (PhotoLayer layer : layers) {
+        ImageView image = (ImageView) layer.view().getChildAt(0);
         if (image.getDrawable() == null) continue;
         int w = image.getDrawable().getIntrinsicWidth(), h = image.getDrawable().getIntrinsicHeight();
-        float fit = fit(w, h);
+        boolean current = layer.page() == page;
+        float fit = fit(w, h) / (current ? 1 : scale);
         matrix.setScale(fit, fit);
-        matrix.postTranslate((getWidth() - w * fit) / 2 + shiftX, (getHeight() - h * fit) / 2 + shiftY);
+        matrix.postTranslate((getWidth() - w * fit) / 2 + (current ? shiftX : 0), (getHeight() - h * fit) / 2 + (current ? shiftY : 0));
         image.setImageMatrix(matrix);
       }
-    }
-
-    private ImageView imageAt(int index) {
-      return (ImageView) ((FrameLayout) getChildAt(index)).getChildAt(0);
     }
 
     private float fit(int width, int height) {

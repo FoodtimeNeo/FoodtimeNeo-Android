@@ -180,6 +180,9 @@ final class CommunityPager implements RefreshScrollView.SwipeListener {
       float direction = Math.signum(candidate - index);
       incoming.scroll().setTranslationX((direction - progress) * width);
     }
+    // Translation does not dispatch a scroll/layout event. Recheck newly exposed
+    // cold covers during the gesture instead of waiting for complete().
+    Ui.recheckImages();
     drawUnderline();
   }
 

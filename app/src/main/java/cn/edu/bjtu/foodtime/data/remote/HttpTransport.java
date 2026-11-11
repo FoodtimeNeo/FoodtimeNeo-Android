@@ -150,11 +150,19 @@ public final class HttpTransport {
     } finally { exchange.cancellation().cancel(false);exchange.connection().disconnect(); }
   }
 
-  public void clearSession() { synchronized(cookies){sessionGeneration++;cookies.getCookieStore().removeAll();} }
+  public void clearSession() {
+    synchronized(cookies){
+      sessionGeneration++;
+      // Device quota belongs to the installation, not to the account being signed out.
+      var store=cookies.getCookieStore();
+      for(var cookie:new java.util.ArrayList<>(store.getCookies()))
+        if(!cookie.getName().equals("foodtime_device"))store.remove(base,cookie);
+    }
+  }
   public String sessionKey() {
     synchronized(cookies) {
       StringBuilder value=new StringBuilder();
-      cookies.getCookieStore().getCookies().stream().filter(c->!c.hasExpired()).sorted(java.util.Comparator.comparing(java.net.HttpCookie::getName)).forEach(c->value.append(c.getName()).append('=').append(c.getValue()).append(';'));
+      cookies.getCookieStore().getCookies().stream().filter(c->!c.hasExpired()&&!c.getName().equals("foodtime_device")).sorted(java.util.Comparator.comparing(java.net.HttpCookie::getName)).forEach(c->value.append(c.getName()).append('=').append(c.getValue()).append(';'));
       return ImageDiskCache.hash(value.toString());
     }
   }

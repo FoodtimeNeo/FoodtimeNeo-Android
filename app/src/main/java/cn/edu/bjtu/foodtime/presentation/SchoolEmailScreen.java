@@ -5,6 +5,7 @@ import android.widget.*;
 
 final class SchoolEmailScreen {
   static void binder(MainActivity a,LinearLayout page,MainActivity.Route route) {
+    if(a.repo.currentUser()==null||a.repo.currentUser().isAdmin())throw new IllegalStateException("管理员和超级管理员不能绑定或解绑学校邮箱");
     a.heading(page,"03.2","绑定学校邮箱","绑定后解锁发帖、评论、点赞与投稿");
     LinearLayout card=Ui.col(a);card.setPadding(Ui.dp(a,18),Ui.dp(a,20),Ui.dp(a,18),Ui.dp(a,20));
     card.setBackground(Ui.shape(a,Design.ALT,0,24));

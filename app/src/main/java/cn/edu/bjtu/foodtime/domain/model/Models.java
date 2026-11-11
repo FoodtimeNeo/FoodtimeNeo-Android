@@ -39,13 +39,20 @@ public final class Models {
   public record ReportRow(String id, String type, String targetUserId, String postId,
                           String reason, String excerpt) {}
 
+  public record BlockedUser(String id, String displayName, String avatarUrl) {}
+  public record BlockedUserPage(List<BlockedUser> items, long total, int page, int size) {
+    public BlockedUserPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
   public record ReportPage(List<ReportRow> items, long total, int page, int size) {
     public ReportPage { items = List.copyOf(items); }
     public boolean hasMore() { return (long) page * size < total; }
   }
 
   public record User(String id, String email, String displayName, String role, boolean active,
-      String avatarUrl, long createdAt, long reviewCount, long followingCount, long followerCount) {
+      String avatarUrl, long createdAt, long reviewCount, long followingCount, long followerCount,boolean deleted) {
+    public User(String id,String email,String displayName,String role,boolean active,String avatarUrl,long createdAt,long reviewCount,long followingCount,long followerCount){this(id,email,displayName,role,active,avatarUrl,createdAt,reviewCount,followingCount,followerCount,false);}
     public User(String id, String email, String displayName, String role, boolean active,
         String avatarUrl, long createdAt, long reviewCount) {
       this(id,email,displayName,role,active,avatarUrl,createdAt,reviewCount,0,0);
@@ -153,6 +160,9 @@ public final class Models {
   }
 
   public record Photo(String id, String dishId, String imageUrl, String userId) {}
+  public record CatalogImagePage(List<Photo> items, long total, int page, boolean hasMore) {
+    public CatalogImagePage { items = List.copyOf(items); }
+  }
 
   /** Published community post returned by the Backend community feed. */
   public record CommunityAuditPage(String type,String status,int page,long total,List<Submission> items){
@@ -175,8 +185,15 @@ public final class Models {
   public record CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
       long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
       boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt,
-      String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage,LinkedDish linkedDish) {
+      String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage,LinkedDish linkedDish,long viewCount) {
     public CommunityPost {imageUrls=imageUrls==null?List.of():List.copyOf(imageUrls);images=images==null?List.of():List.copyOf(images);}
+    public CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
+        long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
+        boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt,
+        String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage,LinkedDish linkedDish) {
+      this(id,userId,userDisplayName,content,imageUrls,likeCount,commentCount,repostCount,repostOfId,repostAuthor,repostContent,
+          likedByMe,favoritedByMe,status,reviewReason,createdAt,title,userAvatarUrl,images,favoriteCount,reviewStage,linkedDish,0);
+    }
     public CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
         long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
         boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt) {
@@ -226,7 +243,8 @@ public final class Models {
   /** Follow relation state plus the target's follower count. */
   public record FollowState(boolean followed, long followerCount) {}
 
-  public record Notice(String id, String content, long publishedAt) {
+  public record Notice(String id, String content, long publishedAt,boolean isUpdate) {
+    public Notice(String id,String content,long publishedAt){this(id,content,publishedAt,false);}
     /** Compatibility for older test fixtures only; production uses content. */
     public Notice(String id,String title,String body,long publishedAt) {
       this(id,"# "+title+"\n\n"+body,publishedAt);

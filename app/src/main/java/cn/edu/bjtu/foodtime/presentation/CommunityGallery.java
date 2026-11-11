@@ -1,6 +1,8 @@
 package cn.edu.bjtu.foodtime.presentation;
 
 import android.annotation.SuppressLint;
+import android.animation.ValueAnimator;
+import android.view.animation.PathInterpolator;
 import android.view.*;
 import android.widget.*;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityPost;
@@ -17,6 +19,7 @@ final class CommunityGallery extends LinearLayout {
   private int index,width;
   private float startX;
   private int startIndex;
+  private ValueAnimator scrollAnimation;
   private CommunityPost post;
   private CommunityPhotoDialog.PostActions postActions;
   private CommunityPhotoDialog viewer;
@@ -32,20 +35,25 @@ final class CommunityGallery extends LinearLayout {
     viewport=new HorizontalScrollView(activity){
       @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){
         super.onSizeChanged(w,h,oldw,oldh);width=w;
+        stopAnimation();
         for(int i=0;i<strip.getChildCount();i++)strip.getChildAt(i).setLayoutParams(new LinearLayout.LayoutParams(w,-2));
         post(()->scrollTo(index*w,0));
       }
       @Override public boolean onInterceptTouchEvent(MotionEvent event){
-        if(event.getActionMasked()==MotionEvent.ACTION_DOWN){startX=event.getX();startIndex=index;}
+        if(event.getActionMasked()==MotionEvent.ACTION_DOWN){
+          stopAnimation();startX=event.getX();startIndex=width==0?index:Math.round((float)getScrollX()/width);
+        }
         return super.onInterceptTouchEvent(event);
       }
       @SuppressLint("ClickableViewAccessibility") // Each image has a click action; navigation also has named buttons.
       @Override public boolean onTouchEvent(MotionEvent event){
         boolean handled=super.onTouchEvent(event);
         if(event.getActionMasked()==MotionEvent.ACTION_UP){float dx=event.getX()-startX;show(Math.abs(dx)>Ui.dp(activity,40)?startIndex+(dx<0?1:-1):width==0?0:Math.round((float)getScrollX()/width));}
+        else if(event.getActionMasked()==MotionEvent.ACTION_CANCEL)show(startIndex);
         return handled;
       }
-      @Override public void fling(int velocity){show(index+(velocity>300?1:velocity< -300?-1:0));}
+      // ACTION_UP owns the single snap animation; native fling must not start another one.
+      @Override public void fling(int velocity) {}
     };
     viewport.setHorizontalScrollBarEnabled(false);viewport.setFillViewport(true);viewport.addView(strip,new HorizontalScrollView.LayoutParams(-2,-2));
     addView(viewport,new LinearLayout.LayoutParams(-1,-2));
@@ -77,12 +85,25 @@ final class CommunityGallery extends LinearLayout {
   void setPostActions(CommunityPhotoDialog.PostActions value) { postActions = value; }
 
   @Override protected void onDetachedFromWindow() {
+    stopAnimation();
     if (viewer != null) viewer.dismiss();
     viewer = null;
     super.onDetachedFromWindow();
   }
 
-  private void show(int page){index=Math.max(0,Math.min(images.size()-1,page));viewport.smoothScrollTo(index*width,0);update();}
+  private void stopAnimation(){if(scrollAnimation!=null){scrollAnimation.cancel();scrollAnimation=null;}}
+  private void show(int page){
+    index=Math.max(0,Math.min(images.size()-1,page));stopAnimation();
+    int target=index*width;
+    if(width>0&&viewport.getScrollX()!=target){
+      scrollAnimation=ValueAnimator.ofInt(viewport.getScrollX(),target);
+      scrollAnimation.setDuration(280);
+      scrollAnimation.setInterpolator(new PathInterpolator(.22f,.68f,0,1));
+      scrollAnimation.addUpdateListener(animation->viewport.scrollTo((int)animation.getAnimatedValue(),0));
+      scrollAnimation.start();
+    }
+    update();
+  }
   private void update(){
     StringBuilder value=new StringBuilder();for(int i=0;i<images.size();i++)value.append(i==index?"● ":"○ ");
     dots.setText(value.toString().trim());dots.setContentDescription("第"+(index+1)+"张，共"+images.size()+"张");previous.setEnabled(index>0);next.setEnabled(index<images.size()-1);

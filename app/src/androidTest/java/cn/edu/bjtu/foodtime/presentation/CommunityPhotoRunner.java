@@ -14,6 +14,7 @@ import android.view.ViewGroup;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.TextView;
+import android.widget.HorizontalScrollView;
 import cn.edu.bjtu.foodtime.BuildConfig;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -117,6 +118,81 @@ public final class CommunityPhotoRunner extends Instrumentation {
     sendTouch(start, MotionEvent.ACTION_UP, x, y);
   }
 
+  private void touch(View target, long start, int action, float x, float y) {
+    MotionEvent event = MotionEvent.obtain(start, SystemClock.uptimeMillis(), action, x, y, 0);
+    ui(() -> target.dispatchTouchEvent(event));
+    event.recycle();
+  }
+
+  private void inlineSwipe(CommunityGallery gallery) throws Exception {
+    HorizontalScrollView viewport = (HorizontalScrollView) field(gallery, "viewport");
+    await("inline width", () -> viewport.getWidth() > 0);
+    float width = viewport.getWidth(), y = viewport.getHeight() / 2f;
+    long start = SystemClock.uptimeMillis();
+    touch(viewport, start, MotionEvent.ACTION_DOWN, width * .8f, y);
+    SystemClock.sleep(30);
+    touch(viewport, start, MotionEvent.ACTION_MOVE, width * .65f, y);
+    SystemClock.sleep(30);
+    touch(viewport, start, MotionEvent.ACTION_MOVE, width * .45f, y);
+    check(viewport.getScrollX() > width * .1f, "Inline image follows the finger before release: scroll="+viewport.getScrollX()+", viewport="+width+", strip="+viewport.getChildAt(0).getWidth()+", height="+viewport.getHeight());
+    touch(viewport, start, MotionEvent.ACTION_UP, width * .3f, y);
+    check(viewport.getScrollX() < width - 1, "Inline release starts an animation instead of jumping");
+    await("inline settled second page", () -> Math.abs(viewport.getScrollX() - viewport.getWidth()) < 2);
+    check(((TextView) field(gallery,"dots")).getContentDescription().toString().startsWith("第2张"), "Inline counter follows settled page");
+  }
+
+  private int page() {
+    try { return (int) field(field(find(activity.content, CommunityGallery.class), "viewer"), "page"); }
+    catch (ReflectiveOperationException error) { throw new AssertionError(error); }
+  }
+
+  private void smoothSwipe(FrameLayout canvas) throws Exception {
+    float width = canvas.getWidth(), y = canvas.getHeight() / 2f;
+    long start = SystemClock.uptimeMillis();
+    sendTouch(start, MotionEvent.ACTION_DOWN, width * .8f, y);
+    sendTouch(start, MotionEvent.ACTION_MOVE, width * .6f, y);
+    check(decor.findViewWithTag("photo-thumb").getTranslationX() < -width * .15f, "Full-screen image follows the finger");
+    SystemClock.sleep(70);
+    screenshot("android-swipe-dragging");
+    sendTouch(start, MotionEvent.ACTION_MOVE, width * .3f, y);
+    sendTouch(start, MotionEvent.ACTION_UP, width * .3f, y);
+    check(page() == 0, "Full-screen outgoing image stays until animation completes");
+    float released = decor.findViewWithTag("photo-thumb").getTranslationX();
+    SystemClock.sleep(60);
+    check(page() == 0 && decor.findViewWithTag("photo-thumb").getTranslationX() < released - 1, "Release has an intermediate animation frame before settling");
+    await("full-screen second page", () -> page() == 1);
+    check(Math.abs(decor.findViewWithTag("photo-thumb").getTranslationX()) < 1, "Incoming image is aligned after settling");
+
+    start = SystemClock.uptimeMillis();
+    sendTouch(start, MotionEvent.ACTION_DOWN, width * .5f, y);
+    sendTouch(start, MotionEvent.ACTION_MOVE, width * .55f, y);
+    sendTouch(start, MotionEvent.ACTION_UP, width * .55f, y);
+    await("short swipe rebound", () -> Math.abs(decor.findViewWithTag("photo-thumb").getTranslationX()) < 1);
+    check(page() == 1, "Short swipe rebounds without turning a page");
+
+    start = SystemClock.uptimeMillis();
+    sendTouch(start, MotionEvent.ACTION_DOWN, width * .3f, y);
+    sendTouch(start, MotionEvent.ACTION_MOVE, width * .8f, y);
+    sendTouch(start, MotionEvent.ACTION_CANCEL, width * .8f, y);
+    await("cancel rebound", () -> Math.abs(decor.findViewWithTag("photo-thumb").getTranslationX()) < 1);
+    check(page() == 1, "Cancelled swipe never changes the page");
+
+    start = SystemClock.uptimeMillis();
+    sendTouch(start, MotionEvent.ACTION_DOWN, width * .7f, y);
+    sendTouch(start, MotionEvent.ACTION_MOVE, width * .3f, y);
+    check(Math.abs(decor.findViewWithTag("photo-thumb").getTranslationX()) < width * .15f, "Last page provides edge resistance");
+    sendTouch(start, MotionEvent.ACTION_UP, width * .3f, y);
+    await("edge rebound", () -> Math.abs(decor.findViewWithTag("photo-thumb").getTranslationX()) < 1);
+    check(page() == 1, "Cannot swipe beyond last page");
+    var viewer = field(find(activity.content, CommunityGallery.class), "viewer");
+    ui(() -> ((TextView) uncheckedField(viewer,"previous")).performClick());
+    await("return to first page", () -> page() == 0);
+  }
+
+  private static Object uncheckedField(Object target, String name) {
+    try { return field(target,name); } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
+  }
+
   private void screenshot(String name) throws Exception {
     waitForIdleSync();
     Bitmap shot = getUiAutomation().takeScreenshot();
@@ -129,8 +205,9 @@ public final class CommunityPhotoRunner extends Instrumentation {
   @Override public void onStart() {
     Bundle result = new Bundle();
     try {
-      if (!BuildConfig.DEBUG || !BuildConfig.APPLICATION_ID.endsWith(".photocheck") ||
-          !BuildConfig.API_BASE_URL.equals("http://127.0.0.1:18081/api/v1/")) {
+      boolean isolated = (BuildConfig.APPLICATION_ID.endsWith(".photocheck") && BuildConfig.API_BASE_URL.equals("http://127.0.0.1:18081/api/v1/")) ||
+          (BuildConfig.APPLICATION_ID.endsWith(".smoothswipecheck") && BuildConfig.API_BASE_URL.equals("http://127.0.0.1:18084/api/v1/"));
+      if (!BuildConfig.DEBUG || !isolated) {
         throw new AssertionError("Only the isolated loopback photo build is allowed");
       }
       activity = (MainActivity) startActivitySync(new Intent(getTargetContext(), MainActivity.class)
@@ -139,6 +216,7 @@ public final class CommunityPhotoRunner extends Instrumentation {
       ui(() -> { activity.selectTab("community"); activity.go("community-detail", postId); });
       await("gallery", () -> find(activity.content, CommunityGallery.class) != null);
       var gallery = find(activity.content, CommunityGallery.class);
+      inlineSwipe(gallery);
       ui(() -> {
         try {
           var strip = (ViewGroup) field(gallery, "strip");
@@ -156,6 +234,7 @@ public final class CommunityPhotoRunner extends Instrumentation {
       check("展开帖子信息".contentEquals(toggle.getContentDescription()), "Toggle changes to expand");
       screenshot("android-collapsed");
       FrameLayout canvas = decor.findViewWithTag("photo-canvas");
+      smoothSwipe(canvas);
       float x = canvas.getWidth() / 2f, y = canvas.getHeight() / 2f;
       float fitted = scale();
       tap(x, y); SystemClock.sleep(60); tap(x, y);

@@ -1,6 +1,8 @@
 package cn.edu.bjtu.foodtime.domain.repository;
 
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
+import cn.edu.bjtu.foodtime.domain.model.FeedbackModels;
+import cn.edu.bjtu.foodtime.domain.model.NoticeSchedule;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -27,9 +29,17 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
 
   default boolean blockedByMe(String userId) { throw new UnsupportedOperationException(); }
   default void setBlocked(String userId, boolean blocked) { throw new UnsupportedOperationException(); }
+  default BlockedUserPage blockedUsers(int page) { throw new UnsupportedOperationException(); }
   default void reportContent(String type, String id, String reason) { throw new UnsupportedOperationException(); }
   default ReportPage reports(int page) { throw new UnsupportedOperationException(); }
   default void reviewReport(String id) { throw new UnsupportedOperationException(); }
+  default FeedbackModels.Page feedback(boolean admin,boolean archived,int page) {throw new UnsupportedOperationException();}
+  default FeedbackModels.Feedback feedbackDetail(String id,boolean admin) {throw new UnsupportedOperationException();}
+  default FeedbackModels.ReplyPage feedbackReplies(String id,boolean admin,int page) {throw new UnsupportedOperationException();}
+  default FeedbackModels.Feedback submitFeedback(String type,String content,String requestId) {throw new UnsupportedOperationException();}
+  default FeedbackModels.Feedback replyToFeedback(String id,String reply,boolean completed,String requestId) {throw new UnsupportedOperationException();}
+  default FeedbackModels.Export exportFeedback() {throw new UnsupportedOperationException();}
+  default FeedbackModels.ImportResult importFeedback(String csv) {throw new UnsupportedOperationException();}
 
   default List<CommunityPost> communityPosts() { return List.of(); }
   default CommunityAuthor communityAuthor(String userId) { throw new UnsupportedOperationException(); }
@@ -83,13 +93,17 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
     throw new UnsupportedOperationException("此数据源不支持收藏");
   }
   /** Announcement inbox, newest first. Refreshed by ContentRequest NOTICES on a worker. */
-  record AdminNotice(String id,String title,String content) {}
+  record AdminNotice(String id,String title,String content,NoticeSchedule schedule,String status) {
+    public AdminNotice(String id,String title,String content){this(id,title,content,new NoticeSchedule("","","","",false,true,false),"paused");}
+  }
   record AdminNoticePage(List<AdminNotice> items,long total) {}
   default AdminNoticePage adminNotices(int page,String query) { throw new UnsupportedOperationException(); }
   default AdminNotice adminNotice(String id) { throw new UnsupportedOperationException(); }
   default String noticeSetting() { throw new UnsupportedOperationException(); }
   default void setNoticeSetting(String id) { throw new UnsupportedOperationException(); }
   default AdminNotice saveNotice(String id,String content) { throw new UnsupportedOperationException(); }
+  default AdminNotice saveNotice(String id,String content,NoticeSchedule schedule) {throw new UnsupportedOperationException();}
+  default AdminNotice saveNoticeSchedule(String id,NoticeSchedule schedule) {throw new UnsupportedOperationException();}
   default NoticePage notices() { return NoticePage.empty(); }
   default void loadMoreNotices() { throw new UnsupportedOperationException(); }
   /** Personal system messages, newest first. Refreshed by ContentRequest MESSAGES on a worker. */
@@ -112,12 +126,17 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   /** 访客绑定学校邮箱：先发验证码，再带验证码绑定并刷新当前用户。 */
   default void sendSchoolEmailCode(String email) { throw new UnsupportedOperationException("此数据源不支持绑定学校邮箱"); }
   default void bindSchoolEmail(String email, String code) { throw new UnsupportedOperationException("此数据源不支持绑定学校邮箱"); }
+  default cn.edu.bjtu.foodtime.domain.model.AccountLifecycle.Summary accountLifecycle(){throw new UnsupportedOperationException();}
+  default cn.edu.bjtu.foodtime.domain.model.AccountLifecycle.Sent sendAccountActionCode(boolean deletion){throw new UnsupportedOperationException();}
+  default String unbindSchoolEmail(String code){throw new UnsupportedOperationException();}
+  default String deleteAccount(String code){throw new UnsupportedOperationException();}
   default long unreadCount() { return 0; }
   /** Incremental announcement feed for background polling; does not reset page caches. */
   default NoticeFeed noticeFeed(long sinceSeq, int limit) { return NoticeFeed.empty(); }
   default void markNoticeRead(String id) {}
   /** Login-only check. Null means no configured announcement or this user opted out. */
   default Notice currentNotice() { return null; }
+  default List<Notice> currentNotices() {var current=currentNotice();return current==null?List.of():List.of(current);}
   default void confirmNotice(String id, boolean dontShowAgain) {}
   default void readMessage(String id) {}
   default void readAllMessages() {}
@@ -193,6 +212,10 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   void removeReviewAsAdmin(String reviewId);
   default void removeReviewAsAdmin(String reviewId,String reason) { removeReviewAsAdmin(reviewId); }
   default void removeEntity(String table,String id) { throw new UnsupportedOperationException("此数据源不支持删除"); }
+  default long recordCommunityPostView(String postId,String requestId) { return 0; }
+  default CatalogImagePage managedImages(String table,String id,int page) { throw new UnsupportedOperationException("此数据源不支持图片管理"); }
+  default void addManagedImage(String table,String id,String file) { throw new UnsupportedOperationException("此数据源不支持图片管理"); }
+  default void removeManagedImage(String table,String id,String imageId) { throw new UnsupportedOperationException("此数据源不支持图片管理"); }
 
   List<User> users();
 

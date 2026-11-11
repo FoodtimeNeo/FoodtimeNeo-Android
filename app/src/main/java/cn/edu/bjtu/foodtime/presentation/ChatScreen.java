@@ -154,10 +154,23 @@ final class ChatScreen {
     TextView time = Ui.text(a, CommunityText.publishedAt(message.createdAt()), 10, Design.MUTED);
     time.setGravity(mine ? Gravity.END : Gravity.START);
     bubble.addView(time, new LinearLayout.LayoutParams(-2, -2));
-    if (!mine) {
-      bubble.addView(CommunityDiscussion.action(a, "举报", () -> ContentSafety.report(a, "message", message.id())),
-          new LinearLayout.LayoutParams(-2, -2));
-    }
+    View.OnLongClickListener actions = view -> {
+      new android.app.AlertDialog.Builder(a).setTitle("消息操作")
+          .setItems(mine ? new String[]{"复制"} : new String[]{"复制", "举报"}, (dialog, index) -> {
+            if (index == 1) {
+              ContentSafety.report(a, "message", message.id());
+            } else {
+              android.content.ClipboardManager clipboard =
+                  (android.content.ClipboardManager) a.getSystemService(android.content.Context.CLIPBOARD_SERVICE);
+              clipboard.setPrimaryClip(android.content.ClipData.newPlainText("私信", message.content()));
+              a.message("已复制");
+            }
+          }).show();
+      return true;
+    };
+    bubble.setOnLongClickListener(actions);
+    text.setOnLongClickListener(actions);
+    bubble.setTooltipText("长按可复制或举报消息");
     line.addView(bubble, new LinearLayout.LayoutParams(-2, -2));
     list.addView(line, new LinearLayout.LayoutParams(-1, -2));
     Ui.gap(list, 7);

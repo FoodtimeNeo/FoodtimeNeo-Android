@@ -1,16 +1,17 @@
-# 公告管理
+# 公告管理与排期
 
-仅 active superadmin 可以管理公告，普通 admin 的页面入口和 API 均拒绝。
+仅 active superadmin 可以管理；普通 admin 的入口和 API 均拒绝。每条公告独立启停，保存草稿不会发布或弹窗。Markdown 最多 20000 字符，必须包含非空标题；列表按顺序倒序、每页 6 条，支持标题搜索、编辑与预览。
 
-创建公告：仅填写 content（Markdown，最多 20000 字符），支持预览。内容必须包含非空 Markdown 标题；列表名称取最高级别的第一个标题，忽略代码块、移除行内标记。支持编辑已有公告。创建不会修改当前公告。
+所有管理时间按固定 UTC+8 输入和展示，传输为带时区的绝对时间。发布时间为空使用服务器当前时间；开始显示时间为空沿用发布时间，不能早于发布时间。截止方式可以不设置、指定日期、指定日期和时分。日期截止包含当天，例如 11 月 15 日到 11 月 16 日 00:00 UTC+8 停止弹窗；时分截止为排他上界。截止必须晚于开始显示时间。仅启停或未修改时间输入时保留原有秒和微秒。
 
-设置公告：标题搜索、每页 6 条、按创建顺序倒序排列。搜索和翻页保留待设置项；确认栏显示待设置标题。查看全文通过独立阅读窗口完成。选择后点击确认设置才修改全局 config(id=1).notice_id；选择“暂不显示公告”将其设为 NULL。客户端不重置既有已读或不再弹出偏好，修改相同公告仍保留这些偏好。需要重新提醒所有用户时创建新公告并设置它。
+到发布时间，已发布公告进入用户信箱；弹窗区间为 `[开始,截止)`，到期或停用只影响弹窗，信箱仍保留。草稿与未来发布时间的内容对普通用户不可见。每类取最新有效一条，更新公告优先，再普通公告，最多两条。关闭第一条后重新向服务器查询，以免第二条已经过期；已选择不再显示时不会回退弹出同类旧公告。
 
-后端新增接口（均 /api/v1/admin/notices 前缀）：
-- GET /search?page=1&size=6&q= 标题搜索与分页（关键词为普通子串）。
-- GET /settings 返回 {noticeId}。
-- PUT /settings 接受 {noticeId: UUID 或 null}。
-- POST /markdown 接受 {content}，保存但不启用。
-- PUT /{id}/markdown 接受 {content}，更新但不改变当前配置和已读偏好。
+接口前缀 `/api/v1/admin/notices`：
 
-数据库结构无新增变更，config 仍只有 id、notice_id。旧标题正文写接口保留兼容已安装客户端，新管理页面使用 Markdown 接口。
+- POST `/markdown`、PUT `/{id}/markdown` 接受 `{content,schedule}`；旧的仅 content 请求仍可用。
+- PUT `/{id}/schedule` 仅修改排期与启停，不改变 Markdown。
+- schedule 字段：`publishedAt/displayStartsAt/displayEndsAt` 为 Instant 或 null，`expiresOn` 为日期或 null，`isUpdate/published/enabled` 为布尔值；两个截止字段不能同时提供，草稿不能 enabled=true。
+- 列表和详情返回上述元数据、`createdTime`、增量 `seq` 和服务器计算的 `status`（draft/scheduled/waiting/active/paused/expired）。日期截止额外返回解析后的 displayEndsAt；客户端重新提交时仅发送 expiresOn。
+- 旧 settings 和 title/body CRUD 保留兼容已安装客户端；新界面不再使用单个全局当前公告。
+
+V45 增量迁移保留正文、阅读和免弹偏好，只启用升级前 config 中指定的当前公告，其余历史公告留档。旧公告的发布时间与显示开始时间沿用 created_time。新字段均在 V45 添加，不改写 V27。未来或草稿公告首次公开时在事务内重分配公共 feed 序号，使用事务级公告锁保证并发分配和提交顺序，避免旧客户端水位跳过排期公告。

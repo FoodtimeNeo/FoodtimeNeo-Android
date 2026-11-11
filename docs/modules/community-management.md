@@ -16,4 +16,6 @@
 
 个人资料通过 `PUT /api/v1/users/me/profile` 保存；头像先上传，后端验证图片归属。公告使用 Markwon 渲染，链接与图片加载限制危险 URI 协议。
 
+帖子多图在详情内和全屏看图中均支持跟手横向拖动，松手后以 280ms 动画停靠；短滑、取消手势或到达首尾时回到当前页。详情轮播的松手操作只触发一次动画，连续操作从当前滚动位置接管。全屏看图保留当前及相邻缩略图，滑出动画完成后才释放旧页及原图；原图仍须明确点击加载。双指缩放和放大后的拖动不翻页。`CommunityPhotoRunner` 可使用 `.smoothswipecheck` 独立包与 `http://127.0.0.1:18084/api/v1/` 本机媒体夹具验证上述手势，不依赖线上写入。
+
 普通验证：`gradlew.bat verifyArchitecture testDebugUnitTest lintDebug assembleDebug --no-configuration-cache`。`CommunityPermissionsTest` 覆盖普通用户、两种管理员、游客与禁用账号。JVM 测试和构建不等于真机交互验收。

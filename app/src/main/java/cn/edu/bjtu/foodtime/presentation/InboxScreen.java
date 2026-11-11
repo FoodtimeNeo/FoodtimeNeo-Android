@@ -98,7 +98,7 @@ final class InboxScreen {
     }
     for (Notice notice : result.items()) {
       LinearLayout card = Ui.card(page);
-      card.addView(Ui.text(a, "系统公告", 17, Design.INK));
+      card.addView(Ui.text(a, notice.isUpdate()?"更新公告":"系统公告", 17, Design.INK));
       Ui.gap(card, 6);
       String body = notice.content() == null ? "" : notice.content();
       if (!body.isBlank()) {
@@ -110,7 +110,7 @@ final class InboxScreen {
         card.addView(preview);
         Ui.gap(card, 6);
       }
-      card.addView(Ui.text(a, CommunityText.publishedAt(notice.publishedAt()), 12, Design.MUTED));
+      card.addView(Ui.text(a, cn.edu.bjtu.foodtime.domain.model.NoticeTimes.display(java.time.Instant.ofEpochMilli(notice.publishedAt()).toString()), 12, Design.MUTED));
       card.setClickable(true);
       card.setFocusable(true);
       card.setContentDescription("系统公告" + "，查看全文");

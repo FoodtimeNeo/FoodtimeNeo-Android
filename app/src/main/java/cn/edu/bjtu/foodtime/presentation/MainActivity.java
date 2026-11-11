@@ -22,6 +22,8 @@ import java.util.function.*;
 
 public class MainActivity extends Activity {
   public FoodtimeRepository repo;
+  FeedbackDocuments feedbackDocuments;
+  AlertDialog accountActionConfirmation;
   private boolean releaseChecked, releaseChecking, updateCheckPending;
   private AlertDialog updatePrompt, updateProgress;
   private UpdateDownloader activeDownloader;
@@ -44,6 +46,8 @@ public class MainActivity extends Activity {
   private String avatarPickingActor="";
   private Executor worker;
   private Executor inboxWorker;
+  // Best-effort statistics must not hold up comments, navigation or sending a message.
+  private final java.util.concurrent.ExecutorService statisticsWorker=java.util.concurrent.Executors.newSingleThreadExecutor();
   // A cancelled socket can still be unwinding. Leave a second slot for the new screen.
   private final java.util.concurrent.ThreadPoolExecutor navigationWorker =
       new java.util.concurrent.ThreadPoolExecutor(2,2,0,java.util.concurrent.TimeUnit.SECONDS,
@@ -103,6 +107,7 @@ public class MainActivity extends Activity {
     super.onCreate(state);
     Design.init(this);
     repo = ((RepositoryProvider) getApplication()).repository();
+    feedbackDocuments = new FeedbackDocuments(this,state);
     worker = ((RepositoryProvider) getApplication()).workExecutor();
     inboxWorker = ((RepositoryProvider) getApplication()).backgroundExecutor();
     loginNotices=getLastNonConfigurationInstance() instanceof LoginNoticeController retained?retained:new LoginNoticeController();
@@ -215,6 +220,7 @@ public class MainActivity extends Activity {
     screens.put("community-create", CommunityScreen::create);
     screens.put("community-mine", CommunityScreen::collection);
     screens.put("inbox", InboxScreen::inbox);
+    screens.put("account-lifecycle",AccountLifecycleScreen::show);
     screens.put("direct-chat", ChatScreen::chat);
     screens.put("community-favorites", CommunityScreen::collection);
     screens.put("admin-community", CommunityAdminScreen::queue);
@@ -229,6 +235,7 @@ public class MainActivity extends Activity {
     screens.put("following", FollowListScreen::following);
     screens.put("user-search", UserSearchScreen::show);
     screens.put("followers", FollowListScreen::followers);
+    screens.put("blocked-users", BlockedUsersScreen::show);
     screens.put("profile", ProfileScreen::profile);
     screens.put("profile-edit", ProfileScreen::edit);
     screens.put("bind-school-email", SchoolEmailScreen::binder);
@@ -249,6 +256,10 @@ public class MainActivity extends Activity {
     screens.put("admin-reviews", AdminScreen::reviews);
     screens.put("admin-notices", AdminNoticesScreen::settings);
     screens.put("admin-reports", ReportsScreen::show);
+    screens.put("feedback", FeedbackScreen::list);
+    screens.put("feedback-detail", FeedbackScreen::detail);
+    screens.put("admin-feedback", FeedbackScreen::list);
+    screens.put("admin-feedback-detail", FeedbackScreen::detail);
     screens.put("admin-notice-create", AdminNoticesScreen::create);
     screens.put("admin-users", AdminScreen::users);
     screens.put("admin-dashboard", AdminDashboardScreen::show);
@@ -295,12 +306,14 @@ public class MainActivity extends Activity {
     releaseChecking = true;
     final AppRelease[] release = {null};
     final RuntimeException[] failure = {null};
-    read("app-release", null, null,
-        () -> {
+    // Release metadata is public and remains valid when login changes the page generation.
+    // A discarded page callback must never leave the announcement gate permanently closed.
+    worker.execute(() -> {
           try { release[0] = repo.appRelease(); }
           catch (RuntimeException error) { failure[0] = error; }
-        },
-        () -> {
+          runOnUiThread(() -> {
+            if(isDestroyed())return;
+            Runnable complete=() -> {
           releaseChecking = false;
           releaseChecked = true;
           if (failure[0] != null) {
@@ -315,7 +328,10 @@ public class MainActivity extends Activity {
             return;
           }
           showUpdateDialog(info);
-        }, () -> {});
+            };
+            if(stateSaved)deferredReads.add(complete);else complete.run();
+          });
+        });
   }
 
   /** 更新提示优先于公告：更新弹窗和下载进度都结束前，不弹公告。 */
@@ -415,6 +431,10 @@ public class MainActivity extends Activity {
     rememberScroll();
     if(kind.equals("direct-chat")) chatOriginTab=tab;
     stacks.get(tab).add(new Route(kind, id));
+    if(kind.equals("community-detail")) {
+      drafts.putString(draftKey("view-request"),java.util.UUID.randomUUID().toString());
+      drafts.remove(draftKey("view-recorded")); drafts.remove(draftKey("view-count"));
+    }
     render();
   }
 
@@ -514,6 +534,7 @@ public class MainActivity extends Activity {
     state.putBundle("scrollPositions", scrollPositions);
     state.putString("pickingKey", pickingKey);
     state.putString("avatarPickingActor", avatarPickingActor);
+    feedbackDocuments.save(state);
     state.putLong("pendingOperation",pendingOperation);
     state.putBoolean("authRegistration",authRegistration);
     state.putString("tab", tab);
@@ -820,6 +841,7 @@ public class MainActivity extends Activity {
       case "following" -> "我的关注";
       case "user-search" -> "搜索用户";
       case "followers" -> "关注我的";
+      case "blocked-users" -> "黑名单";
       case "profile-edit" -> "编辑资料";
       case "bind-school-email" -> "绑定学校邮箱";
       case "avatar-crop" -> "裁剪头像";
@@ -841,6 +863,8 @@ public class MainActivity extends Activity {
       case "admin-logs" -> "审核日志";
       case "admin-notices" -> "公告管理";
       case "admin-reports" -> "举报处理";
+      case "feedback", "admin-feedback" -> "建议与反馈";
+      case "feedback-detail", "admin-feedback-detail" -> "反馈详情";
       default -> "正在加载";
     };
   }
@@ -1075,6 +1099,7 @@ public class MainActivity extends Activity {
   @Override
   protected void onActivityResult(int request, int result, android.content.Intent data) {
     super.onActivityResult(request, result, data);
+    if(feedbackDocuments.result(request,result,data))return;
     if(request==103){
       String target=pickingKey,actor=avatarPickingActor;pickingKey=null;avatarPickingActor="";
       if(result!=RESULT_OK||data==null||data.getData()==null||target==null)return;
@@ -1133,13 +1158,19 @@ public class MainActivity extends Activity {
   boolean operationInFlight() { return writeInFlight; }
   /** Coalesce reads per resource, without dropping other floors or blocking navigation/writes. */
   void read(String key,View trigger,TextView error,Runnable work,Runnable success,Runnable finished) {
+    read(worker,key,trigger,error,work,success,finished);
+  }
+  void recordPostView(String key,Runnable work,Runnable success) {
+    read(statisticsWorker,key,null,new TextView(this),work,success,() -> {});
+  }
+  private void read(Executor executor,String key,View trigger,TextView error,Runnable work,Runnable success,Runnable finished) {
     if(trigger!=null) trigger.setEnabled(false);
     if(error!=null) error.setText("");
     ReadListener listener=new ReadListener(generation,trigger,error,success,finished);
     List<ReadListener> existing=reads.get(key);
     if(existing!=null) {existing.add(listener);return;}
     List<ReadListener> listeners=new ArrayList<>();listeners.add(listener);reads.put(key,listeners);
-    worker.execute(() -> {
+    executor.execute(() -> {
       RuntimeException failure=null;try {work.run();}catch(RuntimeException e) {failure=e;}
       RuntimeException result=failure;
       runOnUiThread(() -> {
@@ -1199,7 +1230,8 @@ public class MainActivity extends Activity {
       if(repo.currentUser()==null) showAuth(authRegistration);else openApp();message(safeMessage(outcome.failure()));return;
     }
     if(task.action().equals("注册")) {showAuth(false);message("注册成功，请登录");return;}
-    if(repo.currentUser()==null) {signedOut();return;}
+    if(repo.currentUser()==null) {signedOut();if(task.origin().kind().equals("account-lifecycle")&&task.action().equals("注销账号"))message("账号已注销，两个邮箱冷却 1 小时后可重新使用；新账号不继承旧数据。");return;}
+    if(task.origin().kind().equals("account-lifecycle")&&task.action().equals("解绑学校邮箱")){clearDraft(task.origin());message("学校邮箱已解绑，账号保留并恢复访客身份；学校邮箱冷却 1 小时后可重新绑定。");}
     if(task.action().equals("导入头像")){
       drafts.putString("avatarCropTarget",task.imageDraft());go("avatar-crop",outcome.value());return;
     }
@@ -1247,6 +1279,8 @@ public class MainActivity extends Activity {
   }
   public void signedOut() {clearNavigation();showAuth(false);}
   private void clearNavigation() {
+    if(accountActionConfirmation!=null){accountActionConfirmation.dismiss();accountActionConfirmation=null;}
+    feedbackDocuments.reset();
     PrivateMessageReminders.disable(this);
     for(var stack:stacks.values())for(Route item:stack)if(item.kind().equals("avatar-crop"))discardPhoto(item.id());
     pickingKey=null;avatarPickingActor="";
@@ -1277,6 +1311,7 @@ public class MainActivity extends Activity {
     else if(isCommunityHub()&&repo!=null&&repo.currentUser()!=null&&communityLoadedAt.containsKey(route().kind())
         &&!freshCommunitySection(route().kind())){render(true);}
     noticeUi.post(this::drainNotices);
+    if(contentReady&&repo!=null&&repo.currentUser()!=null&&loginNotices!=null)loginNotices.foreground(repo,inboxWorker);
     syncPrivateMessageUnread();
   }
 
@@ -1344,5 +1379,5 @@ public class MainActivity extends Activity {
   }
   @Override protected void onPause() { super.onPause();foreground=false;if(communityPager!=null)communityPager.cancelSwipe();resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW||level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL||level>=android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND)Ui.trimImages();}
-  @Override protected void onDestroy() {if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();++generation;cancelNavigation();navigationWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override protected void onDestroy() {if(accountActionConfirmation!=null)accountActionConfirmation.dismiss();if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();if(feedbackDocuments!=null)feedbackDocuments.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }

@@ -116,6 +116,7 @@ final class DiningScreen {
     Hall hall = a.repo.hall(route.id());
     if (hall == null || !hall.active()) throw new IllegalArgumentException("食堂不存在或已停用");
     a.heading(page, "01.1", hall.name(), "");
+    CatalogQuickActions.show(a,page,"halls",hall.id());
     VenueScreen.summary(a,page,"hall",hall.id());
     if (a.repo.stalls(hall.id()).isEmpty()) {
       Ui.empty(page, "暂无档口", "");

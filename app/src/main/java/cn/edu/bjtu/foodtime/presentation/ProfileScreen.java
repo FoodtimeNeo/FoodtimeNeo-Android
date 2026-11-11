@@ -144,6 +144,11 @@ final class ProfileScreen {
       roundedAction(a,panel,action,false,() -> a.go("profile-edit",""));Ui.gap(panel,10);
       roundedAction(a,panel,"修改密码",false,() -> a.go("password",""));
       Ui.gap(panel,10);
+      roundedAction(a,panel,"黑名单",false,() -> a.go("blocked-users",""));
+      Ui.gap(panel,10);
+      roundedAction(a,panel,"建议与反馈",false,() -> a.go("feedback",""));
+      if(!user.isAdmin()){Ui.gap(panel,10);roundedAction(a,panel,"账号安全与注销",false,()->a.go("account-lifecycle",""));}
+      Ui.gap(panel,10);
       TextView reminders = Ui.button(a, a.privateMessageRemindersConfigured() ? "关闭私信提醒" : "开启私信提醒",
           false, a::togglePrivateMessageReminders);
       reminders.setTag("private-message-reminder-toggle");

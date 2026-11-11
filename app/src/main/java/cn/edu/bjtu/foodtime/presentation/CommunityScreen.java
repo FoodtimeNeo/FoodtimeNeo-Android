@@ -217,7 +217,32 @@ final class CommunityScreen {
       Ui.action(copy, "菜品 · " + dish.name(), false, () -> a.go("detail", dish.id()));
     }
     Ui.gap(copy, 8);
-    copy.addView(Ui.text(a, format(post.createdAt()), 12, Design.MUTED));
+    LinearLayout metadata=Ui.row(a); metadata.setGravity(Gravity.CENTER_VERTICAL);
+    metadata.addView(Ui.text(a,format(post.createdAt()),12,Design.MUTED));
+    android.view.View eye=new android.view.View(a) {
+      private final android.graphics.Paint paint=new android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG);
+      @Override protected void onDraw(android.graphics.Canvas canvas) {
+        super.onDraw(canvas); paint.setColor(Design.MUTED); paint.setStrokeWidth(Ui.dp(a,1)); paint.setStyle(android.graphics.Paint.Style.STROKE);
+        canvas.drawOval(getWidth()*.08f,getHeight()*.25f,getWidth()*.92f,getHeight()*.75f,paint);
+        canvas.drawCircle(getWidth()/2f,getHeight()/2f,getWidth()*.13f,paint);
+      }
+    };
+    eye.setImportantForAccessibility(android.view.View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    LinearLayout.LayoutParams eyeLayout=new LinearLayout.LayoutParams(Ui.dp(a,16),Ui.dp(a,16));eyeLayout.leftMargin=Ui.dp(a,12); metadata.addView(eye,eyeLayout);
+    String viewKey=a.draftKey("view-request"),recordedKey=a.draftKey("view-recorded"),countKey=a.draftKey("view-count");
+    String requestId=a.drafts.getString(viewKey,"");
+    if(requestId.isBlank()) { requestId=java.util.UUID.randomUUID().toString(); a.drafts.putString(viewKey,requestId); }
+    TextView viewCount=Ui.text(a,viewLabel(Math.max(post.viewCount(),a.drafts.getLong(countKey))),12,Design.MUTED);
+    LinearLayout.LayoutParams countLayout=new LinearLayout.LayoutParams(-2,-2); countLayout.leftMargin=Ui.dp(a,4);
+    metadata.addView(viewCount,countLayout); copy.addView(metadata);
+    if(!a.drafts.getBoolean(recordedKey)) {
+      String openedRequest=requestId; long[] count={post.viewCount()};
+      a.recordPostView("post-view:"+openedRequest,
+          () -> count[0]=a.repo.recordCommunityPostView(post.id(),openedRequest),() -> {
+            a.drafts.putBoolean(recordedKey,true);a.drafts.putLong(countKey,count[0]);
+            viewCount.setText(viewLabel(Math.max(post.viewCount(),count[0])));
+          });
+    }
 
     if(!post.repostOfId().isBlank()) {
       Ui.gap(copy,10);LinearLayout quoted=Ui.card(copy);
@@ -241,6 +266,10 @@ final class CommunityScreen {
     send.setType("text/plain");
     send.putExtra(android.content.Intent.EXTRA_TEXT, CommunityShareLink.postUrl(android.net.Uri.encode(id)));
     activity.startActivity(android.content.Intent.createChooser(send, "分享帖子"));
+  }
+
+  private static String viewLabel(long count) {
+    return java.text.NumberFormat.getIntegerInstance(java.util.Locale.CHINA).format(count)+" 次浏览";
   }
 
   static void detailHeader(MainActivity a, LinearLayout header, CommunityPost post) {
