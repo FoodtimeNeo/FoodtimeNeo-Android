@@ -1,6 +1,7 @@
 package cn.edu.bjtu.foodtime.domain.repository;
 
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
+import cn.edu.bjtu.foodtime.domain.model.FeedbackModels;
 import java.math.BigDecimal;
 import java.util.List;
 
@@ -31,6 +32,13 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default void reportContent(String type, String id, String reason) { throw new UnsupportedOperationException(); }
   default ReportPage reports(int page) { throw new UnsupportedOperationException(); }
   default void reviewReport(String id) { throw new UnsupportedOperationException(); }
+  default FeedbackModels.Page feedback(boolean admin,boolean archived,int page) {throw new UnsupportedOperationException();}
+  default FeedbackModels.Feedback feedbackDetail(String id,boolean admin) {throw new UnsupportedOperationException();}
+  default FeedbackModels.ReplyPage feedbackReplies(String id,boolean admin,int page) {throw new UnsupportedOperationException();}
+  default FeedbackModels.Feedback submitFeedback(String type,String content,String requestId) {throw new UnsupportedOperationException();}
+  default FeedbackModels.Feedback replyToFeedback(String id,String reply,boolean completed,String requestId) {throw new UnsupportedOperationException();}
+  default FeedbackModels.Export exportFeedback() {throw new UnsupportedOperationException();}
+  default FeedbackModels.ImportResult importFeedback(String csv) {throw new UnsupportedOperationException();}
 
   default List<CommunityPost> communityPosts() { return List.of(); }
   default CommunityAuthor communityAuthor(String userId) { throw new UnsupportedOperationException(); }

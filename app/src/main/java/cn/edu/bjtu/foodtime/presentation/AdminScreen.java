@@ -23,6 +23,7 @@ final class AdminScreen {
     if(a.repo.currentUser().role().equals("superadmin")) {
       Ui.gap(card,12);Ui.action(card,"公告管理",false,() -> a.go("admin-notices",""));
       Ui.gap(card,12);Ui.action(card,"举报处理",false,() -> a.go("admin-reports",""));
+      Ui.gap(card,12);Ui.action(card,"建议与反馈管理",false,() -> a.go("admin-feedback",""));
       Ui.gap(card,12);Ui.action(card,"用户管理",false,() -> a.go("admin-users",""));
     }
   }
