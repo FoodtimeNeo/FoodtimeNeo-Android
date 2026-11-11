@@ -11,6 +11,7 @@ final class DishScreen {
     Stall stall = a.repo.stall(route.id());
     if (stall == null || !stall.active()) throw new IllegalArgumentException("档口不存在或已停用");
     a.heading(page, "01.2", stall.name(), "");
+    CatalogQuickActions.show(a,page,"stalls",stall.id());
     VenueScreen.summary(a,page,"stall",stall.id());
     List<Dish> all = a.repo.dishes(stall.id());
     if (all.isEmpty()) Ui.empty(page, "还没有菜品", "");
@@ -53,6 +54,7 @@ final class DishScreen {
     Stall s = a.repo.stall(d.stallId());
     Hall h = a.repo.hall(s.diningHallId());
     a.heading(page, "01.3", d.name(), h.name() + " · " + s.name());
+    CatalogQuickActions.show(a,page,"dishes",d.id());
     LinearLayout hero = Ui.card(page);
     hero.setPadding(0, 0, 0, Ui.dp(a, 4));
     FrameLayout photo = detailPhoto(a,d);
