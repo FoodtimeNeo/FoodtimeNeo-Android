@@ -44,6 +44,8 @@ public class MainActivity extends Activity {
   private String avatarPickingActor="";
   private Executor worker;
   private Executor inboxWorker;
+  // Best-effort statistics must not hold up comments, navigation or sending a message.
+  private final java.util.concurrent.ExecutorService statisticsWorker=java.util.concurrent.Executors.newSingleThreadExecutor();
   // A cancelled socket can still be unwinding. Leave a second slot for the new screen.
   private final java.util.concurrent.ThreadPoolExecutor navigationWorker =
       new java.util.concurrent.ThreadPoolExecutor(2,2,0,java.util.concurrent.TimeUnit.SECONDS,
@@ -1137,13 +1139,19 @@ public class MainActivity extends Activity {
   boolean operationInFlight() { return writeInFlight; }
   /** Coalesce reads per resource, without dropping other floors or blocking navigation/writes. */
   void read(String key,View trigger,TextView error,Runnable work,Runnable success,Runnable finished) {
+    read(worker,key,trigger,error,work,success,finished);
+  }
+  void recordPostView(String key,Runnable work,Runnable success) {
+    read(statisticsWorker,key,null,new TextView(this),work,success,() -> {});
+  }
+  private void read(Executor executor,String key,View trigger,TextView error,Runnable work,Runnable success,Runnable finished) {
     if(trigger!=null) trigger.setEnabled(false);
     if(error!=null) error.setText("");
     ReadListener listener=new ReadListener(generation,trigger,error,success,finished);
     List<ReadListener> existing=reads.get(key);
     if(existing!=null) {existing.add(listener);return;}
     List<ReadListener> listeners=new ArrayList<>();listeners.add(listener);reads.put(key,listeners);
-    worker.execute(() -> {
+    executor.execute(() -> {
       RuntimeException failure=null;try {work.run();}catch(RuntimeException e) {failure=e;}
       RuntimeException result=failure;
       runOnUiThread(() -> {
@@ -1348,5 +1356,5 @@ public class MainActivity extends Activity {
   }
   @Override protected void onPause() { super.onPause();foreground=false;if(communityPager!=null)communityPager.cancelSwipe();resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW||level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL||level>=android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND)Ui.trimImages();}
-  @Override protected void onDestroy() {if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();++generation;cancelNavigation();navigationWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override protected void onDestroy() {if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }
