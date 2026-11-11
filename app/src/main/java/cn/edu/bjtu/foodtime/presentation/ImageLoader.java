@@ -90,9 +90,13 @@ final class ImageLoader {
     bind(a,frame,image,placeholder,path,display,()->{});
   }
   static void bind(MainActivity a,FrameLayout frame,ImageView image,TextView placeholder,String path,Consumer<Bitmap> display,Runnable onFailure) {
+    bind(a,frame,image,placeholder,path,display,onFailure,false);
+  }
+  /** Full-screen galleries may keep the two adjacent thumbnails ready for a drag. */
+  static void bind(MainActivity a,FrameLayout frame,ImageView image,TextView placeholder,String path,Consumer<Bitmap> display,Runnable onFailure,boolean eager) {
     final Runnable[] release={null};final boolean[] completed={false},failed={false};final int[] generation={0};
     Runnable check=()->{
-      boolean visible=!paused&&frame.isAttachedToWindow()&&frame.getWindowVisibility()==View.VISIBLE&&frame.getGlobalVisibleRect(new Rect())&&frame.getWidth()>0;
+      boolean visible=!paused&&frame.isAttachedToWindow()&&frame.getWindowVisibility()==View.VISIBLE&&(eager||frame.getGlobalVisibleRect(new Rect()))&&frame.getWidth()>0;
       if(!visible){if(release[0]!=null&&!completed[0]){generation[0]++;release[0].run();release[0]=null;}return;}
       if(release[0]!=null||failed[0])return;
       int bound=128;while(bound<frame.getWidth()&&bound<1600)bound*=2;bound=Math.min(1600,bound);
