@@ -1,10 +1,17 @@
 package cn.edu.bjtu.foodtime.domain.repository;
 
+import cn.edu.bjtu.foodtime.domain.model.Models.CapabilitySnapshot;
 import cn.edu.bjtu.foodtime.domain.model.Models.RegistrationPolicy;
 import cn.edu.bjtu.foodtime.domain.model.Models.User;
 
 public interface AuthRepository {
   User currentUser();
+
+  /** Server-projected capabilities; empty until refreshed from the server. */
+  default CapabilitySnapshot capabilities() { return CapabilitySnapshot.empty(); }
+
+  /** Explicit refresh for callers that want to retry after a transient failure. */
+  default void loadCapabilities() { }
 
   User login(String account, String password);
 

@@ -8,6 +8,7 @@
 | --- | --- |
 | CSRF、注册策略、登录、注册验证码、注册、退出 | /auth/csrf、/auth/registration-policy、/auth/login、/auth/register/email-code、/auth/register、/auth/logout |
 | 当前资料与改密 | /users/me/profile、/users/me/password |
+| 当前有效能力 | GET /users/me/capabilities |
 | 关注／粉丝 | GET /users/{当前用户UUID}/following、/followers，page/size 分页；PUT/DELETE /users/{目标UUID}/follow |
 | 三级目录 | /dining-halls、/dining-halls/{id}/stalls、/stalls/{id}/dishes；data为数组 |
 | 菜品详情、实时评分、评论、图册 | /dishes/{id}及/rating、/reviews、/images；评论/图册分页 |
@@ -68,3 +69,7 @@ PUT/DELETE /review-replies/{id}/like，响应likedByMe/likeCount/counterVersion�
 - `closed`：显示“注册暂未开放”，不再提交或发送验证码。
 
 策略读取失败不默认开放，页面显示错误与重试；服务端仍是最终裁决者，注册请求仍可能返回 `REGISTRATION_CLOSED`、`INVITATION_REQUIRED` 或 `INVITATION_CODE_INVALID`。邀请码不写入 Activity 草稿 Bundle；`Ui.field` 对含“邀请码”的字段跳过自动草稿保存。该接口不暴露限流值、邮箱白名单或邀请码列表。
+
+## 能力授权（2026-11-12）
+
+登录成功和恢复会话后读取 `GET /users/me/capabilities`，保存 `capabilities` 与 `revision`。管理动作的显示和启用只依据服务器返回的能力名（如 `catalog.edit`、`moderation.review`），不在客户端按角色名推断；写请求仍由服务器逐次校验。读取失败保持空能力并允许重试，不默认授权。退出、401、切号或角色/状态变化时清空能力快照。
