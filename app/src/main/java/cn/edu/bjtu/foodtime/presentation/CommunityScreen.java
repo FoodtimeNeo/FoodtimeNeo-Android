@@ -237,11 +237,11 @@ final class CommunityScreen {
     metadata.addView(viewCount,countLayout); copy.addView(metadata);
     if(!a.drafts.getBoolean(recordedKey)) {
       String openedRequest=requestId; long[] count={post.viewCount()};
-      a.read("post-view:"+openedRequest,null,new TextView(a),
+      a.recordPostView("post-view:"+openedRequest,
           () -> count[0]=a.repo.recordCommunityPostView(post.id(),openedRequest),() -> {
             a.drafts.putBoolean(recordedKey,true);a.drafts.putLong(countKey,count[0]);
             viewCount.setText(viewLabel(Math.max(post.viewCount(),count[0])));
-          },() -> {});
+          });
     }
 
     if(!post.repostOfId().isBlank()) {
