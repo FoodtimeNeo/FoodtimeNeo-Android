@@ -194,9 +194,9 @@ final class AdminScreen {
       for(User user:all) if(user.email().toLowerCase(Locale.ROOT).contains(query)||user.displayName().toLowerCase(Locale.ROOT).contains(query)) {
         count++;LinearLayout card=Ui.card(list);card.addView(Ui.title(a,user.displayName(),24));card.addView(Ui.text(a,user.email(),14,Design.MUTED));
         String role=user.role().equals("superadmin")?"平台管理员":user.isAdmin()?"管理员":"普通用户";
-        card.addView(Ui.text(a,role+" · "+(user.active()?"启用":"禁用"),14,Design.BLUE));
+        card.addView(Ui.text(a,role+" · "+(user.deleted()?"已注销，不能恢复":user.active()?"启用":"禁用"),14,Design.BLUE));
         if(user.createdAt()>0) card.addView(Ui.text(a,SubmissionScreen.date(user.createdAt())+" · "+user.reviewCount()+" 条评论",12,Design.MUTED));
-        if(!user.id().equals(a.repo.currentUser().id())) {
+        if(!user.deleted()&&!user.id().equals(a.repo.currentUser().id())) {
           Ui.gap(card,12);Ui.action(card,user.active()?"禁用账号":"启用账号",false,() -> Ui.confirm(a,"修改账号状态？",user.email(),
               () -> a.request(null,null,() -> a.repo.updateUser(user.id(),user.role(),!user.active()),a::render)));
           Ui.gap(card,8);Ui.action(card,"修改角色",false,() -> new AlertDialog.Builder(a).setTitle("设置角色")

@@ -51,7 +51,8 @@ public final class Models {
   }
 
   public record User(String id, String email, String displayName, String role, boolean active,
-      String avatarUrl, long createdAt, long reviewCount, long followingCount, long followerCount) {
+      String avatarUrl, long createdAt, long reviewCount, long followingCount, long followerCount,boolean deleted) {
+    public User(String id,String email,String displayName,String role,boolean active,String avatarUrl,long createdAt,long reviewCount,long followingCount,long followerCount){this(id,email,displayName,role,active,avatarUrl,createdAt,reviewCount,followingCount,followerCount,false);}
     public User(String id, String email, String displayName, String role, boolean active,
         String avatarUrl, long createdAt, long reviewCount) {
       this(id,email,displayName,role,active,avatarUrl,createdAt,reviewCount,0,0);

@@ -23,6 +23,7 @@ import java.util.function.*;
 public class MainActivity extends Activity {
   public FoodtimeRepository repo;
   FeedbackDocuments feedbackDocuments;
+  AlertDialog accountActionConfirmation;
   private boolean releaseChecked, releaseChecking, updateCheckPending;
   private AlertDialog updatePrompt, updateProgress;
   private UpdateDownloader activeDownloader;
@@ -219,6 +220,7 @@ public class MainActivity extends Activity {
     screens.put("community-create", CommunityScreen::create);
     screens.put("community-mine", CommunityScreen::collection);
     screens.put("inbox", InboxScreen::inbox);
+    screens.put("account-lifecycle",AccountLifecycleScreen::show);
     screens.put("direct-chat", ChatScreen::chat);
     screens.put("community-favorites", CommunityScreen::collection);
     screens.put("admin-community", CommunityAdminScreen::queue);
@@ -1228,7 +1230,8 @@ public class MainActivity extends Activity {
       if(repo.currentUser()==null) showAuth(authRegistration);else openApp();message(safeMessage(outcome.failure()));return;
     }
     if(task.action().equals("注册")) {showAuth(false);message("注册成功，请登录");return;}
-    if(repo.currentUser()==null) {signedOut();return;}
+    if(repo.currentUser()==null) {signedOut();if(task.origin().kind().equals("account-lifecycle")&&task.action().equals("注销账号"))message("账号已注销，两个邮箱冷却 1 小时后可重新使用；新账号不继承旧数据。");return;}
+    if(task.origin().kind().equals("account-lifecycle")&&task.action().equals("解绑学校邮箱")){clearDraft(task.origin());message("学校邮箱已解绑，账号保留并恢复访客身份；学校邮箱冷却 1 小时后可重新绑定。");}
     if(task.action().equals("导入头像")){
       drafts.putString("avatarCropTarget",task.imageDraft());go("avatar-crop",outcome.value());return;
     }
@@ -1276,6 +1279,7 @@ public class MainActivity extends Activity {
   }
   public void signedOut() {clearNavigation();showAuth(false);}
   private void clearNavigation() {
+    if(accountActionConfirmation!=null){accountActionConfirmation.dismiss();accountActionConfirmation=null;}
     feedbackDocuments.reset();
     PrivateMessageReminders.disable(this);
     for(var stack:stacks.values())for(Route item:stack)if(item.kind().equals("avatar-crop"))discardPhoto(item.id());
@@ -1375,5 +1379,5 @@ public class MainActivity extends Activity {
   }
   @Override protected void onPause() { super.onPause();foreground=false;if(communityPager!=null)communityPager.cancelSwipe();resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW||level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL||level>=android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND)Ui.trimImages();}
-  @Override protected void onDestroy() {if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();if(feedbackDocuments!=null)feedbackDocuments.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override protected void onDestroy() {if(accountActionConfirmation!=null)accountActionConfirmation.dismiss();if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();if(feedbackDocuments!=null)feedbackDocuments.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }
