@@ -146,6 +146,8 @@ final class ProfileScreen {
       Ui.gap(panel,10);
       roundedAction(a,panel,"黑名单",false,() -> a.go("blocked-users",""));
       Ui.gap(panel,10);
+      roundedAction(a,panel,"建议与反馈",false,() -> a.go("feedback",""));
+      Ui.gap(panel,10);
       TextView reminders = Ui.button(a, a.privateMessageRemindersConfigured() ? "关闭私信提醒" : "开启私信提醒",
           false, a::togglePrivateMessageReminders);
       reminders.setTag("private-message-reminder-toggle");

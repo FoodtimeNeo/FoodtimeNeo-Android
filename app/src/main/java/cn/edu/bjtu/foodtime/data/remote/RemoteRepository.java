@@ -3,6 +3,7 @@ package cn.edu.bjtu.foodtime.data.remote;
 import cn.edu.bjtu.foodtime.data.prototype.CommunityPrototype;
 import cn.edu.bjtu.foodtime.domain.model.CommunityText;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
+import cn.edu.bjtu.foodtime.domain.model.FeedbackModels;
 import cn.edu.bjtu.foodtime.domain.repository.*;
 import cn.edu.bjtu.foodtime.domain.validation.Validation;
 import org.json.*;
@@ -1208,6 +1209,35 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public void reviewReport(String id) {
     call("PUT", "admin/reports/" + encode(id) + "/review", null);
   }
+
+  private JSONObject feedbackCall(boolean admin,String method,String path,JSONObject body) {
+    final String owner;
+    synchronized(dashboardLock){
+      owner=recommendationOwner();
+      if(owner.isEmpty())throw new RepositoryException(401,"AUTH_REQUIRED","请先登录",0);
+      if(admin&&!"superadmin".equals(user.role()))throw new RepositoryException(403,"ACCESS_DENIED","仅超级管理员可管理反馈",0);
+    }
+    JSONObject result=call(method,(admin?"admin/feedback":"users/me/feedback")+path,body);
+    synchronized(dashboardLock){if(!owner.equals(recommendationOwner()))throw new RepositoryException(409,"ACCOUNT_CHANGED","账号已变化，请重新打开反馈记录",0);}
+    return result;
+  }
+  @Override public FeedbackModels.Page feedback(boolean admin,boolean archived,int page) {
+    return FeedbackJson.page(feedbackCall(admin,"GET","?archived="+archived+"&page="+page+"&size=20",null),page);
+  }
+  @Override public FeedbackModels.Feedback feedbackDetail(String id,boolean admin) {
+    return FeedbackJson.row(feedbackCall(admin,"GET","/"+encode(id),null));
+  }
+  @Override public FeedbackModels.ReplyPage feedbackReplies(String id,boolean admin,int page) {
+    return FeedbackJson.replies(feedbackCall(admin,"GET","/"+encode(id)+"/replies?page="+page+"&size=20",null),page);
+  }
+  @Override public FeedbackModels.Feedback submitFeedback(String type,String content,String requestId) {
+    return FeedbackJson.row(feedbackCall(false,"POST","",json("type",type,"content",content,"clientRequestId",requestId)));
+  }
+  @Override public FeedbackModels.Feedback replyToFeedback(String id,String reply,boolean completed,String requestId) {
+    return FeedbackJson.row(feedbackCall(true,"PUT","/"+encode(id),json("reply",reply,"status",completed?"completed":JSONObject.NULL,"clientRequestId",requestId)));
+  }
+  @Override public FeedbackModels.Export exportFeedback() {return FeedbackJson.export(feedbackCall(true,"POST","/export",null));}
+  @Override public FeedbackModels.ImportResult importFeedback(String csv) {return FeedbackJson.imported(feedbackCall(true,"POST","/import",json("csv",csv)));}
 
   private static String encode(String value) { try { return java.net.URLEncoder.encode(value,"UTF-8"); } catch(java.io.UnsupportedEncodingException e) { throw new IllegalStateException(e); } }
   private AdminNotice adminNoticeRow(JSONObject j) { return new AdminNotice(text(j,"id"),text(j,"title"),text(j,"content")); }

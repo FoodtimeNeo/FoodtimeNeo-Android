@@ -22,6 +22,7 @@ import java.util.function.*;
 
 public class MainActivity extends Activity {
   public FoodtimeRepository repo;
+  FeedbackDocuments feedbackDocuments;
   private boolean releaseChecked, releaseChecking, updateCheckPending;
   private AlertDialog updatePrompt, updateProgress;
   private UpdateDownloader activeDownloader;
@@ -105,6 +106,7 @@ public class MainActivity extends Activity {
     super.onCreate(state);
     Design.init(this);
     repo = ((RepositoryProvider) getApplication()).repository();
+    feedbackDocuments = new FeedbackDocuments(this,state);
     worker = ((RepositoryProvider) getApplication()).workExecutor();
     inboxWorker = ((RepositoryProvider) getApplication()).backgroundExecutor();
     loginNotices=getLastNonConfigurationInstance() instanceof LoginNoticeController retained?retained:new LoginNoticeController();
@@ -252,6 +254,10 @@ public class MainActivity extends Activity {
     screens.put("admin-reviews", AdminScreen::reviews);
     screens.put("admin-notices", AdminNoticesScreen::settings);
     screens.put("admin-reports", ReportsScreen::show);
+    screens.put("feedback", FeedbackScreen::list);
+    screens.put("feedback-detail", FeedbackScreen::detail);
+    screens.put("admin-feedback", FeedbackScreen::list);
+    screens.put("admin-feedback-detail", FeedbackScreen::detail);
     screens.put("admin-notice-create", AdminNoticesScreen::create);
     screens.put("admin-users", AdminScreen::users);
     screens.put("admin-dashboard", AdminDashboardScreen::show);
@@ -521,6 +527,7 @@ public class MainActivity extends Activity {
     state.putBundle("scrollPositions", scrollPositions);
     state.putString("pickingKey", pickingKey);
     state.putString("avatarPickingActor", avatarPickingActor);
+    feedbackDocuments.save(state);
     state.putLong("pendingOperation",pendingOperation);
     state.putBoolean("authRegistration",authRegistration);
     state.putString("tab", tab);
@@ -849,6 +856,8 @@ public class MainActivity extends Activity {
       case "admin-logs" -> "审核日志";
       case "admin-notices" -> "公告管理";
       case "admin-reports" -> "举报处理";
+      case "feedback", "admin-feedback" -> "建议与反馈";
+      case "feedback-detail", "admin-feedback-detail" -> "反馈详情";
       default -> "正在加载";
     };
   }
@@ -1083,6 +1092,7 @@ public class MainActivity extends Activity {
   @Override
   protected void onActivityResult(int request, int result, android.content.Intent data) {
     super.onActivityResult(request, result, data);
+    if(feedbackDocuments.result(request,result,data))return;
     if(request==103){
       String target=pickingKey,actor=avatarPickingActor;pickingKey=null;avatarPickingActor="";
       if(result!=RESULT_OK||data==null||data.getData()==null||target==null)return;
@@ -1261,6 +1271,7 @@ public class MainActivity extends Activity {
   }
   public void signedOut() {clearNavigation();showAuth(false);}
   private void clearNavigation() {
+    feedbackDocuments.reset();
     PrivateMessageReminders.disable(this);
     for(var stack:stacks.values())for(Route item:stack)if(item.kind().equals("avatar-crop"))discardPhoto(item.id());
     pickingKey=null;avatarPickingActor="";
@@ -1358,5 +1369,5 @@ public class MainActivity extends Activity {
   }
   @Override protected void onPause() { super.onPause();foreground=false;if(communityPager!=null)communityPager.cancelSwipe();resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW||level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL||level>=android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND)Ui.trimImages();}
-  @Override protected void onDestroy() {if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override protected void onDestroy() {if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();if(feedbackDocuments!=null)feedbackDocuments.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }
