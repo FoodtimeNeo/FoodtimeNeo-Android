@@ -231,6 +231,7 @@ public class MainActivity extends Activity {
     screens.put("following", FollowListScreen::following);
     screens.put("user-search", UserSearchScreen::show);
     screens.put("followers", FollowListScreen::followers);
+    screens.put("blocked-users", BlockedUsersScreen::show);
     screens.put("profile", ProfileScreen::profile);
     screens.put("profile-edit", ProfileScreen::edit);
     screens.put("bind-school-email", SchoolEmailScreen::binder);
@@ -826,6 +827,7 @@ public class MainActivity extends Activity {
       case "following" -> "我的关注";
       case "user-search" -> "搜索用户";
       case "followers" -> "关注我的";
+      case "blocked-users" -> "黑名单";
       case "profile-edit" -> "编辑资料";
       case "bind-school-email" -> "绑定学校邮箱";
       case "avatar-crop" -> "裁剪头像";
