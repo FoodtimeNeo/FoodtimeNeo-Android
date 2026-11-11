@@ -242,7 +242,8 @@ public final class Models {
   /** Follow relation state plus the target's follower count. */
   public record FollowState(boolean followed, long followerCount) {}
 
-  public record Notice(String id, String content, long publishedAt) {
+  public record Notice(String id, String content, long publishedAt,boolean isUpdate) {
+    public Notice(String id,String content,long publishedAt){this(id,content,publishedAt,false);}
     /** Compatibility for older test fixtures only; production uses content. */
     public Notice(String id,String title,String body,long publishedAt) {
       this(id,"# "+title+"\n\n"+body,publishedAt);
