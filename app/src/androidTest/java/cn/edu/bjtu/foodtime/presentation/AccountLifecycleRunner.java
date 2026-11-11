@@ -21,6 +21,8 @@ public final class AccountLifecycleRunner extends Instrumentation {
   private void await(String label,BooleanSupplier condition){long until=System.currentTimeMillis()+60000;while(System.currentTimeMillis()<until){boolean[] ready={false};ui(()->ready[0]=condition.getAsBoolean());if(ready[0])return;android.os.SystemClock.sleep(80);}throw new AssertionError("Timed out: "+label);}
   private void check(boolean condition,String label){if(!condition)throw new AssertionError(label);checks.add(label);try{java.nio.file.Files.write(new java.io.File(getTargetContext().getFilesDir(),"account-progress.txt").toPath(),String.join("\n",checks).getBytes(StandardCharsets.UTF_8));}catch(Exception error){throw new AssertionError(error);}}
   private View text(View root,String value){if(root instanceof TextView t&&value.contentEquals(t.getText()))return root;if(root instanceof ViewGroup g)for(int i=0;i<g.getChildCount();i++){View found=text(g.getChildAt(i),value);if(found!=null)return found;}return null;}
+  private EditText field(View root,String label){if(root instanceof EditText edit&&label.contentEquals(edit.getContentDescription()))return edit;if(root instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++){EditText found=field(group.getChildAt(i),label);if(found!=null)return found;}return null;}
+  private View button(View root,String label){if(root instanceof TextView text&&label.contentEquals(text.getText())&&root.isClickable())return root;if(root instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++){View found=button(group.getChildAt(i),label);if(found!=null)return found;}return null;}
   private void click(String value){await(value,()->text(a.root,value)!=null);ui(()->text(a.root,value).performClick());}
   private View tag(String value){return a.root.findViewWithTag(value);}
   private void clickTag(String value){await(value,()->tag(value)!=null&&tag(value).isEnabled());ui(()->tag(value).performClick());}
@@ -36,12 +38,16 @@ public final class AccountLifecycleRunner extends Instrumentation {
   private boolean contains(View root,String value){if(root instanceof TextView text&&text.getText().toString().contains(value))return true;if(root instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++)if(contains(group.getChildAt(i),value))return true;return false;}
   @Override public void onStart(){Bundle result=new Bundle();try{
     if(!BuildConfig.DEBUG||!BuildConfig.APPLICATION_ID.endsWith(".accountlifecyclecheck")||!BuildConfig.API_BASE_URL.equals("http://127.0.0.1:18089/api/v1/"))throw new AssertionError("Isolated loopback build required");
+    if(new HttpTransport(BuildConfig.API_BASE_URL).request("GET","system/ping",null,null).status()!=200)throw new AssertionError("Loopback bridge is unavailable");
     // A bounded Activity monitor avoids Instrumentation's unbounded idle wait on a busy emulator.
     ActivityMonitor monitor=addMonitor(MainActivity.class.getName(),null,false);
     getTargetContext().startActivity(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     Activity launched=waitForMonitorWithTimeout(monitor,90000);removeMonitor(monitor);
     if(!(launched instanceof MainActivity))throw new AssertionError("Activity creation timed out");a=(MainActivity)launched;
-    android.os.SystemClock.sleep(500);a.repo.login(args.getString("user"),args.getString("password"));ui(a::restore);await("login",()->a.repo.currentUser()!=null&&!a.isPageLoading()&&text(a.root,"正在连接…")==null);
+    // Follow the real form/serial worker, after initial session restoration has finished.
+    await("login form",()->field(a.root,"邮箱")!=null&&field(a.root,"密码")!=null);
+    ui(()->{field(a.root,"邮箱").setText(args.getString("user"));field(a.root,"密码").setText(args.getString("password"));button(a.root,"登录").performClick();});
+    await("login",()->a.repo.currentUser()!=null&&!a.isPageLoading()&&!a.operationInFlight()&&text(a.root,"正在连接…")==null);
     RemoteRepository other=new RemoteRepository(BuildConfig.API_BASE_URL,new HttpTransport(BuildConfig.API_BASE_URL));other.login(args.getString("user"),args.getString("password"));
     ui(()->a.selectTab("profile"));loaded("profile");click("账号");click("账号安全与注销");loaded("account-lifecycle");
     await("email actions",()->tag("unbind-code-send")!=null);check(contains(a.root,"每天只能成功发送一次")&&contains(a.root,"1 小时"),"Native account page explains daily sending, irreversible deletion and one-hour cooldown");
