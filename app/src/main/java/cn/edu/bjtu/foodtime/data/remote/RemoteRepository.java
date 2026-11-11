@@ -595,7 +595,7 @@ public final class RemoteRepository implements FoodtimeRepository {
         text(j,"content"),images,j.optLong("likeCount"),j.optLong("commentCount"),j.optInt("repostCount"),
         text(j,"repostOfId"),text(repost,"userDisplayName"),text(repost,"content"),
         j.optBoolean("likedByMe"),j.optBoolean("favoritedByMe"),text(j,"status"),
-        text(j,"reviewReason"),time(j,"createdAt"),text(j,"title"),text(j,"userAvatarUrl"),details,j.optLong("favoriteCount"),text(j,"reviewStage"),dish);
+        text(j,"reviewReason"),time(j,"createdAt"),text(j,"title"),text(j,"userAvatarUrl"),details,j.optLong("favoriteCount"),text(j,"reviewStage"),dish,Math.max(0,j.optLong("viewCount")));
   }
 
   private CommunityComment communityComment(JSONObject j) {
@@ -611,7 +611,7 @@ public final class RemoteRepository implements FoodtimeRepository {
         current.content(),current.imageUrls(),likeCount==null?current.likeCount():likeCount,
         current.commentCount(),current.repostCount(),current.repostOfId(),current.repostAuthor(),
         current.repostContent(),liked==null?current.likedByMe():liked,
-        favorited==null?current.favoritedByMe():favorited,current.status(),current.reviewReason(),current.createdAt(),current.title(),current.userAvatarUrl(),current.images(),favoriteCount==null?current.favoriteCount():favoriteCount,current.reviewStage(),current.linkedDish());
+        favorited==null?current.favoritedByMe():favorited,current.status(),current.reviewReason(),current.createdAt(),current.title(),current.userAvatarUrl(),current.images(),favoriteCount==null?current.favoriteCount():favoriteCount,current.reviewStage(),current.linkedDish(),current.viewCount());
     communityPostCache.put(id,updated);
     List<CommunityPost> feed=new ArrayList<>(communityFeed);
     for(int i=0;i<feed.size();i++) if(feed.get(i).id().equals(id)) feed.set(i,updated);
@@ -1231,6 +1231,12 @@ public final class RemoteRepository implements FoodtimeRepository {
         "price",type.equals("dishes")?Validation.price(price):null,"coverImageUrl",reference,"status",active?"active":"inactive"));
   }
   @Override public void removeEntity(String type,String id) { call("DELETE","admin/catalog/"+table(type)+"/"+id,null); }
+  @Override public long recordCommunityPostView(String postId,String requestId) {
+    JSONObject result=call("POST","community/posts/"+postId+"/views",json("clientRequestId",requestId));
+    Object count=result.opt("viewCount");
+    if(!(count instanceof Number)||((Number)count).longValue()<0) throw new RepositoryException(0,"INVALID_RESPONSE","浏览量响应异常",0);
+    return ((Number)count).longValue();
+  }
   private String managedImagePath(String type,String id) { return "admin/catalog/"+table(type)+"/"+id+"/images"; }
   @Override public CatalogImagePage managedImages(String type,String id,int page) {
     JSONObject data=call("GET",managedImagePath(type,id)+"?page="+page+"&size=12",null);

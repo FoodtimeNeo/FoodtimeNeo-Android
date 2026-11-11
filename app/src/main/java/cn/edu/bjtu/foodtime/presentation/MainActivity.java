@@ -415,6 +415,10 @@ public class MainActivity extends Activity {
     rememberScroll();
     if(kind.equals("direct-chat")) chatOriginTab=tab;
     stacks.get(tab).add(new Route(kind, id));
+    if(kind.equals("community-detail")) {
+      drafts.putString(draftKey("view-request"),java.util.UUID.randomUUID().toString());
+      drafts.remove(draftKey("view-recorded")); drafts.remove(draftKey("view-count"));
+    }
     render();
   }
 
