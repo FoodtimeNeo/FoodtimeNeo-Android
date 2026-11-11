@@ -96,12 +96,24 @@ final class ImageLoader {
   static void bind(MainActivity a,FrameLayout frame,ImageView image,TextView placeholder,String path,Consumer<Bitmap> display,Runnable onFailure,boolean eager) {
     final Runnable[] release={null};final boolean[] completed={false},failed={false};final int[] generation={0};
     Runnable check=()->{
-      boolean visible=!paused&&frame.isAttachedToWindow()&&frame.getWindowVisibility()==View.VISIBLE&&(eager||frame.getGlobalVisibleRect(new Rect()))&&frame.getWidth()>0;
+      if(completed[0]||failed[0])return;
+      boolean attached=!paused&&!a.isDestroyed()&&frame.isAttachedToWindow()&&frame.getWindowVisibility()==View.VISIBLE;
+      boolean thumbnail=path.startsWith("/api/v1/media/")&&path.endsWith("?size=thumb");
+      int bound=128;while(bound<frame.getWidth()&&bound<1600)bound*=2;bound=Math.min(1600,bound);
+      // Thumbnail decode size is known before measure. Restore both columns before a
+      // translated destination page becomes visible; cold images remain visibility-gated.
+      if(thumbnail)bound=480;
+      if(attached&&release[0]==null&&(thumbnail||frame.getWidth()>0)){
+        Decoded cached=MEMORY.get(a.repo.imageIdentity()+":"+path+":"+bound);
+        if(cached!=null&&cached.freshUntil()>System.currentTimeMillis()){
+          completed[0]=true;release[0]=()->{};
+          image.setImageBitmap(cached.bitmap());placeholder.setClickable(false);placeholder.setFocusable(false);placeholder.setVisibility(View.GONE);
+          display.accept(cached.bitmap());return;
+        }
+      }
+      boolean visible=attached&&(eager||frame.getGlobalVisibleRect(new Rect()))&&frame.getWidth()>0;
       if(!visible){if(release[0]!=null&&!completed[0]){generation[0]++;release[0].run();release[0]=null;}return;}
       if(release[0]!=null||failed[0])return;
-      int bound=128;while(bound<frame.getWidth()&&bound<1600)bound*=2;bound=Math.min(1600,bound);
-      // The feed, detail and viewer all share the same 480px thumbnail decode.
-      if(path.startsWith("/api/v1/media/")&&path.endsWith("?size=thumb"))bound=480;
       int ticket=++generation[0];
       release[0]=subscribe(a,path,bound,bitmap->{
         if(a.isDestroyed()||ticket!=generation[0]||!frame.isAttachedToWindow())return;
@@ -115,7 +127,7 @@ final class ImageLoader {
     ViewTreeObserver.OnGlobalLayoutListener layout=check::run;
     Runnable reset=()->{generation[0]++;if(release[0]!=null)release[0].run();release[0]=null;completed[0]=false;failed[0]=false;placeholder.setClickable(false);placeholder.setFocusable(false);image.setImageDrawable(null);placeholder.setVisibility(View.VISIBLE);};
     frame.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener(){
-      @Override public void onViewAttachedToWindow(View v){BINDINGS.put(frame,new Runnable[]{reset,check});frame.getViewTreeObserver().addOnScrollChangedListener(scroll);frame.getViewTreeObserver().addOnGlobalLayoutListener(layout);frame.post(check);}
+      @Override public void onViewAttachedToWindow(View v){BINDINGS.put(frame,new Runnable[]{reset,check});frame.getViewTreeObserver().addOnScrollChangedListener(scroll);frame.getViewTreeObserver().addOnGlobalLayoutListener(layout);check.run();}
       @Override public void onViewDetachedFromWindow(View v){BINDINGS.remove(frame);if(frame.getViewTreeObserver().isAlive()){frame.getViewTreeObserver().removeOnScrollChangedListener(scroll);frame.getViewTreeObserver().removeOnGlobalLayoutListener(layout);}reset.run();}
     });
   }
