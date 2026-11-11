@@ -220,7 +220,7 @@ public final class Ui {
     input.setId(caption.getLabelFor());
     l.addView(input, new LinearLayout.LayoutParams(-1, -2));
     gap(l, 16);
-    if (!password && !label.equals("邮箱验证码") && !label.contains("邀请码") && c instanceof MainActivity a) {
+    if (!password && !label.contains("邀请码") && !label.contains("验证码") && c instanceof MainActivity a) {
       String key = a.draftKey(label);
       input.setText(a.drafts.getString(key, ""));
       observe(input, () -> a.drafts.putString(key, input.getText().toString()));

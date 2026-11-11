@@ -237,9 +237,17 @@ public final class RemoteRepository implements FoodtimeRepository {
     }
   }
   @Override public User login(String account,String password) {
+    return login(account,password,null,null);
+  }
+  @Override public User login(String account,String password,String challengeId,String challengeAnswer) {
     Validation.accountEmail(account); Validation.password(password,false);
     csrf=null; token();
-    call("POST","auth/login",json("account",account.strip(),"password",password));
+    JSONObject body=json("account",account.strip(),"password",password);
+    if(challengeId!=null&&!challengeId.isBlank()&&challengeAnswer!=null&&!challengeAnswer.isBlank()) {
+      try { body.put("challengeId",challengeId); body.put("challengeAnswer",challengeAnswer.strip()); }
+      catch(JSONException failure) { throw new IllegalArgumentException("验证码参数不合法",failure); }
+    }
+    call("POST","auth/login",body);
     csrf=null; token(); profile(); fetchCapabilitiesQuietly(); return user;
   }
   @Override public RegistrationPolicy registrationPolicy() {
@@ -251,6 +259,19 @@ public final class RemoteRepository implements FoodtimeRepository {
     if(revision.isBlank())throw new RepositoryException(0,"INVALID_RESPONSE","注册策略响应异常，请稍后重试",0);
     return new RegistrationPolicy(mode,data.optBoolean("canSendEmailCode",false),
         data.optBoolean("invitationRequired",false),revision);
+  }
+  @Override public CaptchaChallenge captcha() {
+    JSONObject data=call("GET","auth/captcha",null);
+    String challengeId=text(data,"challengeId"),image=text(data,"imageBase64"),expires=text(data,"expiresAt");
+    if(!challengeId.matches("[0-9a-fA-F-]{36}")||image.isBlank())
+      throw new RepositoryException(0,"INVALID_RESPONSE","验证码响应异常，请重试",0);
+    try {
+      java.util.Base64.getDecoder().decode(image);
+      Instant.parse(expires);
+    } catch(RuntimeException failure) {
+      throw new RepositoryException(0,"INVALID_RESPONSE","验证码响应异常，请重试",0);
+    }
+    return new CaptchaChallenge(challengeId,image,expires);
   }
   @Override public String sendVerificationCode(String email) {
     Validation.email(email);

@@ -6,7 +6,7 @@
 
 | 行为 | 接口 |
 | --- | --- |
-| CSRF、注册策略、登录、注册验证码、注册、退出 | /auth/csrf、/auth/registration-policy、/auth/login、/auth/register/email-code、/auth/register、/auth/logout |
+| CSRF、注册策略、登录、登录验证码、注册验证码、注册、退出 | /auth/csrf、/auth/registration-policy、/auth/login、/auth/captcha、/auth/register/email-code、/auth/register、/auth/logout |
 | 当前资料与改密 | /users/me/profile、/users/me/password |
 | 当前有效能力 | GET /users/me/capabilities |
 | 关注／粉丝 | GET /users/{当前用户UUID}/following、/followers，page/size 分页；PUT/DELETE /users/{目标UUID}/follow |
@@ -73,3 +73,7 @@ PUT/DELETE /review-replies/{id}/like，响应likedByMe/likeCount/counterVersion�
 ## 能力授权（2026-11-12）
 
 登录成功和恢复会话后读取 `GET /users/me/capabilities`，保存 `capabilities` 与 `revision`。管理动作的显示和启用只依据服务器返回的能力名（如 `catalog.edit`、`moderation.review`），不在客户端按角色名推断；写请求仍由服务器逐次校验。读取失败保持空能力并允许重试，不默认授权。退出、401、切号或角色/状态变化时清空能力快照。
+
+## 登录验证码（2026-11-12）
+
+登录返回 `CAPTCHA_REQUIRED` 时，客户端请求 `GET /auth/captcha`，在登录页显示 PNG 图片和答案输入框；再次提交时携带 `challengeId`/`challengeAnswer`。`CAPTCHA_INVALID` 表示题目无效、过期、已消费或设备不匹配，客户端清空答案并换题，不把服务端错误解释为密码错误。图片只在内存中解码展示，不写入草稿或磁盘；答案字段跳过 `Ui.field` 自动草稿。验证码默认未启用，由服务端部署决定；客户端只响应服务端错误码，不按版本自行跳过。
