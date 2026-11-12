@@ -109,6 +109,10 @@ final class DishScreen {
       params.leftMargin = Ui.dp(a, 8);
       action.addView(favorite, params);
       setupFavorite(a, favorite, d.id());
+      TextView correct = Ui.button(a, "纠错", false, () -> a.go("correction", d.id()));
+      LinearLayout.LayoutParams correctionParams = new LinearLayout.LayoutParams(0, Ui.dp(a, 48), 1);
+      correctionParams.leftMargin = Ui.dp(a, 8);
+      action.addView(correct, correctionParams);
     }
     page.addView(action);
     Ui.gap(page, 20);

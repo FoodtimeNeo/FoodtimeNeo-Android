@@ -244,7 +244,8 @@ public class LocalRepository implements FoodtimeRepository {
             o.optString("name"),
             new BigDecimal(o.optString("price", "0")),
             o.optString("description"),
-            active(o));
+            active(o),
+            o.optLong("revision", 1));
   }
 
   public List<Stall> stalls(String hallId) {

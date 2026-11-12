@@ -39,7 +39,8 @@ public final class Models {
       String name,
       BigDecimal price,
       String description,
-      boolean active) {}
+      boolean active,
+      long revision) {}
 
   public record DishSearchRow(String id, String name, BigDecimal price,
                               String stallName, String diningHallName,
@@ -51,6 +52,35 @@ public final class Models {
 
   public record FavoriteGroup(String id, String kind, String name, int sortOrder,
                               long revision, long itemCount) {}
+
+  public record CorrectionProposal(String targetType, String targetId, long baseRevision,
+                                   List<String> changedFields, String name, String description,
+                                   BigDecimal price, String reason, List<String> evidenceUrls,
+                                   String idempotencyKey) {
+    public CorrectionProposal { changedFields = List.copyOf(changedFields); evidenceUrls = List.copyOf(evidenceUrls); }
+  }
+
+  public record CatalogCorrection(String id, String targetType, String targetId, String targetSummary,
+                                  long baseRevision, String originalName, String originalDescription,
+                                  BigDecimal originalPrice, String proposedName, String proposedDescription,
+                                  BigDecimal proposedPrice, List<String> changedFields, String reason,
+                                  String status, String reviewNote, long createdAt, long reviewedAt,
+                                  long revision, List<String> evidenceUrls) {
+    public CatalogCorrection { changedFields = List.copyOf(changedFields); evidenceUrls = List.copyOf(evidenceUrls); }
+  }
+
+  public record CatalogCorrectionPage(List<CatalogCorrection> items, long total, int page, int size) {
+    public CatalogCorrectionPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
+  public record CatalogCorrectionAdmin(CatalogCorrection correction, String submitterId,
+                                       String submitterName, String submitterEmail) {}
+
+  public record CatalogCorrectionAdminPage(List<CatalogCorrectionAdmin> items, long total, int page, int size) {
+    public CatalogCorrectionAdminPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
 
   public record DishSearchFilters(List<String> diningHallIds, BigDecimal minPrice,
                                   BigDecimal maxPrice, BigDecimal minRating, String sort) {

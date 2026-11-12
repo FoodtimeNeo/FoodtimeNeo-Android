@@ -56,6 +56,23 @@ public interface CatalogRepository {
   default java.util.List<String> removeFavoriteGroupMember(String groupId, String targetId) {
     throw new UnsupportedOperationException();
   }
+
+  default CatalogCorrectionPage myCorrections(int page) {
+    throw new UnsupportedOperationException();
+  }
+
+  default CatalogCorrection submitCorrection(CorrectionProposal proposal) {
+    throw new UnsupportedOperationException();
+  }
+
+  default CatalogCorrectionAdminPage adminCorrections(String status, int page) {
+    throw new UnsupportedOperationException();
+  }
+
+  default CatalogCorrectionAdmin decideCorrection(String id, String decision, String note, long expectedRevision) {
+    throw new UnsupportedOperationException();
+  }
+
   default boolean dishFavorite(String dishId) { throw new UnsupportedOperationException(); }
   default boolean setDishFavorite(String dishId, boolean saved) { throw new UnsupportedOperationException(); }
 

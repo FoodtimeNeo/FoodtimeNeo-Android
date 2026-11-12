@@ -69,7 +69,7 @@ public final class EmbeddedRepliesRunner extends Instrumentation {
         requests.add(args[1]+"|"+args[2]+"|"+args[3]);
         if(posts.incrementAndGet()==1) throw new IllegalStateException("测试连接失败");yield null;
       }
-      case "dish" -> new Dish("dish","stall","测试菜品",new BigDecimal("10.00"),"",true);
+      case "dish" -> new Dish("dish","stall","测试菜品",new BigDecimal("10.00"),"",true,1);
       case "stall" -> new Stall("stall","hall","测试档口","",true);
       case "hall" -> new Hall("hall","测试食堂","",true);
       case "photos" -> List.of();
