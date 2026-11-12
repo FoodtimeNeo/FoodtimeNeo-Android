@@ -140,6 +140,8 @@ final class ProfileScreen {
       roundedAction(a,panel,"想吃清单",false,()->a.go("favorite-dishes",""));
       Ui.gap(panel,10);
       roundedAction(a,panel,"我的纠错",false,()->a.go("my-corrections",""));
+      Ui.gap(panel,10);
+      roundedAction(a,panel,"浏览历史",false,()->a.go("history",""));
     }
     else if(selected==2) roundedAction(a,panel,action,false,() -> a.go("mine-submissions",""));
     else if(selected==3) {

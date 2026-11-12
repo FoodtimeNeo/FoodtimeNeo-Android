@@ -28,6 +28,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile String csrf;
   private volatile User user;
   private volatile CapabilitySnapshot capabilities=CapabilitySnapshot.empty();
+  private volatile HistorySettings historySettings;
   private String capabilitiesOwner="";
   private final Object dashboardLock=new Object();
   private long dashboardRequest;
@@ -574,6 +575,65 @@ public final class RemoteRepository implements FoodtimeRepository {
         "evidenceUrls",array(proposal.evidenceUrls()),"idempotencyKey",proposal.idempotencyKey());
     return correction(call("POST","users/me/catalog-corrections",body));
   }
+  @Override public HistorySettings historySettings() {
+    if(historySettings==null) historySettings=historySettings(call("GET","users/me/browsing-history/settings",null));
+    return historySettings;
+  }
+  @Override public HistorySettings refreshHistorySettings() {
+    historySettings=null;
+    return historySettings();
+  }
+  @Override public HistorySettings updateHistorySettings(boolean enabled,long expectedRevision) {
+    historySettings=historySettings(call("PUT","users/me/browsing-history/settings",
+        json("enabled",enabled,"expectedRevision",expectedRevision)));
+    return historySettings;
+  }
+  @Override public HistoryPage history(String kind,int page) {
+    JSONObject data=call("GET","users/me/browsing-history?kind="+encode(kind)+"&page="+page+"&size=50",null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","浏览历史响应异常，请重试",0);
+    List<HistoryItem> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++)items.add(historyItem(rows.optJSONObject(i)));
+    return new HistoryPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",50));
+  }
+  @Override public void recordHistory(String kind,String targetId) {
+    try {
+      HistorySettings settings=historySettings();
+      if(!settings.enabled())return;
+      long epoch="dish".equals(kind)?settings.dishEpoch():settings.postEpoch();
+      String eventId=UUID.randomUUID().toString();
+      try {
+        call("PUT","users/me/browsing-history/"+encode(kind)+"/"+encode(targetId),
+            json("epoch",epoch,"visitEventId",eventId));
+      } catch(RepositoryException stale) {
+        if(!"HISTORY_EPOCH_STALE".equals(stale.code()))return;
+        historySettings=null;
+        settings=historySettings();
+        if(!settings.enabled())return;
+        call("PUT","users/me/browsing-history/"+encode(kind)+"/"+encode(targetId),
+            json("epoch","dish".equals(kind)?settings.dishEpoch():settings.postEpoch(),"visitEventId",eventId));
+      }
+    } catch(RuntimeException ignored) {
+      // History is best-effort and must never turn a detail view into an error.
+    }
+  }
+  @Override public void deleteHistory(String kind,String targetId) {
+    call("DELETE","users/me/browsing-history/"+encode(kind)+"/"+encode(targetId),null);
+    historySettings=null;
+  }
+  @Override public void clearHistory(String kind) {
+    call("DELETE","users/me/browsing-history?kind="+encode(kind),null);
+    historySettings=null;
+  }
+  private static HistorySettings historySettings(JSONObject j) {
+    return new HistorySettings(j.optBoolean("enabled",true),j.optLong("revision"),
+        j.optLong("dishEpoch"),j.optLong("postEpoch"));
+  }
+  private static HistoryItem historyItem(JSONObject j) {
+    return new HistoryItem(text(j,"kind"),text(j,"targetId"),text(j,"diningHallId"),text(j,"stallId"),
+        time(j,"visitedAt"),j.optBoolean("available"),text(j,"title"),text(j,"subtitle"),text(j,"imageUrl"));
+  }
+
   @Override public CatalogCorrectionAdminPage adminCorrections(String status,int page) {
     StringBuilder path=new StringBuilder("admin/catalog-corrections?page=").append(page).append("&size=20");
     if(status!=null&&!status.isBlank())path.append("&status=").append(encode(status));
@@ -1699,7 +1759,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     catalogUploads.clear();
     venues.clear();
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(true);}
-    synchronized(dashboardLock) {user=null;dashboardSnapshot=null;dashboardRequest++;resetFollows();clearRecommendations();clearCapabilities();}
+    synchronized(dashboardLock) {user=null;dashboardSnapshot=null;dashboardRequest++;resetFollows();clearRecommendations();clearCapabilities();historySettings=null;}
     avatarUploads.clear();csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
 
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();

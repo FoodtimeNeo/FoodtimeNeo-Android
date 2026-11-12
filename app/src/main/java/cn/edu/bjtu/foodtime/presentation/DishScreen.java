@@ -51,6 +51,7 @@ final class DishScreen {
   static void detail(MainActivity a, LinearLayout page, MainActivity.Route route) {
     Dish d = a.repo.dish(route.id());
     if (d == null || !d.active()) throw new IllegalArgumentException("菜品不存在或已下架");
+    a.recordVisit("dish", d.id());
     Stall s = a.repo.stall(d.stallId());
     Hall h = a.repo.hall(s.diningHallId());
     a.heading(page, "01.3", d.name(), h.name() + " · " + s.name());

@@ -194,6 +194,7 @@ final class CommunityScreen {
   static void detail(MainActivity a,LinearLayout page,MainActivity.Route route) {
     CommunityPost post=a.repo.communityPost(route.id());
     if(post==null) throw new IllegalArgumentException("动态不存在或暂不可见");
+    if(post.status().equals("approved")) a.recordVisit("post", post.id());
     if(post.status().equals("pending")) {
       TextView notice = Ui.text(a, "这篇食记正在审核，通过前仅自己可见。", 14, Design.RED);
       notice.setPadding(Ui.dp(a, 14), Ui.dp(a, 10), Ui.dp(a, 14), Ui.dp(a, 10));

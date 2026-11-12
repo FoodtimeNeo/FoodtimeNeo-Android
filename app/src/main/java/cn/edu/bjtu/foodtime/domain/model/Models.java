@@ -82,6 +82,17 @@ public final class Models {
     public boolean hasMore() { return (long) page * size < total; }
   }
 
+  public record HistorySettings(boolean enabled, long revision, long dishEpoch, long postEpoch) {}
+
+  public record HistoryItem(String kind, String targetId, String diningHallId, String stallId,
+                            long visitedAt, boolean available, String title, String subtitle,
+                            String imageUrl) {}
+
+  public record HistoryPage(List<HistoryItem> items, long total, int page, int size) {
+    public HistoryPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
   public record DishSearchFilters(List<String> diningHallIds, BigDecimal minPrice,
                                   BigDecimal maxPrice, BigDecimal minRating, String sort) {
     public DishSearchFilters { diningHallIds = diningHallIds == null ? List.of() : List.copyOf(diningHallIds); }
