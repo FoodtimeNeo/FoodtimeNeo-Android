@@ -70,9 +70,10 @@ final class AccountLifecycleScreen {
       a.accountActionConfirmation=dialog;dialog.setOnDismissListener(ignored->{if(a.accountActionConfirmation==dialog)a.accountActionConfirmation=null;});
       dialog.setOnShowListener(ignored->dialog.getButton(-1).setOnClickListener(view->{
         if(!current()){dialog.dismiss();a.message("页面或账号状态已变化，请重新读取后操作");return;}if(a.operationInFlight())return;dialog.dismiss();disable();AtomicReference<String> reusable=new AtomicReference<>();
+        String ownerId=a.repo.currentUser()==null?"":a.repo.currentUser().id();
         a.request(submit,error,()->reusable.set(deletion?a.repo.deleteAccount(verification):a.repo.unbindSchoolEmail(verification)),()->{
           code.setText("");a.clearDraft(route);
-          if(deletion){a.signedOut();a.message("账号已注销，邮箱可在 "+NoticeTimes.display(reusable.get())+" 后重新使用；新注册账号不继承旧数据。");}
+          if(deletion){if(!ownerId.isBlank())PostDraftStore.purge(a,ownerId);a.signedOut();a.message("账号已注销，邮箱可在 "+NoticeTimes.display(reusable.get())+" 后重新使用；新注册账号不继承旧数据。");}
           else{a.back();a.message("学校邮箱已解绑，当前为访客；可在 "+NoticeTimes.display(reusable.get())+" 后重新绑定。");}
         });
       }));dialog.show();
