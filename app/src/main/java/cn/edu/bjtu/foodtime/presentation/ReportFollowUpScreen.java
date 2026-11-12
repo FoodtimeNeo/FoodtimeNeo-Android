@@ -33,6 +33,7 @@ final class ReportFollowUpScreen {
     page.addView(rows);
     Ui.gap(page, 12);
     page.addView(input);
+    EvidenceSlots.show(activity, page, "report-followup-evidence:" + reportId);
     TextView submit = Ui.button(activity, "提交追问", true, this::submit);
     page.addView(submit);
     Ui.gap(page, 8);
@@ -73,7 +74,10 @@ final class ReportFollowUpScreen {
       return;
     }
     activity.request(null, error,
-        () -> activity.repo.addReportFollowUp(reportId, content, requestId), () -> {
+        () -> {
+          var evidence = EvidenceSlots.upload(activity, "report-followup-evidence:" + reportId);
+          activity.repo.addReportFollowUp(reportId, content, requestId, evidence);
+        }, () -> {
           input.setText("");
           requestId = UUID.randomUUID().toString();
           activity.message("追问已提交");

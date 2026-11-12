@@ -1172,7 +1172,8 @@ public class MainActivity extends Activity {
       if(selected==null)return;
       startOperation(null,null,"导入图片",selectedKey,() -> PhotoImport.prepare(this,selected),path -> {
         rememberScroll();String previous=drafts.getString(selectedKey,"");drafts.putString(selectedKey,path);
-        worker.execute(() -> PhotoImport.discard(this,previous));renderContent();
+        worker.execute(() -> PhotoImport.discard(this,previous));
+        if ("appeal_only".equals(repo.sessionMode())) showAppealOnly(); else renderContent();
       });
     }
   }

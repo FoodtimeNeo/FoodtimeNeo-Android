@@ -47,6 +47,7 @@ final class CorrectionScreen {
     price.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
     price.setText(dish.price() == null ? "" : dish.price().stripTrailingZeros().toPlainString());
 
+    EvidenceSlots.show(activity, page, "correction-evidence:" + dish.id());
     Ui.gap(page, 8);
     EditText reason = Ui.field(page, "更正理由", false, true);
     reason.setHint("例如：食堂菜单已经更新");
@@ -78,17 +79,21 @@ final class CorrectionScreen {
           return;
         }
       }
-      CorrectionProposal proposal = new CorrectionProposal("dish", dish.id(), dish.revision(),
-          fields, name.getText().toString(), description.getText().toString(), proposedPrice,
-          reasonText, List.of(), idempotencyKey);
-      activity.request(submit, error, () -> activity.repo.submitCorrection(proposal), () -> {
+      final BigDecimal finalPrice = proposedPrice;
+      activity.request(submit, error, () -> {
+        var evidence = EvidenceSlots.upload(activity, "correction-evidence:" + dish.id());
+        CorrectionProposal proposal = new CorrectionProposal("dish", dish.id(), dish.revision(),
+            fields, name.getText().toString(), description.getText().toString(), finalPrice,
+            reasonText, evidence, idempotencyKey);
+        activity.repo.submitCorrection(proposal);
+      }, () -> {
         activity.message("纠错提案已提交，等待管理员核对");
         activity.back();
       });
     });
     page.addView(submit);
     Ui.gap(page, 8);
-    page.addView(Ui.text(activity, "每个认证用户每天最多提交 5 单；证据图片可在 Web 端补充。", 12, Design.MUTED));
+    page.addView(Ui.text(activity, "每个认证用户每天最多提交 5 单；最多 3 张证据。", 12, Design.MUTED));
   }
 
   static void mine(MainActivity activity, LinearLayout page, MainActivity.Route route) {
