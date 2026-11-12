@@ -73,6 +73,34 @@ public interface CatalogRepository {
     throw new UnsupportedOperationException();
   }
 
+  default HistorySettings historySettings() {
+    throw new UnsupportedOperationException();
+  }
+
+  default HistorySettings refreshHistorySettings() {
+    return historySettings();
+  }
+
+  default HistorySettings updateHistorySettings(boolean enabled, long expectedRevision) {
+    throw new UnsupportedOperationException();
+  }
+
+  default HistoryPage history(String kind, int page) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void recordHistory(String kind, String targetId) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void deleteHistory(String kind, String targetId) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void clearHistory(String kind) {
+    throw new UnsupportedOperationException();
+  }
+
   default boolean dishFavorite(String dishId) { throw new UnsupportedOperationException(); }
   default boolean setDishFavorite(String dishId, boolean saved) { throw new UnsupportedOperationException(); }
 
