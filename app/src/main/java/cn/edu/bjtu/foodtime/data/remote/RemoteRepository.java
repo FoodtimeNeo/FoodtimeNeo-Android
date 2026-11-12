@@ -575,6 +575,42 @@ public final class RemoteRepository implements FoodtimeRepository {
         "evidenceUrls",array(proposal.evidenceUrls()),"idempotencyKey",proposal.idempotencyKey());
     return correction(call("POST","users/me/catalog-corrections",body));
   }
+  @Override public NotificationPreferences notificationPreferences() {
+    JSONObject data=call("GET","users/me/notification-preferences",null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","提醒设置响应异常，请重试",0);
+    List<NotificationPreference> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++) {
+      JSONObject row=rows.optJSONObject(i);
+      items.add(new NotificationPreference(text(row,"category"),row.optBoolean("enabled"),
+          row.optLong("revision")));
+    }
+    return new NotificationPreferences(items);
+  }
+  @Override public NotificationPreference updateNotificationPreference(String category,boolean enabled,
+      long expectedRevision) {
+    JSONObject data=call("PUT","users/me/notification-preferences/"+encode(category),
+        json("enabled",enabled,"expectedRevision",expectedRevision));
+    return new NotificationPreference(text(data,"category"),data.optBoolean("enabled"),
+        data.optLong("revision"));
+  }
+  @Override public NotificationEventPage notificationEvents(long afterSeq,int limit) {
+    JSONObject data=call("GET","users/me/notification-events?afterSeq="+afterSeq+"&limit="+limit,null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","提醒事件响应异常，请重试",0);
+    List<NotificationEvent> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++) {
+      JSONObject row=rows.optJSONObject(i);
+      items.add(new NotificationEvent(text(row,"eventId"),row.optLong("seq"),text(row,"category"),
+          text(row,"title"),text(row,"body"),text(row,"refType"),text(row,"refId"),
+          time(row,"createdAt"),text(row,"deliveryStatus")));
+    }
+    return new NotificationEventPage(items,data.optLong("nextSeq",afterSeq));
+  }
+  @Override public void markNotificationDelivered(String eventId) {
+    call("POST","users/me/notification-events/"+encode(eventId)+"/delivered",null);
+  }
+
   @Override public ReportFollowUpPage reportFollowUps(String reportId,int page) {
     JSONObject data=call("GET","users/me/reports/"+encode(reportId)+"/follow-ups?page="+page+"&size=20",null);
     JSONArray rows=data.optJSONArray("items");

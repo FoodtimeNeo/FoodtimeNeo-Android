@@ -121,6 +121,23 @@ public interface CatalogRepository {
     throw new UnsupportedOperationException();
   }
 
+  default NotificationPreferences notificationPreferences() {
+    throw new UnsupportedOperationException();
+  }
+
+  default NotificationPreference updateNotificationPreference(String category, boolean enabled,
+                                                              long expectedRevision) {
+    throw new UnsupportedOperationException();
+  }
+
+  default NotificationEventPage notificationEvents(long afterSeq, int limit) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void markNotificationDelivered(String eventId) {
+    throw new UnsupportedOperationException();
+  }
+
   default boolean dishFavorite(String dishId) { throw new UnsupportedOperationException(); }
   default boolean setDishFavorite(String dishId, boolean saved) { throw new UnsupportedOperationException(); }
 

@@ -218,6 +218,7 @@ public class MainActivity extends Activity {
     screens.put("history", HistoryScreen::show);
     screens.put("report-receipts", ReportReceiptScreen::show);
     screens.put("report-followups", ReportFollowUpScreen::show);
+    screens.put("notification-settings", NotificationSettingsScreen::show);
     screens.put("community", CommunityScreen::feed);
     screens.put("community-following", CommunityScreen::feed);
     screens.put("community-search", CommunityDiscoveryScreen::show);
@@ -299,6 +300,8 @@ public class MainActivity extends Activity {
     if (PrivateMessageReminders.configured(this, repo.currentUser().id())) {
       PrivateMessageReminders.ensureScheduled(this);
     }
+    NotificationEventReminders.configure(this, repo.currentUser().id());
+    NotificationEventReminders.ensureScheduled(this);
     loginNotices.check(repo,inboxWorker);
     render();
     updateCheckPending = true;
@@ -850,6 +853,7 @@ public class MainActivity extends Activity {
       case "history" -> "浏览历史";
       case "report-receipts" -> "举报与处理决定";
       case "report-followups" -> "追问记录";
+      case "notification-settings" -> "提醒设置";
       case "following" -> "我的关注";
       case "user-search" -> "搜索用户";
       case "followers" -> "关注我的";
@@ -1309,6 +1313,7 @@ public class MainActivity extends Activity {
     if(accountActionConfirmation!=null){accountActionConfirmation.dismiss();accountActionConfirmation=null;}
     feedbackDocuments.reset();
     PrivateMessageReminders.disable(this);
+    NotificationEventReminders.disable(this);
     for(var stack:stacks.values())for(Route item:stack)if(item.kind().equals("avatar-crop"))discardPhoto(item.id());
     pickingKey=null;avatarPickingActor="";
     cancelNavigation();contentReady=false;displayedActor="";communityLoadedAt.clear();communityLoadedFor="";

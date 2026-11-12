@@ -117,6 +117,20 @@ public final class Models {
     public boolean hasMore() { return (long) page * size < total; }
   }
 
+  public record NotificationPreference(String category, boolean enabled, long revision) {}
+
+  public record NotificationPreferences(List<NotificationPreference> items) {
+    public NotificationPreferences { items = List.copyOf(items); }
+  }
+
+  public record NotificationEvent(String eventId, long seq, String category, String title,
+                                  String body, String refType, String refId, long createdAt,
+                                  String deliveryStatus) {}
+
+  public record NotificationEventPage(List<NotificationEvent> items, long nextSeq) {
+    public NotificationEventPage { items = List.copyOf(items); }
+  }
+
   public record ModerationDecisionPage(List<ModerationDecision> items, long total, int page, int size) {
     public ModerationDecisionPage { items = List.copyOf(items); }
     public boolean hasMore() { return (long) page * size < total; }
