@@ -87,4 +87,32 @@ public class HttpTransportTest {
   public void absoluteUrlsCannotSendSessionCookiesToAnotherOrigin() throws Exception {
     client.request("GET", "http://example.test/steal", null, null);
   }
+
+  /** release 默认 fail-closed：公网 http 必须拒绝，回环联调地址仍可用。 */
+  @Test public void cleartextPublicIpIsRejectedByDefault() {
+    assertThrows(IllegalArgumentException.class,
+        () -> new HttpTransport("http://154.9.252.201/api/v1/"));
+  }
+
+  @Test public void loopbackCleartextIsAllowedForLocalDev() {
+    new HttpTransport("http://127.0.0.1:8080/api/v1/");
+    new HttpTransport("http://localhost:8080/api/v1/");
+    new HttpTransport("http://10.0.2.2:8080/api/v1/");
+  }
+
+  @Test public void debugFlagExplicitlyAllowsLanCleartext() {
+    new HttpTransport("http://154.9.252.201/api/v1/",
+        new java.net.CookieManager(null, java.net.CookiePolicy.ACCEPT_ORIGINAL_SERVER), true);
+  }
+
+  @Test public void nonHttpSchemeIsRejected() {
+    assertThrows(IllegalArgumentException.class,
+        () -> new HttpTransport("ftp://154.9.252.201/api/v1/"));
+  }
+
+  @Test public void loopbackDetection() {
+    assertTrue(HttpTransport.isLoopback("localhost"));
+    assertTrue(HttpTransport.isLoopback("127.0.0.1"));
+    assertTrue(HttpTransport.isLoopback("10.0.2.2"));
+  }
 }

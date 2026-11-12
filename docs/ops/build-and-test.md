@@ -31,7 +31,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 `127.0.0.1` 指向设备自身，通过ADB反向映射访问电脑8080服务。若电脑Backend监听18080，可使用 `adb reverse tcp:8080 tcp:18080`，应用地址仍保持设备端8080。多设备时为每条ADB命令指定同一 `-s <设备序列号>`。
 
-`FOODTIME_API_BASE_URL` 应包含 `/api/v1/`。明文HTTP只放行指定服务器和127.0.0.1，其他服务使用HTTPS；只改构建地址不会自动扩大明文白名单。Cookie绑定服务来源，切换来源会放弃旧会话；应用不预填线上凭据。
+`FOODTIME_API_BASE_URL` 应包含 `/api/v1/`。Release 默认禁止明文，`verifyReleaseBaseUrl` 会在地址不是 HTTPS（回环除外）时使 `assembleRelease`/`bundleRelease` 失败；debug 仅放行 `127.0.0.1`、`10.0.2.2` 回环。只改构建地址不会自动扩大明文白名单。Cookie绑定服务来源，切换来源会放弃旧会话；应用不预填线上凭据。
 
 Debug和Release默认都关闭社区原型并使用真实接口。社区联调后端应包含V19–V23迁移；用FOODTIME_API_BASE_URL选择本机服务。
 
@@ -95,7 +95,7 @@ CD通过Gradle环境变量传递签名参数，临时密钥只写入runner的临
 
 通过Instrumentation运行参数userAccount、adminAccount、testPassword传入本地测试账号；接口Runner还需要superadminAccount。账号凭据由调用方提供。完整写入测试创建临时帖子并以带原因软下架结束，重复运行遵守正常上传/提交限制。当前结构、接口说明及后端验收见Backend的docs/community-delivery.md。
 
-正式包的网络安全配置禁止全部明文连接；仅 debug 资源覆盖允许 `127.0.0.1`。`IpConnectionRunner` 同时验证服务器 IP 的 HTTP 被禁止、调试回环例外和真实 HTTPS API。修复版保持版本名1.0.1，versionCode递增至5；正式下载制品须由原发布证书签名后更新。
+正式包的网络安全配置禁止全部明文连接；仅 debug 资源覆盖允许 `127.0.0.1`／`10.0.2.2`，并由 release base URL 门禁再次校验。`IpConnectionRunner` 同时验证服务器 IP 的 HTTP 被禁止、调试回环例外和真实 HTTPS API。修复版保持版本名1.0.1，versionCode递增至5；正式下载制品须由原发布证书签名后更新。
 
 在dev分支手动运行Android CD，仅生成同签名的验收APK与校验文件，不创建GitHub Release、不合并main；main及已合并发布PR仍按原流程发布。签名密钥只由GitHub Actions Secrets注入，不需要导出到开发机。
 
