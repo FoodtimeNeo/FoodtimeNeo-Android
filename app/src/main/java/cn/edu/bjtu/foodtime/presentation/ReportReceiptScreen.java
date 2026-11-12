@@ -8,6 +8,7 @@ import cn.edu.bjtu.foodtime.domain.model.Models.ModerationDecision;
 import cn.edu.bjtu.foodtime.domain.model.Models.ModerationDecisionPage;
 import cn.edu.bjtu.foodtime.domain.model.Models.MyReport;
 import cn.edu.bjtu.foodtime.domain.model.Models.MyReportPage;
+import cn.edu.bjtu.foodtime.domain.model.Models.ReportAction;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -109,6 +110,7 @@ final class ReportReceiptScreen {
     card.addView(Ui.text(activity, "入箱时间：" + SubmissionScreen.date(item.deliveredAt()), 12, Design.MUTED));
     card.addView(Ui.text(activity, "申诉截止：" + SubmissionScreen.date(item.appealDeadline()), 12, Design.MUTED));
     card.addView(Ui.text(activity, "reporter".equals(item.side()) ? "你是举报人" : "你是被举报人", 12, Design.MUTED));
+    Ui.link(card, "查看处理动作", () -> showActions(item));
     if (!item.appealStatus().isBlank()) {
       card.addView(Ui.text(activity, "你的申诉：" + appealStatusLabel(item.appealStatus())
           + (item.appealOutcome().isBlank() ? "" : " · " + outcomeLabel(item.appealOutcome())),
@@ -118,6 +120,23 @@ final class ReportReceiptScreen {
     } else {
       card.addView(Ui.text(activity, "申诉期限已过。", 12, Design.MUTED));
     }
+  }
+
+  private void showActions(ModerationDecision item) {
+    AtomicReference<List<ReportAction>> result = new AtomicReference<>();
+    activity.read("decision-actions:" + item.decisionId(), null, null,
+        () -> result.set(activity.repo.decisionActions(item.decisionId())), () -> {
+          StringBuilder text = new StringBuilder();
+          if (result.get().isEmpty()) text.append("尚未记录实际处理动作。");
+          for (ReportAction action : result.get()) {
+            if (text.length() > 0) text.append((char) 10);
+            text.append(action.actionType()).append(" · ").append(action.targetType())
+                .append(" · ").append(SubmissionScreen.date(action.createdAt()));
+            if (!action.note().isBlank()) text.append((char) 10).append(action.note());
+          }
+          new AlertDialog.Builder(activity).setTitle("处理动作").setMessage(text)
+              .setPositiveButton("关闭", null).show();
+        }, () -> {});
   }
 
   private void appealDialog(ModerationDecision item) {

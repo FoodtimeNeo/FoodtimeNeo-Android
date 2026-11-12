@@ -655,6 +655,13 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public String uploadEvidence(String filePath) {
     return upload(filePath);
   }
+  @Override public List<ReportAction> decisionActions(String decisionId) {
+    return list("users/me/moderation-decisions/"+encode(decisionId)+"/actions",RemoteRepository::reportAction);
+  }
+  private static ReportAction reportAction(JSONObject j) {
+    return new ReportAction(text(j,"id"),text(j,"decisionId"),text(j,"actionType"),text(j,"targetType"),
+        text(j,"targetId"),text(j,"performedBy"),text(j,"note"),time(j,"createdAt"));
+  }
   @Override public void submitAppeal(String decisionId,String content,String requestId) {
     submitAppeal(decisionId,content,requestId,List.of());
   }

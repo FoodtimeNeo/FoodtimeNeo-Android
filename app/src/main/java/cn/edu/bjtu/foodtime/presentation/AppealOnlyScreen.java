@@ -7,6 +7,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 import cn.edu.bjtu.foodtime.domain.model.Models.ModerationDecision;
 import cn.edu.bjtu.foodtime.domain.model.Models.ModerationDecisionPage;
+import cn.edu.bjtu.foodtime.domain.model.Models.ReportAction;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -57,6 +58,7 @@ final class AppealOnlyScreen {
     card.addView(Ui.text(activity, "公开理由：" + item.publicReason(), 14, Design.INK));
     card.addView(Ui.text(activity, "入箱时间：" + SubmissionScreen.date(item.deliveredAt()), 12, Design.MUTED));
     card.addView(Ui.text(activity, "申诉截止：" + SubmissionScreen.date(item.appealDeadline()), 12, Design.MUTED));
+    Ui.link(card, "查看处理动作", () -> showActions(item));
     if (!item.appealStatus().isBlank()) {
       card.addView(Ui.text(activity, "申诉状态：" + statusLabel(item.appealStatus())
           + (item.appealOutcome().isBlank() ? "" : " · " + outcomeLabel(item.appealOutcome())),
@@ -98,6 +100,22 @@ final class AppealOnlyScreen {
           });
     });
     card.addView(submit);
+  }
+
+  private void showActions(ModerationDecision item) {
+    AtomicReference<java.util.List<ReportAction>> result = new AtomicReference<>();
+    activity.read("appeal-actions:" + item.decisionId(), null, error,
+        () -> result.set(activity.repo.decisionActions(item.decisionId())), () -> {
+          StringBuilder text = new StringBuilder();
+          if (result.get().isEmpty()) text.append("尚未记录实际处理动作。");
+          for (ReportAction action : result.get()) {
+            if (text.length() > 0) text.append((char) 10);
+            text.append(action.actionType()).append(" · ").append(action.targetType())
+                .append(" · ").append(SubmissionScreen.date(action.createdAt()));
+          }
+          new android.app.AlertDialog.Builder(activity).setTitle("处理动作").setMessage(text)
+              .setPositiveButton("关闭", null).show();
+        }, () -> {});
   }
 
   private static String outcomeLabel(String outcome) {

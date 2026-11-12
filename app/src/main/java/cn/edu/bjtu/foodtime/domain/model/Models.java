@@ -107,6 +107,9 @@ public final class Models {
                                    long appealDeadline, String appealId, String appealStatus,
                                    String appealOutcome) {}
 
+  public record ReportAction(String id, String decisionId, String actionType, String targetType,
+                             String targetId, String performedBy, String note, long createdAt) {}
+
   public record ReportFollowUp(String id, String reportId, String authorRole, String authorName,
                                String content, long createdAt, List<String> evidenceUrls) {
     public ReportFollowUp { evidenceUrls = List.copyOf(evidenceUrls); }
