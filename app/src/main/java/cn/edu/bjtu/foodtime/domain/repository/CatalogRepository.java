@@ -109,6 +109,18 @@ public interface CatalogRepository {
     throw new UnsupportedOperationException();
   }
 
+  default ReportFollowUpPage reportFollowUps(String reportId, int page) {
+    throw new UnsupportedOperationException();
+  }
+
+  default ReportFollowUp addReportFollowUp(String reportId, String content, String requestId) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void submitAppeal(String decisionId, String content, String requestId) {
+    throw new UnsupportedOperationException();
+  }
+
   default boolean dishFavorite(String dishId) { throw new UnsupportedOperationException(); }
   default boolean setDishFavorite(String dishId, boolean saved) { throw new UnsupportedOperationException(); }
 

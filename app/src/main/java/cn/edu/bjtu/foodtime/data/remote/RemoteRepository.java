@@ -575,6 +575,27 @@ public final class RemoteRepository implements FoodtimeRepository {
         "evidenceUrls",array(proposal.evidenceUrls()),"idempotencyKey",proposal.idempotencyKey());
     return correction(call("POST","users/me/catalog-corrections",body));
   }
+  @Override public ReportFollowUpPage reportFollowUps(String reportId,int page) {
+    JSONObject data=call("GET","users/me/reports/"+encode(reportId)+"/follow-ups?page="+page+"&size=20",null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","追问响应异常，请重试",0);
+    List<ReportFollowUp> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++)items.add(reportFollowUp(rows.optJSONObject(i)));
+    return new ReportFollowUpPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",20));
+  }
+  @Override public ReportFollowUp addReportFollowUp(String reportId,String content,String requestId) {
+    return reportFollowUp(call("POST","users/me/reports/"+encode(reportId)+"/follow-ups",
+        json("content",content,"evidenceUrls",new JSONArray(),"clientRequestId",requestId)));
+  }
+  @Override public void submitAppeal(String decisionId,String content,String requestId) {
+    call("POST","users/me/moderation-decisions/"+encode(decisionId)+"/appeals",
+        json("content",content,"evidenceUrls",new JSONArray(),"clientRequestId",requestId));
+  }
+  private static ReportFollowUp reportFollowUp(JSONObject j) {
+    return new ReportFollowUp(text(j,"id"),text(j,"reportId"),text(j,"authorRole"),text(j,"authorName"),
+        text(j,"content"),time(j,"createdAt"),strings(j,"evidenceUrls"));
+  }
+
   @Override public MyReportPage myReports(int page) {
     JSONObject data=call("GET","users/me/reports?page="+page+"&size=20",null);
     JSONArray rows=data.optJSONArray("items");
@@ -598,7 +619,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private static ModerationDecision moderationDecision(JSONObject j) {
     return new ModerationDecision(text(j,"decisionId"),text(j,"reportId"),text(j,"side"),text(j,"targetType"),
-        text(j,"outcome"),text(j,"publicReason"),time(j,"deliveredAt"),time(j,"appealDeadline"));
+        text(j,"outcome"),text(j,"publicReason"),time(j,"deliveredAt"),time(j,"appealDeadline"),
+        text(j,"appealId"),text(j,"appealStatus"),text(j,"appealOutcome"));
   }
 
   @Override public HistorySettings historySettings() {

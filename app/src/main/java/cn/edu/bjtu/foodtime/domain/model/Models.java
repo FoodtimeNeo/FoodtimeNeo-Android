@@ -104,7 +104,18 @@ public final class Models {
 
   public record ModerationDecision(String decisionId, String reportId, String side, String targetType,
                                    String outcome, String publicReason, long deliveredAt,
-                                   long appealDeadline) {}
+                                   long appealDeadline, String appealId, String appealStatus,
+                                   String appealOutcome) {}
+
+  public record ReportFollowUp(String id, String reportId, String authorRole, String authorName,
+                               String content, long createdAt, List<String> evidenceUrls) {
+    public ReportFollowUp { evidenceUrls = List.copyOf(evidenceUrls); }
+  }
+
+  public record ReportFollowUpPage(List<ReportFollowUp> items, long total, int page, int size) {
+    public ReportFollowUpPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
 
   public record ModerationDecisionPage(List<ModerationDecision> items, long total, int page, int size) {
     public ModerationDecisionPage { items = List.copyOf(items); }

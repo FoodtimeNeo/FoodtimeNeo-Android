@@ -1,5 +1,7 @@
 package cn.edu.bjtu.foodtime.presentation;
 
+import android.app.AlertDialog;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import cn.edu.bjtu.foodtime.domain.model.Models.ModerationDecision;
@@ -97,6 +99,7 @@ final class ReportReceiptScreen {
     } else if ("legacy".equals(item.status())) {
       card.addView(Ui.text(activity, "历史记录，未提供详细结果。", 13, Design.MUTED));
     }
+    Ui.link(card, "追问记录", () -> activity.go("report-followups", item.id()));
   }
 
   private void decisionCard(ModerationDecision item) {
@@ -106,6 +109,45 @@ final class ReportReceiptScreen {
     card.addView(Ui.text(activity, "入箱时间：" + SubmissionScreen.date(item.deliveredAt()), 12, Design.MUTED));
     card.addView(Ui.text(activity, "申诉截止：" + SubmissionScreen.date(item.appealDeadline()), 12, Design.MUTED));
     card.addView(Ui.text(activity, "reporter".equals(item.side()) ? "你是举报人" : "你是被举报人", 12, Design.MUTED));
+    if (!item.appealStatus().isBlank()) {
+      card.addView(Ui.text(activity, "你的申诉：" + appealStatusLabel(item.appealStatus())
+          + (item.appealOutcome().isBlank() ? "" : " · " + outcomeLabel(item.appealOutcome())),
+          13, Design.MUTED));
+    } else if (item.appealDeadline() > System.currentTimeMillis()) {
+      Ui.link(card, "提交申诉", () -> appealDialog(item));
+    } else {
+      card.addView(Ui.text(activity, "申诉期限已过。", 12, Design.MUTED));
+    }
+  }
+
+  private void appealDialog(ModerationDecision item) {
+    EditText input = new EditText(activity);
+    input.setHint("申诉理由，最多2000字");
+    input.setSingleLine(false);
+    input.setMinLines(3);
+    new AlertDialog.Builder(activity).setTitle("提交申诉").setView(input)
+        .setNegativeButton("取消", null)
+        .setPositiveButton("提交", (dialog, which) -> {
+          String content = input.getText().toString().strip();
+          if (content.isEmpty()) {
+            activity.message("请填写申诉内容");
+            return;
+          }
+          activity.request(null, null,
+              () -> activity.repo.submitAppeal(item.decisionId(), content, UUID.randomUUID().toString()),
+              () -> {
+                activity.message("申诉已提交");
+                render();
+              });
+        }).show();
+  }
+
+  private static String appealStatusLabel(String status) {
+    return switch (status) {
+      case "under_review" -> "复核中";
+      case "resolved" -> "已复核";
+      default -> "已提交";
+    };
   }
 
   private static String typeLabel(String type) {
