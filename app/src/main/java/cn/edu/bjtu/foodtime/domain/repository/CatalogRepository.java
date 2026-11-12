@@ -114,10 +114,24 @@ public interface CatalogRepository {
   }
 
   default ReportFollowUp addReportFollowUp(String reportId, String content, String requestId) {
+    return addReportFollowUp(reportId, content, requestId, List.of());
+  }
+
+  default ReportFollowUp addReportFollowUp(String reportId, String content, String requestId,
+                                            List<String> evidenceUrls) {
     throw new UnsupportedOperationException();
   }
 
   default void submitAppeal(String decisionId, String content, String requestId) {
+    submitAppeal(decisionId, content, requestId, List.of());
+  }
+
+  default void submitAppeal(String decisionId, String content, String requestId,
+                            List<String> evidenceUrls) {
+    throw new UnsupportedOperationException();
+  }
+
+  default String uploadEvidence(String filePath) {
     throw new UnsupportedOperationException();
   }
 

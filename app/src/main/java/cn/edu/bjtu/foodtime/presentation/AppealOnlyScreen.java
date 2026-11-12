@@ -78,6 +78,7 @@ final class AppealOnlyScreen {
         draftStore.edit().putString(draftKey, s.toString()).apply();
       }
     });
+    EvidenceSlots.show(activity, card, "appeal-evidence:" + item.decisionId());
     TextView submit = Ui.button(activity, "提交申诉", true, () -> {});
     submit.setOnClickListener(view -> {
       String content = input.getText().toString().strip();
@@ -86,7 +87,10 @@ final class AppealOnlyScreen {
         return;
       }
       activity.request(submit, error,
-          () -> activity.repo.submitAppeal(item.decisionId(), content, UUID.randomUUID().toString()),
+          () -> {
+            var evidence = EvidenceSlots.upload(activity, "appeal-evidence:" + item.decisionId());
+            activity.repo.submitAppeal(item.decisionId(), content, UUID.randomUUID().toString(), evidence);
+          },
           () -> {
             draftStore.edit().remove(draftKey).apply();
             activity.message("申诉已提交");

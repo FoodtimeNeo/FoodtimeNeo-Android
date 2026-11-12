@@ -645,12 +645,23 @@ public final class RemoteRepository implements FoodtimeRepository {
     return new ReportFollowUpPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",20));
   }
   @Override public ReportFollowUp addReportFollowUp(String reportId,String content,String requestId) {
+    return addReportFollowUp(reportId,content,requestId,List.of());
+  }
+  @Override public ReportFollowUp addReportFollowUp(String reportId,String content,String requestId,
+      List<String> evidenceUrls) {
     return reportFollowUp(call("POST","users/me/reports/"+encode(reportId)+"/follow-ups",
-        json("content",content,"evidenceUrls",new JSONArray(),"clientRequestId",requestId)));
+        json("content",content,"evidenceUrls",array(evidenceUrls),"clientRequestId",requestId)));
+  }
+  @Override public String uploadEvidence(String filePath) {
+    return upload(filePath);
   }
   @Override public void submitAppeal(String decisionId,String content,String requestId) {
+    submitAppeal(decisionId,content,requestId,List.of());
+  }
+  @Override public void submitAppeal(String decisionId,String content,String requestId,
+      List<String> evidenceUrls) {
     call("POST","users/me/moderation-decisions/"+encode(decisionId)+"/appeals",
-        json("content",content,"evidenceUrls",new JSONArray(),"clientRequestId",requestId));
+        json("content",content,"evidenceUrls",array(evidenceUrls),"clientRequestId",requestId));
   }
   private static ReportFollowUp reportFollowUp(JSONObject j) {
     return new ReportFollowUp(text(j,"id"),text(j,"reportId"),text(j,"authorRole"),text(j,"authorName"),
