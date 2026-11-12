@@ -8,6 +8,7 @@ import android.widget.TextView;
 import cn.edu.bjtu.foodtime.domain.model.Models.ModerationDecision;
 import cn.edu.bjtu.foodtime.domain.model.Models.ModerationDecisionPage;
 import cn.edu.bjtu.foodtime.domain.model.Models.ReportAction;
+import cn.edu.bjtu.foodtime.BuildConfig;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -70,17 +71,20 @@ final class AppealOnlyScreen {
       return;
     }
     EditText input = Ui.field(card, "申诉内容（最多2000字）", false, true);
-    String draftKey = "appeal:" + item.decisionId();
-    var draftStore = activity.getSharedPreferences("appeal-drafts", MainActivity.MODE_PRIVATE);
-    input.setText(draftStore.getString(draftKey, ""));
+    var actor = activity.repo.currentUser();
+    if (actor == null) return;
+    String actorId = actor.id();
+    var draftStore = new AppealDraftStore(activity, BuildConfig.API_BASE_URL, actorId);
+    String evidenceKey = draftStore.key("evidence:" + item.decisionId());
+    input.setText(draftStore.read(item.decisionId()));
     input.addTextChangedListener(new TextWatcher() {
       public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
       public void onTextChanged(CharSequence s, int start, int before, int count) {}
       public void afterTextChanged(Editable s) {
-        draftStore.edit().putString(draftKey, s.toString()).apply();
+        if (sameActor(actorId)) draftStore.save(item.decisionId(), s.toString());
       }
     });
-    EvidenceSlots.show(activity, card, "appeal-evidence:" + item.decisionId());
+    EvidenceSlots.show(activity, card, evidenceKey);
     TextView submit = Ui.button(activity, "提交申诉", true, () -> {});
     submit.setOnClickListener(view -> {
       String content = input.getText().toString().strip();
@@ -90,16 +94,24 @@ final class AppealOnlyScreen {
       }
       activity.request(submit, error,
           () -> {
-            var evidence = EvidenceSlots.upload(activity, "appeal-evidence:" + item.decisionId());
-            activity.repo.submitAppeal(item.decisionId(), content, UUID.randomUUID().toString(), evidence);
+            if (!sameActor(actorId)) throw new IllegalStateException("账号已变化，请重新打开申诉");
+            var evidence = EvidenceSlots.upload(activity, evidenceKey);
+            if (!sameActor(actorId)) throw new IllegalStateException("账号已变化，请重新打开申诉");
+            activity.repo.submitAppeal(item.decisionId(), content, draftStore.requestId(item.decisionId()), evidence);
           },
           () -> {
-            draftStore.edit().remove(draftKey).apply();
+            draftStore.clear(item.decisionId());
+            if (!sameActor(actorId)) return;
             activity.message("申诉已提交");
             load();
           });
     });
     card.addView(submit);
+  }
+
+  private boolean sameActor(String expected) {
+    var current = activity.repo.currentUser();
+    return current != null && expected.equals(current.id());
   }
 
   private void showActions(ModerationDecision item) {
