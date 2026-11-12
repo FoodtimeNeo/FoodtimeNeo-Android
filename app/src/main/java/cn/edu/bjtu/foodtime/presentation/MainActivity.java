@@ -294,6 +294,10 @@ public class MainActivity extends Activity {
       showAuth(false);
       return;
     }
+    if ("appeal_only".equals(repo.sessionMode())) {
+      showAppealOnly();
+      return;
+    }
     if (tab.equals("admin") && !repo.currentUser().isAdmin()) tab = "dining";
     if (tab.equals("dashboard") && !repo.currentUser().role().equals("superadmin")) tab = "dining";
     consumeIncoming();
@@ -306,6 +310,15 @@ public class MainActivity extends Activity {
     render();
     updateCheckPending = true;
     checkAppRelease(false);
+  }
+
+  private void showAppealOnly() {
+    tab = "profile";
+    if (stacks.get(tab) == null || stacks.get(tab).isEmpty()) stacks.get(tab).add(new Route("profile", ""));
+    shell(false);
+    header.removeAllViews();
+    content.removeAllViews();
+    AppealOnlyScreen.show(this, content);
   }
 
   /** 应用内更新检查：开屏自动一次，个人页可手动再次触发。 */

@@ -8,6 +8,9 @@ import cn.edu.bjtu.foodtime.domain.model.Models.User;
 public interface AuthRepository {
   User currentUser();
 
+  /** "normal" or "appeal_only"; restricted sessions only expose the appeal surface. */
+  default String sessionMode() { return "normal"; }
+
   /** Server-projected capabilities; empty until refreshed from the server. */
   default CapabilitySnapshot capabilities() { return CapabilitySnapshot.empty(); }
 
