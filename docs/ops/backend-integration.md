@@ -6,7 +6,7 @@
 
 | 行为 | 接口 |
 | --- | --- |
-| CSRF、登录、注册验证码、注册、退出 | /auth/csrf、/auth/login、/auth/register/email-code、/auth/register、/auth/logout |
+| CSRF、注册策略、登录、注册验证码、注册、退出 | /auth/csrf、/auth/registration-policy、/auth/login、/auth/register/email-code、/auth/register、/auth/logout |
 | 当前资料与改密 | /users/me/profile、/users/me/password |
 | 关注／粉丝 | GET /users/{当前用户UUID}/following、/followers，page/size 分页；PUT/DELETE /users/{目标UUID}/follow |
 | 三级目录 | /dining-halls、/dining-halls/{id}/stalls、/stalls/{id}/dishes；data为数组 |
@@ -58,3 +58,13 @@ GET/POST /reviews/{id}/replies，公开列表size20与nextCursor游标；POST携
 ## 回复点赞（2026-10-20）
 
 PUT/DELETE /review-replies/{id}/like，响应likedByMe/likeCount/counterVersion。公开回复附带同样字段，直接显示；处理中禁用重复操作，失败保留状态并显示错误。只更新回复统计及按钮，不刷新整个菜品页，不改变一级评论计数或菜品评分。
+
+## 邀请注册（2026-11-12）
+
+注册页先请求 `GET /auth/registration-policy`，按返回的 `mode` 渲染：
+
+- `open`：邀请码可选；
+- `invitation`：邀请码必填，提交时随 `POST /auth/register` 透传；
+- `closed`：显示“注册暂未开放”，不再提交或发送验证码。
+
+策略读取失败不默认开放，页面显示错误与重试；服务端仍是最终裁决者，注册请求仍可能返回 `REGISTRATION_CLOSED`、`INVITATION_REQUIRED` 或 `INVITATION_CODE_INVALID`。邀请码不写入 Activity 草稿 Bundle；`Ui.field` 对含“邀请码”的字段跳过自动草稿保存。该接口不暴露限流值、邮箱白名单或邀请码列表。
