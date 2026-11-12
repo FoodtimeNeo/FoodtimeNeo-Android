@@ -93,6 +93,24 @@ public final class Models {
     public boolean hasMore() { return (long) page * size < total; }
   }
 
+  public record MyReport(String id, String targetType, String targetId, String postId,
+                         String reason, String excerpt, String status, long createdAt,
+                         String decisionId, String outcome, String publicReason, long decidedAt) {}
+
+  public record MyReportPage(List<MyReport> items, long total, int page, int size) {
+    public MyReportPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
+  public record ModerationDecision(String decisionId, String reportId, String side, String targetType,
+                                   String outcome, String publicReason, long deliveredAt,
+                                   long appealDeadline) {}
+
+  public record ModerationDecisionPage(List<ModerationDecision> items, long total, int page, int size) {
+    public ModerationDecisionPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
   public record DishSearchFilters(List<String> diningHallIds, BigDecimal minPrice,
                                   BigDecimal maxPrice, BigDecimal minRating, String sort) {
     public DishSearchFilters { diningHallIds = diningHallIds == null ? List.of() : List.copyOf(diningHallIds); }

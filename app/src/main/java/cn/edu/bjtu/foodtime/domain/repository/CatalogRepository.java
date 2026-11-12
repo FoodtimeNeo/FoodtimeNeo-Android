@@ -101,6 +101,14 @@ public interface CatalogRepository {
     throw new UnsupportedOperationException();
   }
 
+  default MyReportPage myReports(int page) {
+    throw new UnsupportedOperationException();
+  }
+
+  default ModerationDecisionPage myModerationDecisions(int page) {
+    throw new UnsupportedOperationException();
+  }
+
   default boolean dishFavorite(String dishId) { throw new UnsupportedOperationException(); }
   default boolean setDishFavorite(String dishId, boolean saved) { throw new UnsupportedOperationException(); }
 

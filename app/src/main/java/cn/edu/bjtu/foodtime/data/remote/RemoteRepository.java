@@ -575,6 +575,32 @@ public final class RemoteRepository implements FoodtimeRepository {
         "evidenceUrls",array(proposal.evidenceUrls()),"idempotencyKey",proposal.idempotencyKey());
     return correction(call("POST","users/me/catalog-corrections",body));
   }
+  @Override public MyReportPage myReports(int page) {
+    JSONObject data=call("GET","users/me/reports?page="+page+"&size=20",null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","举报回执响应异常，请重试",0);
+    List<MyReport> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++)items.add(myReport(rows.optJSONObject(i)));
+    return new MyReportPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",20));
+  }
+  @Override public ModerationDecisionPage myModerationDecisions(int page) {
+    JSONObject data=call("GET","users/me/moderation-decisions?page="+page+"&size=20",null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","处理决定响应异常，请重试",0);
+    List<ModerationDecision> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++)items.add(moderationDecision(rows.optJSONObject(i)));
+    return new ModerationDecisionPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",20));
+  }
+  private static MyReport myReport(JSONObject j) {
+    return new MyReport(text(j,"id"),text(j,"targetType"),text(j,"targetId"),text(j,"postId"),
+        text(j,"reason"),text(j,"excerpt"),text(j,"status"),time(j,"createdAt"),text(j,"decisionId"),
+        text(j,"outcome"),text(j,"publicReason"),time(j,"decidedAt"));
+  }
+  private static ModerationDecision moderationDecision(JSONObject j) {
+    return new ModerationDecision(text(j,"decisionId"),text(j,"reportId"),text(j,"side"),text(j,"targetType"),
+        text(j,"outcome"),text(j,"publicReason"),time(j,"deliveredAt"),time(j,"appealDeadline"));
+  }
+
   @Override public HistorySettings historySettings() {
     if(historySettings==null) historySettings=historySettings(call("GET","users/me/browsing-history/settings",null));
     return historySettings;
