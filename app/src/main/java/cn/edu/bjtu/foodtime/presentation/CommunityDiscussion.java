@@ -1,5 +1,6 @@
 package cn.edu.bjtu.foodtime.presentation;
 
+import android.app.AlertDialog;
 import android.graphics.Color;
 import android.view.Gravity;
 import android.view.View;
@@ -9,6 +10,7 @@ import cn.edu.bjtu.foodtime.domain.model.CommunityText;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityAction;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityComment;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityPost;
+import cn.edu.bjtu.foodtime.domain.model.Models.FavoriteGroup;
 import cn.edu.bjtu.foodtime.domain.model.Models.User;
 import cn.edu.bjtu.foodtime.domain.validation.CommunityPermissions;
 import java.util.UUID;
@@ -73,6 +75,9 @@ final class CommunityDiscussion {
         Design.GOLD, next -> activity.repo.setCommunityFavorite(post.id(), next));
     actions.addView(like);
     actions.addView(favorite);
+    TextView group = action(activity, "分组", this::chooseGroups);
+    group.setTextColor(Design.MUTED);
+    actions.addView(group);
     actions.addView(count);
     dock.addView(actions);
     activity.setDetailBottomBar(dock);
@@ -107,6 +112,36 @@ final class CommunityDiscussion {
     thread.setPadding(0, dp(12), 0, dp(10));
     thread.addView(comment(pending, pending));
     rows.addView(thread, 0);
+  }
+
+  private void chooseGroups() {
+    java.util.concurrent.atomic.AtomicReference<java.util.List<FavoriteGroup>> all = new java.util.concurrent.atomic.AtomicReference<>();
+    java.util.concurrent.atomic.AtomicReference<java.util.List<String>> joined = new java.util.concurrent.atomic.AtomicReference<>();
+    activity.read("post-groups:" + post.id(), null, null,
+        () -> {
+          all.set(activity.repo.favoriteGroups("post"));
+          joined.set(activity.repo.favoriteGroupMembership("post", post.id()));
+        }, () -> {
+          if (all.get().isEmpty()) { activity.message("还没有收藏分组，请先在收藏页新建"); return; }
+          String[] names = new String[all.get().size()];
+          boolean[] checked = new boolean[all.get().size()];
+          for (int index = 0; index < all.get().size(); index++) {
+            names[index] = all.get().get(index).name();
+            checked[index] = joined.get().contains(all.get().get(index).id());
+          }
+          boolean[] desired = checked.clone();
+          new AlertDialog.Builder(activity).setTitle("收藏分组")
+              .setMultiChoiceItems(names, checked, (dialog, which, value) -> desired[which] = value)
+              .setNegativeButton("取消", null)
+              .setPositiveButton("保存", (dialog, which) -> activity.request(null, null, () -> {
+                for (int index = 0; index < all.get().size(); index++) {
+                  FavoriteGroup group = all.get().get(index);
+                  if (desired[index] == checked[index]) continue;
+                  if (desired[index]) activity.repo.addFavoriteGroupMember(group.id(), post.id());
+                  else activity.repo.removeFavoriteGroupMember(group.id(), post.id());
+                }
+              }, () -> activity.message("收藏分组已更新"))).show();
+        }, () -> {});
   }
 
   private void paint() {
