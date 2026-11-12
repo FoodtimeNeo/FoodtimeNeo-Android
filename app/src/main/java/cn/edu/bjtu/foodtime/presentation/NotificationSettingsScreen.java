@@ -48,16 +48,26 @@ final class NotificationSettingsScreen {
     rows.removeAllViews();
     rows.addView(Ui.text(activity,
         "开启某类只影响之后产生的事件；站内消息和未读不受影响。", 12, Design.MUTED));
+    rows.addView(Ui.text(activity,
+        "私信提醒沿用个人页旧开关；其余类别使用服务器偏好。", 12, Design.MUTED));
     for (NotificationPreference item : preferences.items()) {
       CheckBox box = new CheckBox(activity);
       box.setText(label(item.category()));
       box.setTextColor(Design.INK);
       box.setTextSize(15);
-      box.setChecked(item.enabled());
-      box.setOnCheckedChangeListener((button, checked) -> {
-        if (checked == item.enabled()) return;
+      boolean message = "message".equals(item.category());
+      boolean checked = message
+          ? PrivateMessageReminders.configured(activity, activity.repo.currentUser().id())
+          : item.enabled();
+      box.setChecked(checked);
+      box.setOnCheckedChangeListener((button, value) -> {
+        if (message) {
+          activity.togglePrivateMessageReminders();
+          return;
+        }
+        if (value == item.enabled()) return;
         activity.request(null, error,
-            () -> activity.repo.updateNotificationPreference(item.category(), checked, item.revision()),
+            () -> activity.repo.updateNotificationPreference(item.category(), value, item.revision()),
             this::load);
       });
       rows.addView(box);
