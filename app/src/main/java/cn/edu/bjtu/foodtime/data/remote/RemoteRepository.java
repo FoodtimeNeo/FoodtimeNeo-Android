@@ -495,7 +495,21 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
 
   @Override public DishSearchPage searchDishes(String query, int page) {
-    return dishRows("dishes/search?q=" + encode(query) + "&page=" + page + "&size=20", page);
+    return searchDishes(query,page,DishSearchFilters.empty());
+  }
+  @Override public DishSearchPage searchDishes(String query, int page, DishSearchFilters filters) {
+    StringBuilder path=new StringBuilder("dishes/search?q=").append(encode(query))
+        .append("&page=").append(page).append("&size=20&sort=")
+        .append(encode(filters.sort()==null||filters.sort().isBlank()?"relevance":filters.sort()));
+    if(!filters.diningHallIds().isEmpty()) {
+      List<String> encoded=new ArrayList<>();
+      for(String hall:filters.diningHallIds()) encoded.add(encode(hall));
+      path.append("&diningHallIds=").append(String.join(",",encoded));
+    }
+    if(filters.minPrice()!=null)path.append("&minPrice=").append(filters.minPrice().toPlainString());
+    if(filters.maxPrice()!=null)path.append("&maxPrice=").append(filters.maxPrice().toPlainString());
+    if(filters.minRating()!=null)path.append("&minRating=").append(filters.minRating().toPlainString());
+    return dishRows(path.toString(),page);
   }
 
   @Override public DishSearchPage favoriteDishes(int page) {
@@ -524,7 +538,8 @@ public final class RemoteRepository implements FoodtimeRepository {
       String id = text(row, "id");
       if (id.isBlank()) throw new IllegalStateException("菜品列表返回格式异常，请重试");
       items.add(new DishSearchRow(id, text(row, "name"), decimal(row, "price"),
-          text(row, "stallName"), text(row, "diningHallName")));
+          text(row, "stallName"), text(row, "diningHallName"),
+          decimal(row, "averageScore"), row.optLong("reviewCount", 0)));
     }
     return new DishSearchPage(items, total, page, size);
   }

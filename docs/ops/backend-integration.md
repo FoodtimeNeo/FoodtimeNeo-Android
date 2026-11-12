@@ -77,3 +77,9 @@ PUT/DELETE /review-replies/{id}/like，响应likedByMe/likeCount/counterVersion�
 ## 登录验证码（2026-11-12）
 
 登录返回 `CAPTCHA_REQUIRED` 时，客户端请求 `GET /auth/captcha`，在登录页显示 PNG 图片和答案输入框；再次提交时携带 `challengeId`/`challengeAnswer`。`CAPTCHA_INVALID` 表示题目无效、过期、已消费或设备不匹配，客户端清空答案并换题，不把服务端错误解释为密码错误。图片只在内存中解码展示，不写入草稿或磁盘；答案字段跳过 `Ui.field` 自动草稿。验证码默认未启用，由服务端部署决定；客户端只响应服务端错误码，不按版本自行跳过。
+
+## 跨食堂搜菜筛选（2026-11-12）
+
+`DishSearchScreen` 支持 `q`（可空浏览全部）、食堂多选、最低/最高价、最低评分（不限/3.0/3.5/4.0/4.5）与排序（综合/价格升降/评分优先）。筛选参数以 `DishSearchFilters` 传给 `RemoteRepository.searchDishes`，`sort` 只允许服务端白名单值；空价格/评分不传，按服务端“未知保留且后排”规则显示。
+
+响应 `DishSearchRow` 新增 `averageScore`/`reviewCount`；`averageScore` 为 null 时显示“暂无评分”，`reviewCount` 为 0。价格 null 显示“价格待补充”，不能按 0 处理。筛选变化使用独立读取 key，旧请求的迟到结果不能覆盖当前条件；不可变的筛选条件与页码共同决定请求。
