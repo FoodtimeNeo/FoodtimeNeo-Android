@@ -105,6 +105,11 @@ public final class CommunityPhotoRunner extends Instrumentation {
   private float scale() { return matrixValue(Matrix.MSCALE_X); }
 
   private void sendTouch(long start, int action, float... coordinates) {
+    int[] origin = new int[2];
+    ui(() -> {
+      if (!decor.hasWindowFocus()) throw new AssertionError("Photo window lost focus to another window");
+      decor.getLocationOnScreen(origin);
+    });
     int count = coordinates.length / 2;
     MotionEvent.PointerProperties[] properties = new MotionEvent.PointerProperties[count];
     MotionEvent.PointerCoords[] points = new MotionEvent.PointerCoords[count];
@@ -113,13 +118,13 @@ public final class CommunityPhotoRunner extends Instrumentation {
       properties[i].id = i;
       properties[i].toolType = MotionEvent.TOOL_TYPE_FINGER;
       points[i] = new MotionEvent.PointerCoords();
-      points[i].x = coordinates[2 * i];
-      points[i].y = coordinates[2 * i + 1];
+      points[i].x = coordinates[2 * i] + origin[0];
+      points[i].y = coordinates[2 * i + 1] + origin[1];
       points[i].pressure = points[i].size = 1;
     }
     MotionEvent event = MotionEvent.obtain(start, SystemClock.uptimeMillis(), action, count, properties,
         points, 0, 0, 1, 1, 0, 0, android.view.InputDevice.SOURCE_TOUCHSCREEN, 0);
-    ui(() -> decor.dispatchTouchEvent(event));
+    sendPointerSync(event);
     event.recycle();
   }
 
@@ -131,8 +136,14 @@ public final class CommunityPhotoRunner extends Instrumentation {
   }
 
   private void touch(View target, long start, int action, float x, float y) {
-    MotionEvent event = MotionEvent.obtain(start, SystemClock.uptimeMillis(), action, x, y, 0);
-    ui(() -> target.dispatchTouchEvent(event));
+    int[] origin = new int[2];
+    ui(() -> {
+      if (!target.hasWindowFocus()) throw new AssertionError("Post window lost focus to another window");
+      target.getLocationOnScreen(origin);
+    });
+    MotionEvent event = MotionEvent.obtain(start, SystemClock.uptimeMillis(), action, x+origin[0], y+origin[1], 0);
+    event.setSource(android.view.InputDevice.SOURCE_TOUCHSCREEN);
+    sendPointerSync(event);
     event.recycle();
   }
 
@@ -246,11 +257,39 @@ public final class CommunityPhotoRunner extends Instrumentation {
 
   private void screenshot(String name) throws Exception {
     waitForIdleSync();
+    ui(() -> {
+      if (!decor.hasWindowFocus()) throw new AssertionError("Screenshot rejected: photo window is obscured");
+    });
     Bitmap shot = getUiAutomation().takeScreenshot();
     if (shot == null) throw new AssertionError("Screenshot unavailable");
     try (var output = new FileOutputStream(new File(getTargetContext().getFilesDir(), name + ".png"))) {
       shot.compress(Bitmap.CompressFormat.PNG, 100, output);
     } finally { shot.recycle(); }
+  }
+
+  private void footerControls() throws Exception {
+    ui(() -> {
+      TextView[] controls = {decor.findViewWithTag("photo-action-share"),
+          decor.findViewWithTag("photo-action-comment"), decor.findViewWithTag("photo-action-like")};
+      for (TextView control : controls) {
+        var icon = control.getCompoundDrawables()[1];
+        check(control.getHeight() >= Ui.dp(activity,72)
+            && control.getTextSize() >= 15.9f * activity.getResources().getDisplayMetrics().scaledDensity
+            && icon != null && icon.getBounds().width() >= Ui.dp(activity,24),
+            "Footer action has a larger label, icon and touch area: " + control.getContentDescription());
+      }
+      int[] first = new int[2], second = new int[2];
+      controls[0].getLocationInWindow(first); controls[1].getLocationInWindow(second);
+      check(second[0] - first[0] - controls[0].getWidth() >= Ui.dp(activity,8), "Larger footer controls retain separate touch areas");
+      TextView source = activity.root.findViewWithTag("community-post-like");
+      String original = source.getText().toString();
+      source.setText("♥ 12");
+      check(controls[2].isSelected() && controls[2].getText().toString().equals("已赞 12"),
+          "Larger heart mirrors the original like state and count");
+      source.setText(original);
+      check(!controls[2].isSelected(), "Heart returns to the original unliked state");
+    });
+    screenshot("android-footer-actions");
   }
 
   @Override public void onStart() {
@@ -280,6 +319,8 @@ public final class CommunityPhotoRunner extends Instrumentation {
         } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
       });
       await("480px preview", () -> width("photo-thumb") == 480);
+      await("photo window focus", () -> decor.hasWindowFocus());
+      footerControls();
       check(decor.findViewWithTag("photo-full") == null, "Opening the viewer did not create an original request");
       screenshot("android-expanded");
       View toggle = decor.findViewWithTag("photo-context-toggle");
@@ -345,6 +386,21 @@ public final class CommunityPhotoRunner extends Instrumentation {
       tap(x, y);
       await("single tap close", () -> !dialog.isShowing());
       check(activity.route().kind().equals("community-detail"), "Closing returns to same post");
+      ui(() -> {
+        try {
+          ((ViewGroup) field(gallery, "strip")).getChildAt(0).performClick();
+          dialog = (Dialog) field(field(gallery, "viewer"), "dialog");
+          decor = dialog.getWindow().getDecorView();
+        } catch (ReflectiveOperationException error) { throw new AssertionError(error); }
+      });
+      await("comment window focus", () -> decor.hasWindowFocus());
+      int[] commentPosition = new int[2];
+      View commentAction = decor.findViewWithTag("photo-action-comment");
+      ui(() -> commentAction.getLocationInWindow(commentPosition));
+      tap(commentPosition[0]+commentAction.getWidth()/2f,commentPosition[1]+commentAction.getHeight()/2f);
+      await("comment closes photo", () -> !dialog.isShowing());
+      check(!dialog.isShowing() && activity.route().kind().equals("community-detail"),
+          "Larger comment control closes the image and keeps the post route");
       result.putString("stream", "Community photo device PASS: " + checks + " assertions, including double-tap, pinch and single-tap waits\n");
       finish(-1, result);
     } catch (Throwable error) {

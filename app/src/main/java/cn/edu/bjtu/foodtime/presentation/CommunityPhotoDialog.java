@@ -30,6 +30,7 @@ import android.widget.TextView;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityPost;
 import cn.edu.bjtu.foodtime.domain.model.CommunityText;
 import cn.edu.bjtu.foodtime.domain.validation.PhotoZoomGeometry;
+import cn.edu.bjtu.foodtime.R;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.function.IntConsumer;
@@ -184,6 +185,37 @@ final class CommunityPhotoDialog {
     return button;
   }
 
+  private TextView photoAction(String label, String description, Runnable action, int icon) {
+    TextView button = control(label, description, action);
+    button.setTextSize(16);
+    button.setMinHeight(dp(76));
+    button.setMaxLines(2);
+    button.setPadding(dp(8), dp(8), dp(8), dp(8));
+    button.setCompoundDrawablePadding(dp(6));
+    button.setBackground(Ui.ripple(activity, 0xdd303030, Color.TRANSPARENT, 16));
+    setPhotoActionIcon(button, icon, Color.WHITE);
+    return button;
+  }
+
+  private void setPhotoActionIcon(TextView button, int resource, int color) {
+    var drawable = activity.getDrawable(resource).mutate();
+    drawable.setTint(color);
+    drawable.setBounds(0, 0, dp(28), dp(28));
+    button.setCompoundDrawables(null, drawable, null, null);
+  }
+
+  private void bindPhotoLike(TextView button, CharSequence label) {
+    String value = label.toString();
+    boolean liked = value.contains("♥");
+    String count = value.replace("♡", "").replace("♥", "").strip();
+    button.setText((liked ? "已赞 " : "点赞 ") + count);
+    button.setSelected(liked);
+    button.setTextColor(liked ? 0xffff999c : Color.WHITE);
+    button.setContentDescription((liked ? "已点赞，" : "点赞帖子，") + count + "个赞");
+    setPhotoActionIcon(button, liked ? R.drawable.ic_photo_liked : R.drawable.ic_photo_like,
+        liked ? 0xffff999c : Color.WHITE);
+  }
+
   private FrameLayout footer(CommunityPost post, PostActions actions) {
     FrameLayout shell = new FrameLayout(activity);
     LinearLayout details = Ui.col(activity);
@@ -223,19 +255,22 @@ final class CommunityPhotoDialog {
     details.addView(postLink, new LinearLayout.LayoutParams(-2, -2));
     if (actions != null) {
       LinearLayout row = Ui.row(activity);
-      TextView share = control("↗ 分享", "分享帖子", actions.share());
-      TextView comment = control("评论 " + post.commentCount(), "查看评论", () -> {
+      TextView share = photoAction("分享", "分享帖子", actions.share(), R.drawable.ic_photo_share);
+      share.setTag("photo-action-share");
+      TextView comment = photoAction("评论 " + post.commentCount(), "查看评论", () -> {
         dialog.dismiss();
         actions.comment().run();
-      });
-      TextView like = control(actions.like().getText().toString(), "点赞帖子", () -> {
+      }, R.drawable.ic_photo_comment);
+      comment.setTag("photo-action-comment");
+      TextView like = photoAction("", "点赞帖子", () -> {
         if (actions.like().isEnabled()) actions.like().performClick();
-      });
+      }, R.drawable.ic_photo_like);
+      like.setTag("photo-action-like");
+      bindPhotoLike(like, actions.like().getText());
       TextWatcher mirror = new TextWatcher() {
         @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) {}
         @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
-          like.setText(value);
-          like.setContentDescription(value);
+          bindPhotoLike(like, value);
         }
         @Override public void afterTextChanged(Editable value) {}
       };
@@ -245,10 +280,8 @@ final class CommunityPhotoDialog {
         canvas.stopZoomAnimation();
       });
       for (TextView action : List.of(share, comment, like)) {
-        action.setTextSize(13);
-        action.setPadding(dp(4), 0, dp(4), 0);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
-        params.setMargins(dp(3), 0, dp(3), 0);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -1, 1);
+        params.setMargins(dp(6), 0, dp(6), 0);
         row.addView(action, params);
       }
       details.addView(row);
