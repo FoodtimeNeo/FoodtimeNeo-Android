@@ -9,6 +9,12 @@ public final class Models {
     public boolean closed() { return "closed".equals(mode); }
     public static RegistrationPolicy open() { return new RegistrationPolicy("open", true, false, "open:email"); }
   }
+  /** Server-projected management capabilities for the current account. */
+  public record CapabilitySnapshot(List<String> capabilities, String revision) {
+    public CapabilitySnapshot { capabilities = List.copyOf(capabilities); }
+    public static CapabilitySnapshot empty() { return new CapabilitySnapshot(List.of(), ""); }
+    public boolean can(String capability) { return capabilities.contains(capability); }
+  }
   public record DailyRecommendations(java.time.LocalDate date, String algorithmVersion, List<RecommendedDish> items) {
     public DailyRecommendations { items=List.copyOf(items); }
   }

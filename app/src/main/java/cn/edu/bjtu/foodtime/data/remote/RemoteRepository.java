@@ -27,6 +27,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   private final CommunityPrototype communityPrototype;
   private volatile String csrf;
   private volatile User user;
+  private volatile CapabilitySnapshot capabilities=CapabilitySnapshot.empty();
+  private String capabilitiesOwner="";
   private final Object dashboardLock=new Object();
   private long dashboardRequest;
   private DashboardSnapshot dashboardSnapshot;
@@ -140,14 +142,17 @@ public final class RemoteRepository implements FoodtimeRepository {
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(false);}
   }
   @Override public void restoreSession() {
-    try { profile(); }
+    try { profile(); fetchCapabilitiesQuietly(); }
     catch(RepositoryException e) { if(e.status()!=401) throw e; }
   }
   private void profile() {
     try {
       User next=person(call("GET","users/me/profile",null));
       synchronized(dashboardLock) {
-        if(user==null||!user.id().equals(next.id())||!user.role().equals(next.role())||user.active()!=next.active())clearRecommendations();
+        if(user==null||!user.id().equals(next.id())||!user.role().equals(next.role())||user.active()!=next.active()) {
+          clearRecommendations();
+          clearCapabilities();
+        }
         if(!dashboardOwner(user).equals(dashboardOwner(next))) {dashboardSnapshot=null;dashboardRequest++;}
         user=next;
         syncFollowOwner();
@@ -159,6 +164,49 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private static String dashboardOwner(User actor) {
     return actor!=null&&actor.active()&&actor.role().equals("superadmin")?actor.id()+":"+actor.role():"";
+  }
+  @Override public CapabilitySnapshot capabilities() {
+    synchronized(dashboardLock) {
+      return capabilitiesOwner.equals(capabilityOwner(user)) ? capabilities : CapabilitySnapshot.empty();
+    }
+  }
+  @Override public void loadCapabilities() { fetchCapabilities(); }
+  private String capabilityOwner(User actor) {
+    return actor!=null&&actor.active()?actor.id()+":"+actor.role()+":"+http.sessionKey():"";
+  }
+  private void clearCapabilities() {
+    capabilities=CapabilitySnapshot.empty();
+    capabilitiesOwner="";
+  }
+  private void fetchCapabilitiesQuietly() {
+    try { fetchCapabilities(); }
+    catch(RepositoryException failure) {
+      clearCapabilities();
+      if(failure.status()==401) throw failure;
+    }
+  }
+  private void fetchCapabilities() {
+    final String owner;
+    synchronized(dashboardLock) {owner=capabilityOwner(user);}
+    if(owner.isEmpty())throw new RepositoryException(401,"UNAUTHENTICATED","请重新登录",0);
+    JSONObject data=call("GET","users/me/capabilities",null);
+    JSONArray items=data.optJSONArray("capabilities");
+    String revision=text(data,"revision");
+    if(items==null||revision.isBlank())throw invalidCapabilityResponse();
+    List<String> names=new ArrayList<>();
+    for(int i=0;i<items.length();i++) {
+      Object value=items.opt(i);
+      if(!(value instanceof String name)||name.isBlank())throw invalidCapabilityResponse();
+      names.add(name);
+    }
+    synchronized(dashboardLock) {
+      if(!owner.equals(capabilityOwner(user)))throw new RepositoryException(0,"STALE_RESPONSE","请求已失效，请重试",0);
+      capabilities=new CapabilitySnapshot(names,revision);
+      capabilitiesOwner=owner;
+    }
+  }
+  private static RepositoryException invalidCapabilityResponse() {
+    return new RepositoryException(0,"INVALID_RESPONSE","能力响应异常，请稍后重试",0);
   }
   @Override public AdminDashboard adminDashboard() {
     synchronized(dashboardLock) {
@@ -192,7 +240,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     Validation.accountEmail(account); Validation.password(password,false);
     csrf=null; token();
     call("POST","auth/login",json("account",account.strip(),"password",password));
-    csrf=null; token(); profile(); return user;
+    csrf=null; token(); profile(); fetchCapabilitiesQuietly(); return user;
   }
   @Override public RegistrationPolicy registrationPolicy() {
     JSONObject data=call("GET","auth/registration-policy",null);
@@ -1519,7 +1567,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     catalogUploads.clear();
     venues.clear();
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(true);}
-    synchronized(dashboardLock) {user=null;dashboardSnapshot=null;dashboardRequest++;resetFollows();clearRecommendations();}
+    synchronized(dashboardLock) {user=null;dashboardSnapshot=null;dashboardRequest++;resetFollows();clearRecommendations();clearCapabilities();}
     avatarUploads.clear();csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
 
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
