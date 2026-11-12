@@ -28,6 +28,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile String csrf;
   private volatile User user;
   private volatile CapabilitySnapshot capabilities=CapabilitySnapshot.empty();
+  private volatile String sessionMode="normal";
   private volatile HistorySettings historySettings;
   private String capabilitiesOwner="";
   private final Object dashboardLock=new Object();
@@ -143,9 +144,23 @@ public final class RemoteRepository implements FoodtimeRepository {
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(false);}
   }
   @Override public void restoreSession() {
-    try { profile(); fetchCapabilitiesQuietly(); }
-    catch(RepositoryException e) { if(e.status()!=401) throw e; }
+    try {
+      profile();
+      sessionMode="normal";
+      fetchCapabilitiesQuietly();
+    } catch(RepositoryException failure) {
+      if(failure.status()==401) return;
+      if(failure.status()!=403) throw failure;
+      // A disabled account's normal profile endpoint is blocked; /auth/me remains allowed.
+      JSONObject data=call("GET","auth/me",null);
+      if(!"appeal_only".equals(text(data,"sessionMode"))) throw failure;
+      sessionMode="appeal_only";
+      user=new User(text(data,"id"),text(data,"email"),text(data,"displayName"),text(data,"role"),
+          false,"",0,0);
+      clearCapabilities();
+    }
   }
+  @Override public String sessionMode() { return sessionMode; }
   private void profile() {
     try {
       User next=person(call("GET","users/me/profile",null));
@@ -248,8 +263,18 @@ public final class RemoteRepository implements FoodtimeRepository {
       try { body.put("challengeId",challengeId); body.put("challengeAnswer",challengeAnswer.strip()); }
       catch(JSONException failure) { throw new IllegalArgumentException("验证码参数不合法",failure); }
     }
-    call("POST","auth/login",body);
-    csrf=null; token(); profile(); fetchCapabilitiesQuietly(); return user;
+    JSONObject data=call("POST","auth/login",body);
+    csrf=null; token();
+    String mode=text(data,"sessionMode");
+    if("appeal_only".equals(mode)) {
+      JSONObject row=data.optJSONObject("user");
+      sessionMode="appeal_only";
+      user=new User(text(row,"id"),text(row,"email"),text(row,"displayName"),text(row,"role"),
+          false,"",0,0);
+      clearCapabilities();
+      return user;
+    }
+    sessionMode="normal"; profile(); fetchCapabilitiesQuietly(); return user;
   }
   @Override public RegistrationPolicy registrationPolicy() {
     JSONObject data=call("GET","auth/registration-policy",null);
@@ -1843,7 +1868,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     catalogUploads.clear();
     venues.clear();
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(true);}
-    synchronized(dashboardLock) {user=null;dashboardSnapshot=null;dashboardRequest++;resetFollows();clearRecommendations();clearCapabilities();historySettings=null;}
+    synchronized(dashboardLock) {user=null;sessionMode="normal";dashboardSnapshot=null;dashboardRequest++;resetFollows();clearRecommendations();clearCapabilities();historySettings=null;}
     avatarUploads.clear();csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
 
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
