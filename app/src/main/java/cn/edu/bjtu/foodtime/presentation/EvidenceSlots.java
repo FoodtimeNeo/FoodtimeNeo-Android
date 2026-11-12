@@ -19,9 +19,22 @@ final class EvidenceSlots {
   }
 
   static List<String> upload(MainActivity activity, String prefix) {
+    var actor = activity.repo.currentUser();
+    if (actor == null) throw new IllegalStateException("请先登录");
     List<String> urls = new ArrayList<>();
-    for (String path : paths(activity, prefix)) urls.add(activity.repo.uploadEvidence(path));
+    for (String path : paths(activity, prefix)) {
+      requireActor(activity, actor.id());
+      String uploaded = activity.repo.uploadEvidence(path);
+      requireActor(activity, actor.id());
+      urls.add(uploaded);
+    }
     return urls;
+  }
+
+  private static void requireActor(MainActivity activity, String expected) {
+    var current = activity.repo.currentUser();
+    if (current == null || !expected.equals(current.id()))
+      throw new IllegalStateException("账号已变化，请重新选择证据图片");
   }
 
   static void show(MainActivity activity, LinearLayout parent, String prefix) {
