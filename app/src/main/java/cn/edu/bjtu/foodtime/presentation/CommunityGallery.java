@@ -2,6 +2,7 @@ package cn.edu.bjtu.foodtime.presentation;
 
 import android.annotation.SuppressLint;
 import android.animation.ValueAnimator;
+import android.os.Bundle;
 import android.view.animation.PathInterpolator;
 import android.view.*;
 import android.widget.*;
@@ -15,7 +16,7 @@ final class CommunityGallery extends LinearLayout {
   private final List<String> images;
   private final LinearLayout strip;
   private final HorizontalScrollView viewport;
-  private final TextView dots,previous,next;
+  private final TextView dots;
   private int index,width;
   private float startX;
   private int startIndex;
@@ -30,14 +31,17 @@ final class CommunityGallery extends LinearLayout {
 
   CommunityGallery(MainActivity activity, List<String> images, List<CommunityImage> dimensions) {
     super(activity);this.activity=activity;this.images=List.copyOf(images);setOrientation(VERTICAL);
-    if(images.isEmpty()){addView(Ui.text(activity,"这篇食记没有配图",14,Design.MUTED));strip=null;viewport=null;dots=null;previous=null;next=null;return;}
+    if(images.isEmpty()){addView(Ui.text(activity,"这篇食记没有配图",14,Design.MUTED));strip=null;viewport=null;dots=null;return;}
     strip=Ui.row(activity);
     viewport=new HorizontalScrollView(activity){
       @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){
-        super.onSizeChanged(w,h,oldw,oldh);width=w;
+        super.onSizeChanged(w,h,oldw,oldh);
+        // Image decoding can change height during a drag; only width changes require re-paging.
+        if(w==oldw)return;
+        width=w;
         stopAnimation();
         for(int i=0;i<strip.getChildCount();i++)strip.getChildAt(i).setLayoutParams(new LinearLayout.LayoutParams(w,-2));
-        post(()->scrollTo(index*w,0));
+        post(()->scrollTo(index*width,0));
       }
       @Override public boolean onInterceptTouchEvent(MotionEvent event){
         if(event.getActionMasked()==MotionEvent.ACTION_DOWN){
@@ -45,7 +49,18 @@ final class CommunityGallery extends LinearLayout {
         }
         return super.onInterceptTouchEvent(event);
       }
-      @SuppressLint("ClickableViewAccessibility") // Each image has a click action; navigation also has named buttons.
+      @Override public boolean performAccessibilityAction(int action,Bundle args){
+        if(action==android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_FORWARD){
+          if(index+1>=images.size())return false;
+          show(index+1);return true;
+        }
+        if(action==android.view.accessibility.AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD){
+          if(index==0)return false;
+          show(index-1);return true;
+        }
+        return super.performAccessibilityAction(action,args);
+      }
+      @SuppressLint("ClickableViewAccessibility") // Images and the page selector have named click actions.
       @Override public boolean onTouchEvent(MotionEvent event){
         boolean handled=super.onTouchEvent(event);
         if(event.getActionMasked()==MotionEvent.ACTION_UP){float dx=event.getX()-startX;show(Math.abs(dx)>Ui.dp(activity,40)?startIndex+(dx<0?1:-1):width==0?0:Math.round((float)getScrollX()/width));}
@@ -69,10 +84,17 @@ final class CommunityGallery extends LinearLayout {
       strip.addView(frame,new LinearLayout.LayoutParams(initial,-2));
     }
     LinearLayout controls=Ui.row(activity);
-    previous=Ui.button(activity,"‹",false,()->show(index-1));next=Ui.button(activity,"›",false,()->show(index+1));
-    previous.setContentDescription("上一张图片");next.setContentDescription("下一张图片");
     dots=Ui.text(activity,"",12,Design.RED);dots.setGravity(Gravity.CENTER);dots.setSingleLine(true);
-    controls.addView(previous);controls.addView(dots,new LinearLayout.LayoutParams(0,-2,1));controls.addView(next);
+    dots.setMinHeight(Ui.dp(activity,44));dots.setFocusable(true);dots.setClickable(true);
+    dots.setOnClickListener(view->{
+      PopupMenu menu=new PopupMenu(activity,dots);
+      for(int i=0;i<images.size();i++){
+        final int selected=i;
+        menu.getMenu().add("第"+(i+1)+"张图片").setOnMenuItemClickListener(item->{show(selected);return true;});
+      }
+      menu.show();
+    });
+    controls.addView(dots,new LinearLayout.LayoutParams(0,-2,1));
     if(images.size()>1)addView(controls);update();
   }
   /** Open a single full-size image without loading it in the preview list. */
@@ -106,7 +128,7 @@ final class CommunityGallery extends LinearLayout {
   }
   private void update(){
     StringBuilder value=new StringBuilder();for(int i=0;i<images.size();i++)value.append(i==index?"● ":"○ ");
-    dots.setText(value.toString().trim());dots.setContentDescription("第"+(index+1)+"张，共"+images.size()+"张");previous.setEnabled(index>0);next.setEnabled(index<images.size()-1);
+    dots.setText(value.toString().trim());dots.setContentDescription("第"+(index+1)+"张，共"+images.size()+"张，点按选择图片");
   }
   private void open(int page) {
     show(page);
