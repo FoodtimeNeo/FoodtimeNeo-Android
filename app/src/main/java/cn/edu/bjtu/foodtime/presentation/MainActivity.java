@@ -1060,13 +1060,21 @@ public class MainActivity extends Activity {
 
   public void pickImage(String key) {
     pickingKey = key;
-    startActivityForResult(imagePickerIntent(), 101);
+    if(!ImagePicker.start(this,ImagePicker.intent(this,false,1,null),
+        ImagePicker.fallback(false,null),101)) {
+      pickingKey=null;
+      message("无法打开图片选择器，请从文件选择");
+    }
   }
   public void pickAvatar(String key){
     if(repo.currentUser()==null||writeInFlight)return;
     pickingKey=key;avatarPickingActor=repo.currentUser().id();
-    android.content.Intent intent=imagePickerIntent();intent.putExtra(android.content.Intent.EXTRA_MIME_TYPES,new String[]{"image/jpeg","image/png"});
-    startActivityForResult(intent,103);
+    String[] mime={"image/jpeg","image/png"};
+    if(!ImagePicker.start(this,ImagePicker.intent(this,false,1,mime),
+        ImagePicker.fallback(false,mime),103)) {
+      pickingKey=null;avatarPickingActor="";
+      message("无法打开图片选择器，请从文件选择");
+    }
   }
   void finishAvatarCrop(View trigger,TextView error,String target,Supplier<String> encode){
     startOperation(trigger,error,"裁剪头像",target,encode,path->{
@@ -1076,8 +1084,14 @@ public class MainActivity extends Activity {
 
   public void pickCommunityPhotos() {
     pickingKey=draftKey("photos");
-    android.content.Intent intent=imagePickerIntent();intent.putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE,true);
-    startActivityForResult(intent,102);
+    int count=0;
+    for(int i=0;i<9;i++)if(!drafts.getString(draftKey("photo:"+i+":image"),"").isBlank())count++;
+    int remaining=Math.max(1,9-count);
+    if(!ImagePicker.start(this,ImagePicker.intent(this,true,remaining,null),
+        ImagePicker.fallback(true,null),102)) {
+      pickingKey=null;
+      message("无法打开图片选择器，请从文件选择");
+    }
   }
   void discardPhoto(String path){worker.execute(()->PhotoImport.discard(this,path));}
   private void applyCommunityPhotos(String prefix,String paths){
@@ -1089,11 +1103,8 @@ public class MainActivity extends Activity {
   }
 
   static android.content.Intent imagePickerIntent() {
-    android.content.Intent intent =
-        new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
-    intent.setType("image/*");
-    intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);
-    return intent;
+    // Kept for existing instrumentation harnesses; production uses ImagePicker's album-first adapter.
+    return ImagePicker.fallback(false,null);
   }
 
   @Override
@@ -1102,9 +1113,9 @@ public class MainActivity extends Activity {
     if(feedbackDocuments.result(request,result,data))return;
     if(request==103){
       String target=pickingKey,actor=avatarPickingActor;pickingKey=null;avatarPickingActor="";
-      if(result!=RESULT_OK||data==null||data.getData()==null||target==null)return;
+      android.net.Uri selected=result==RESULT_OK?ImagePicker.firstUri(data):null;
+      if(selected==null||target==null)return;
       if(repo.currentUser()==null||!repo.currentUser().id().equals(actor)||!route().kind().equals("profile-edit")||!target.equals(draftKey("image"))){message("登录状态或页面已变化，请重新选择头像");return;}
-      android.net.Uri selected=data.getData();
       startOperation(null,null,"导入头像",target,()->PhotoImport.prepareAvatar(this,selected),path->{
         if(repo.currentUser()==null||!repo.currentUser().id().equals(actor)){discardPhoto(path);message("登录状态已变化，请重新选择头像");return;}
         drafts.putString("avatarCropTarget",target);go("avatar-crop",path);
@@ -1126,11 +1137,10 @@ public class MainActivity extends Activity {
     }
     if (request == 101
         && result == RESULT_OK
-        && data != null
-        && data.getData() != null
         && pickingKey != null) {
       String selectedKey=pickingKey;
-      android.net.Uri selected=data.getData();
+      android.net.Uri selected=ImagePicker.firstUri(data);
+      if(selected==null)return;
       startOperation(null,null,"导入图片",selectedKey,() -> PhotoImport.prepare(this,selected),path -> {
         rememberScroll();String previous=drafts.getString(selectedKey,"");drafts.putString(selectedKey,path);
         worker.execute(() -> PhotoImport.discard(this,previous));renderContent();
