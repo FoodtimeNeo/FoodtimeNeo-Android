@@ -472,7 +472,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     if(!stalls.containsKey(id)) throw missing("档口不存在或已停用");
   }
   private void fetchDishes(String id) {
-    var items=list("stalls/"+id+"/dishes",j -> new Dish(text(j,"id"),id,text(j,"name"),decimal(j,"price"),"",true));
+    var items=list("stalls/"+id+"/dishes",j -> new Dish(text(j,"id"),id,text(j,"name"),decimal(j,"price"),"",true,j.optLong("revision",0)));
     dishes.entrySet().removeIf(e -> e.getValue().stallId().equals(id));
     // The stall page only needs the catalog rows. Loading every dish gallery here turns one
     // navigation into an N+1 request burst, so media stays lazy until DISH_DETAIL is opened.
@@ -555,6 +555,43 @@ public final class RemoteRepository implements FoodtimeRepository {
     for(int i=0;i<rows.length();i++){String id=rows.optString(i,"");if(!id.isBlank())ids.add(id);}
     return List.copyOf(ids);
   }
+  @Override public CatalogCorrectionPage myCorrections(int page) {
+    JSONObject data=call("GET","users/me/catalog-corrections?page="+page+"&size=20",null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","纠错列表响应异常，请重试",0);
+    List<CatalogCorrection> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++)items.add(correction(rows.optJSONObject(i)));
+    return new CatalogCorrectionPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",20));
+  }
+  @Override public CatalogCorrection submitCorrection(CorrectionProposal proposal) {
+    boolean name=proposal.changedFields().contains("name");
+    boolean description=proposal.changedFields().contains("description");
+    boolean price=proposal.changedFields().contains("price");
+    JSONObject body=json("targetType",proposal.targetType(),"targetId",proposal.targetId(),
+        "baseRevision",proposal.baseRevision(),"changedFields",array(proposal.changedFields()),
+        "name",name?proposal.name():null,"description",description?proposal.description():null,
+        "price",price?proposal.price():null,"reason",proposal.reason(),
+        "evidenceUrls",array(proposal.evidenceUrls()),"idempotencyKey",proposal.idempotencyKey());
+    return correction(call("POST","users/me/catalog-corrections",body));
+  }
+  private static JSONArray array(List<String> values) {
+    JSONArray array=new JSONArray();for(String value:values)array.put(value);return array;
+  }
+  private CatalogCorrection correction(JSONObject j) {
+    if(j==null||text(j,"id").isBlank())throw new RepositoryException(0,"INVALID_RESPONSE","纠错响应异常，请重试",0);
+    return new CatalogCorrection(text(j,"id"),text(j,"targetType"),text(j,"targetId"),text(j,"targetSummary"),
+        j.optLong("baseRevision"),text(j,"originalName"),text(j,"originalDescription"),decimal(j,"originalPrice"),
+        text(j,"proposedName"),text(j,"proposedDescription"),decimal(j,"proposedPrice"),
+        strings(j,"changedFields"),text(j,"reason"),text(j,"status"),text(j,"reviewNote"),
+        time(j,"createdAt"),time(j,"reviewedAt"),j.optLong("revision"),strings(j,"evidenceUrls"));
+  }
+  private static List<String> strings(JSONObject j,String key) {
+    JSONArray rows=j==null?null:j.optJSONArray(key);
+    if(rows==null)return List.of();
+    List<String> values=new ArrayList<>();
+    for(int i=0;i<rows.length();i++){String value=rows.optString(i,"");if(!value.isBlank())values.add(value);}
+    return List.copyOf(values);
+  }
 
   @Override public boolean dishFavorite(String dishId) {
     return call("GET", "users/me/dish-favorites/" + encode(dishId), null).optBoolean("saved");
@@ -597,7 +634,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     String hall=text(j,"diningHallId");
     if(!halls.containsKey(hall)) fetchHalls();
     if(!stalls.containsKey(stall)) fetchStalls(hall);
-    dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true));
+    dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true,j.optLong("revision",0)));
     contexts.put(id,joined(j,true));
   }
   private void fetchDishImages(String id) {
