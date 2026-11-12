@@ -1,6 +1,7 @@
 package cn.edu.bjtu.foodtime.domain.repository;
 
 import cn.edu.bjtu.foodtime.domain.model.Models.CapabilitySnapshot;
+import cn.edu.bjtu.foodtime.domain.model.Models.CaptchaChallenge;
 import cn.edu.bjtu.foodtime.domain.model.Models.RegistrationPolicy;
 import cn.edu.bjtu.foodtime.domain.model.Models.User;
 
@@ -12,6 +13,16 @@ public interface AuthRepository {
 
   /** Explicit refresh for callers that want to retry after a transient failure. */
   default void loadCapabilities() { }
+
+  /** One-time login challenge; implementations without CAPTCHA can keep the default failure. */
+  default CaptchaChallenge captcha() {
+    throw new cn.edu.bjtu.foodtime.domain.repository.RepositoryException(
+        404, "CAPTCHA_DISABLED", "登录验证码未启用", 0);
+  }
+
+  default User login(String account, String password, String challengeId, String challengeAnswer) {
+    return login(account, password);
+  }
 
   User login(String account, String password);
 

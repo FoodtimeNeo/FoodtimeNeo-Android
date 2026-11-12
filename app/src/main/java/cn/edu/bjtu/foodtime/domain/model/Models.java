@@ -15,6 +15,8 @@ public final class Models {
     public static CapabilitySnapshot empty() { return new CapabilitySnapshot(List.of(), ""); }
     public boolean can(String capability) { return capabilities.contains(capability); }
   }
+  /** One-time login challenge image; the answer is never part of this payload. */
+  public record CaptchaChallenge(String challengeId, String imageBase64, String expiresAt) {}
   public record DailyRecommendations(java.time.LocalDate date, String algorithmVersion, List<RecommendedDish> items) {
     public DailyRecommendations { items=List.copyOf(items); }
   }
