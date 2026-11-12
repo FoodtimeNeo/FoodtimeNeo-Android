@@ -74,6 +74,14 @@ public final class Models {
     public boolean hasMore() { return (long) page * size < total; }
   }
 
+  public record CatalogCorrectionAdmin(CatalogCorrection correction, String submitterId,
+                                       String submitterName, String submitterEmail) {}
+
+  public record CatalogCorrectionAdminPage(List<CatalogCorrectionAdmin> items, long total, int page, int size) {
+    public CatalogCorrectionAdminPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
   public record DishSearchFilters(List<String> diningHallIds, BigDecimal minPrice,
                                   BigDecimal maxPrice, BigDecimal minRating, String sort) {
     public DishSearchFilters { diningHallIds = diningHallIds == null ? List.of() : List.copyOf(diningHallIds); }

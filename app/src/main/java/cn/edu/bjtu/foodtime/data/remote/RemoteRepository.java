@@ -574,6 +574,25 @@ public final class RemoteRepository implements FoodtimeRepository {
         "evidenceUrls",array(proposal.evidenceUrls()),"idempotencyKey",proposal.idempotencyKey());
     return correction(call("POST","users/me/catalog-corrections",body));
   }
+  @Override public CatalogCorrectionAdminPage adminCorrections(String status,int page) {
+    StringBuilder path=new StringBuilder("admin/catalog-corrections?page=").append(page).append("&size=20");
+    if(status!=null&&!status.isBlank())path.append("&status=").append(encode(status));
+    JSONObject data=call("GET",path.toString(),null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","纠错审核列表响应异常，请重试",0);
+    List<CatalogCorrectionAdmin> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++)items.add(adminCorrection(rows.optJSONObject(i)));
+    return new CatalogCorrectionAdminPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",20));
+  }
+  @Override public CatalogCorrectionAdmin decideCorrection(String id,String decision,String note,long expectedRevision) {
+    return adminCorrection(call("POST","admin/catalog-corrections/"+encode(id)+"/decision",
+        json("decision",decision,"reviewNote",note,"expectedRevision",expectedRevision)));
+  }
+  private CatalogCorrectionAdmin adminCorrection(JSONObject j) {
+    if(j==null||j.optJSONObject("correction")==null)throw new RepositoryException(0,"INVALID_RESPONSE","纠错审核响应异常，请重试",0);
+    return new CatalogCorrectionAdmin(correction(j.optJSONObject("correction")),text(j,"submitterId"),
+        text(j,"submitterName"),text(j,"submitterEmail"));
+  }
   private static JSONArray array(List<String> values) {
     JSONArray array=new JSONArray();for(String value:values)array.put(value);return array;
   }

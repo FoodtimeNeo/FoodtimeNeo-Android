@@ -65,6 +65,14 @@ public interface CatalogRepository {
     throw new UnsupportedOperationException();
   }
 
+  default CatalogCorrectionAdminPage adminCorrections(String status, int page) {
+    throw new UnsupportedOperationException();
+  }
+
+  default CatalogCorrectionAdmin decideCorrection(String id, String decision, String note, long expectedRevision) {
+    throw new UnsupportedOperationException();
+  }
+
   default boolean dishFavorite(String dishId) { throw new UnsupportedOperationException(); }
   default boolean setDishFavorite(String dishId, boolean saved) { throw new UnsupportedOperationException(); }
 

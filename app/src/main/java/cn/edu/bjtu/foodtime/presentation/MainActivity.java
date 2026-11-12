@@ -214,6 +214,7 @@ public class MainActivity extends Activity {
     screens.put("favorite-dishes", FavoriteDishesScreen::show);
     screens.put("correction", CorrectionScreen::submit);
     screens.put("my-corrections", CorrectionScreen::mine);
+    screens.put("admin-corrections", CorrectionScreen::admin);
     screens.put("community", CommunityScreen::feed);
     screens.put("community-following", CommunityScreen::feed);
     screens.put("community-search", CommunityDiscoveryScreen::show);
@@ -842,6 +843,7 @@ public class MainActivity extends Activity {
       case "mine-submissions" -> "我的提交";
       case "correction" -> "目录纠错";
       case "my-corrections" -> "我的纠错";
+      case "admin-corrections" -> "目录纠错审核";
       case "following" -> "我的关注";
       case "user-search" -> "搜索用户";
       case "followers" -> "关注我的";

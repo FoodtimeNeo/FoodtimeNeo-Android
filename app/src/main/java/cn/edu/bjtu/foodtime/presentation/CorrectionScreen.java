@@ -1,11 +1,14 @@
 package cn.edu.bjtu.foodtime.presentation;
 
+import android.app.AlertDialog;
 import android.text.InputType;
 import android.widget.CheckBox;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import cn.edu.bjtu.foodtime.domain.model.Models.CatalogCorrection;
+import cn.edu.bjtu.foodtime.domain.model.Models.CatalogCorrectionAdmin;
+import cn.edu.bjtu.foodtime.domain.model.Models.CatalogCorrectionAdminPage;
 import cn.edu.bjtu.foodtime.domain.model.Models.CatalogCorrectionPage;
 import cn.edu.bjtu.foodtime.domain.model.Models.CorrectionProposal;
 import cn.edu.bjtu.foodtime.domain.model.Models.Dish;
@@ -111,6 +114,75 @@ final class CorrectionScreen {
           if (data.hasMore()) Ui.action(rows, "加载更多", false,
               () -> load(activity, rows, status, error, page + 1));
         }, () -> {});
+  }
+
+  static void admin(MainActivity activity, LinearLayout page, MainActivity.Route route) {
+    activity.heading(page, "04.1", "纠错审核", "目录名称、介绍与价格的整单核对");
+    LinearLayout rows = Ui.col(activity);
+    TextView status = Ui.text(activity, "正在加载…", 14, Design.MUTED);
+    TextView error = Ui.text(activity, "", 14, Design.RED);
+    Ui.observeError(error);
+    page.addView(status);
+    page.addView(error);
+    page.addView(rows);
+    loadAdmin(activity, rows, status, error, 1);
+  }
+
+  private static void loadAdmin(MainActivity activity, LinearLayout rows, TextView status, TextView error, int page) {
+    AtomicReference<CatalogCorrectionAdminPage> result = new AtomicReference<>();
+    activity.read("admin-catalog-corrections:" + page, null, error,
+        () -> result.set(activity.repo.adminCorrections("pending", page)), () -> {
+          rows.removeAllViews();
+          CatalogCorrectionAdminPage data = result.get();
+          status.setText(data.items().isEmpty() ? "没有待核对纠错。" : "待核对 " + data.total() + " 条");
+          for (CatalogCorrectionAdmin item : data.items()) adminCard(activity, rows, status, error, item);
+          if (data.hasMore()) Ui.action(rows, "加载更多", false,
+              () -> loadAdmin(activity, rows, status, error, page + 1));
+        }, () -> {});
+  }
+
+  private static void adminCard(MainActivity activity, LinearLayout rows, TextView status, TextView error,
+      CatalogCorrectionAdmin admin) {
+    CatalogCorrection item = admin.correction();
+    LinearLayout card = Ui.card(rows);
+    card.setPadding(Ui.dp(activity, 14), Ui.dp(activity, 12), Ui.dp(activity, 14), Ui.dp(activity, 12));
+    card.addView(Ui.title(activity, item.targetSummary(), 17));
+    card.addView(Ui.text(activity, admin.submitterName() + " · " + SubmissionScreen.date(item.createdAt()),
+        12, Design.MUTED));
+    List<String> changes = new ArrayList<>();
+    for (String field : item.changedFields()) changes.add(changeText(field, item));
+    card.addView(Ui.text(activity, String.join("\n", changes), 14, Design.INK));
+    card.addView(Ui.text(activity, "理由：" + item.reason(), 13, Design.MUTED));
+    card.setOnClickListener(view -> decisionDialog(activity, status, error, admin));
+  }
+
+  private static void decisionDialog(MainActivity activity, TextView status, TextView error,
+      CatalogCorrectionAdmin admin) {
+    CatalogCorrection item = admin.correction();
+    EditText note = new EditText(activity);
+    note.setHint("审核说明（可选）");
+    note.setSingleLine(false);
+    LinearLayout content = Ui.col(activity);
+    content.setPadding(Ui.dp(activity, 16), Ui.dp(activity, 8), Ui.dp(activity, 16), 0);
+    for (String field : item.changedFields())
+      content.addView(Ui.text(activity, changeText(field, item), 14, Design.INK));
+    content.addView(Ui.text(activity, "理由：" + item.reason(), 13, Design.MUTED));
+    content.addView(note);
+    new AlertDialog.Builder(activity).setTitle("审核纠错").setView(content)
+        .setNegativeButton("取消", null)
+        .setNeutralButton("拒绝", (dialog, which) -> decide(activity, status, error, item, "rejected", note))
+        .setPositiveButton("通过并应用", (dialog, which) -> decide(activity, status, error, item, "approved", note))
+        .show();
+  }
+
+  private static void decide(MainActivity activity, TextView status, TextView error, CatalogCorrection item,
+      String decision, EditText note) {
+    activity.request(null, error, () -> activity.repo.decideCorrection(item.id(), decision,
+            note.getText().toString().strip(), item.revision()),
+        () -> {
+          activity.message("approved".equals(decision) ? "已通过并应用" : "已拒绝");
+          activity.render();
+        });
   }
 
   private static void card(MainActivity activity, LinearLayout rows, CatalogCorrection item) {
