@@ -11,6 +11,7 @@ import cn.edu.bjtu.foodtime.domain.model.Models.CommunityComment;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityPost;
 import cn.edu.bjtu.foodtime.domain.model.Models.User;
 import cn.edu.bjtu.foodtime.domain.validation.CommunityPermissions;
+import java.util.UUID;
 
 /** The comment region owns pagination and row updates inside the scrollable post. */
 final class CommunityDiscussion {
@@ -24,7 +25,7 @@ final class CommunityDiscussion {
     this.activity = activity;
     this.page = page;
     this.post = post;
-    composer = new CommunityCommentComposer(activity, page, post, this::paint);
+    composer = new CommunityCommentComposer(activity, page, post, this::paint, this::onSubmitted);
     section = Ui.col(activity);
     section.setPadding(dp(14), 0, dp(14), dp(18));
     section.setTag("community-discussion");
@@ -86,6 +87,26 @@ final class CommunityDiscussion {
     entry.setTextColor(Design.MUTED);
     entry.setBackground(Ui.ripple(activity, Design.ALT, Color.TRANSPARENT, 24));
     return entry;
+  }
+
+  /** Immediately show the pending comment without rebuilding every existing floor. */
+  private void onSubmitted(String rootId, String content) {
+    if (rows.getParent() == null) return;
+    User viewer = activity.repo.currentUser();
+    if (viewer == null) return;
+    CommunityPost current = activity.repo.communityPost(post.id());
+    long total = (current == null ? post.commentCount() : current.commentCount()) + 1;
+    heading.setText("共 " + total + " 条评论");
+    count.setText("评论 " + total);
+    count.setContentDescription("查看评论，共 " + total + " 条");
+    // Replies keep the existing floor layout; the approval watcher refreshes the thread later.
+    if (!rootId.isBlank()) return;
+    CommunityComment pending = new CommunityComment("pending:" + UUID.randomUUID(), post.id(),
+        viewer.id(), viewer.displayName(), content, 0, "pending", System.currentTimeMillis());
+    LinearLayout thread = Ui.col(activity);
+    thread.setPadding(0, dp(12), 0, dp(10));
+    thread.addView(comment(pending, pending));
+    rows.addView(thread, 0);
   }
 
   private void paint() {
