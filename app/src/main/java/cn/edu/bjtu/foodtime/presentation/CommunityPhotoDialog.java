@@ -17,6 +17,7 @@ import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.WindowInsets;
+import android.view.animation.LinearInterpolator;
 import android.view.animation.PathInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -25,6 +26,7 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityPost;
 import cn.edu.bjtu.foodtime.domain.model.CommunityText;
+import cn.edu.bjtu.foodtime.domain.validation.PhotoZoomGeometry;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.function.IntConsumer;
@@ -125,7 +127,10 @@ final class CommunityPhotoDialog {
     dialog.show();
     dialog.getWindow().setLayout(-1, -1);
   }
-  void dismiss() { dialog.dismiss(); }
+  void dismiss() {
+    canvas.stopZoomAnimation();
+    dialog.dismiss();
+  }
 
   private int dp(int value) { return Ui.dp(activity, value); }
 
@@ -203,7 +208,10 @@ final class CommunityPhotoDialog {
         @Override public void afterTextChanged(Editable value) {}
       };
       actions.like().addTextChangedListener(mirror);
-      dialog.setOnDismissListener(unused -> actions.like().removeTextChangedListener(mirror));
+      dialog.setOnDismissListener(unused -> {
+        actions.like().removeTextChangedListener(mirror);
+        canvas.stopZoomAnimation();
+      });
       for (TextView action : List.of(share, comment, like)) {
         action.setTextSize(13);
         action.setPadding(dp(4), 0, dp(4), 0);
@@ -297,6 +305,7 @@ final class CommunityPhotoDialog {
     private float swipeOffset, initialOffset;
     private int swipeAxis;
     private ValueAnimator settling;
+    private ValueAnimator zoomAnimator;
 
     void ensurePage(int imagePage) {
       if (imagePage < 0 || imagePage >= images.size() ||
@@ -371,6 +380,7 @@ final class CommunityPhotoDialog {
       setTag("photo-canvas");
       pinch = new ScaleGestureDetector(activity, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
         @Override public boolean onScaleBegin(ScaleGestureDetector detector) {
+          stopZoomAnimation();
           focusX = detector.getFocusX();
           focusY = detector.getFocusY();
           return true;
@@ -390,8 +400,7 @@ final class CommunityPhotoDialog {
         }
         @Override public boolean onDoubleTap(MotionEvent event) {
           if (multiplePointers) return false;
-          if (scale > 1) resetZoom();
-          else zoom(2.5f, event.getX(), event.getY(), event.getX(), event.getY());
+          animateZoom(scale > 1 ? 1f : 2.5f, event.getX(), event.getY());
           return true;
         }
         @Override public boolean onScroll(MotionEvent first, MotionEvent current, float dx, float dy) {
@@ -416,6 +425,7 @@ final class CommunityPhotoDialog {
       int action = event.getActionMasked();
       if (action == MotionEvent.ACTION_DOWN) {
         stopSettling();
+        stopZoomAnimation();
         initialOffset = swipeOffset;
         swipeAxis = 0;
         multiplePointers = false;
@@ -423,6 +433,7 @@ final class CommunityPhotoDialog {
         downY = event.getY();
       } else if (action == MotionEvent.ACTION_POINTER_DOWN) {
         multiplePointers = true;
+        stopZoomAnimation();
         settleTo(page);
       }
       pinch.onTouchEvent(event);
@@ -450,20 +461,64 @@ final class CommunityPhotoDialog {
     @Override protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
       super.onSizeChanged(width, height, oldWidth, oldHeight);
       stopSettling();
+      stopZoomAnimation();
       swipeOffset = 0;
       updateImages();
     }
 
     @Override protected void onDetachedFromWindow() {
       stopSettling();
+      stopZoomAnimation();
       super.onDetachedFromWindow();
     }
 
     void resetZoom() {
+      stopZoomAnimation();
       scale = 1;
       shiftX = 0;
       shiftY = 0;
       updateImages();
+    }
+
+    void stopZoomAnimation() {
+      ValueAnimator running = zoomAnimator;
+      zoomAnimator = null;
+      if (running != null) running.cancel();
+    }
+
+    /** One zoom animation at a time; new double taps continue from the visible state. */
+    private void animateZoom(float target, float anchorX, float anchorY) {
+      stopZoomAnimation();
+      float fromScale = scale, fromShiftX = shiftX, fromShiftY = shiftY;
+      float bounded = PhotoZoomGeometry.clampScale(target);
+      if (Math.abs(bounded - fromScale) < .0001f) return;
+      if (Build.VERSION.SDK_INT >= 26 && !ValueAnimator.areAnimatorsEnabled()) {
+        zoom(bounded, anchorX, anchorY, anchorX, anchorY);
+        return;
+      }
+      final float centerX = getWidth() / 2f, centerY = getHeight() / 2f;
+      zoomAnimator = ValueAnimator.ofFloat(0f, 1f);
+      zoomAnimator.setDuration(260);
+      zoomAnimator.setInterpolator(new LinearInterpolator());
+      zoomAnimator.addUpdateListener(animation -> {
+        float progress = (float) animation.getAnimatedValue();
+        float eased = PhotoZoomGeometry.easeOutCubic(progress);
+        scale = PhotoZoomGeometry.interpolateScale(fromScale, bounded, eased);
+        shiftX = PhotoZoomGeometry.anchoredShift(anchorX, centerX, fromShiftX, fromScale, scale);
+        shiftY = PhotoZoomGeometry.anchoredShift(anchorY, centerY, fromShiftY, fromScale, scale);
+        updateImages();
+      });
+      zoomAnimator.addListener(new AnimatorListenerAdapter() {
+        @Override public void onAnimationEnd(Animator animation) {
+          if (zoomAnimator != animation) return;
+          zoomAnimator = null;
+          scale = bounded;
+          shiftX = PhotoZoomGeometry.anchoredShift(anchorX, centerX, fromShiftX, fromScale, scale);
+          shiftY = PhotoZoomGeometry.anchoredShift(anchorY, centerY, fromShiftY, fromScale, scale);
+          updateImages();
+        }
+      });
+      zoomAnimator.start();
     }
 
     private void zoom(float target, float fromX, float fromY, float toX, float toY) {
@@ -478,7 +533,7 @@ final class CommunityPhotoDialog {
 
     void stepZoom(float factor) {
       float cx = getWidth() / 2f, cy = getHeight() / 2f;
-      zoom(scale * factor, cx, cy, cx, cy);
+      animateZoom(scale * factor, cx, cy);
     }
 
     void updateImages() {
