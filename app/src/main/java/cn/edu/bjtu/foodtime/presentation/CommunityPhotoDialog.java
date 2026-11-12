@@ -8,15 +8,18 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
+import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
+import android.view.KeyEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.WindowInsets;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.view.animation.LinearInterpolator;
 import android.view.animation.PathInterpolator;
 import android.widget.FrameLayout;
@@ -41,7 +44,7 @@ final class CommunityPhotoDialog {
   private final boolean thumbnailFirst;
   private final Dialog dialog;
   private final PhotoCanvas canvas;
-  private final TextView original, counter, previous, next;
+  private final TextView original, counter;
   private FrameLayout originalLayer;
   private int page;
   private record PhotoLayer(FrameLayout view, int page, boolean full) {}
@@ -56,6 +59,38 @@ final class CommunityPhotoDialog {
     FrameLayout screen = new FrameLayout(activity);
     screen.setBackgroundColor(Color.BLACK);
     canvas = new PhotoCanvas(post != null);
+    canvas.setFocusable(true);
+    canvas.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+    canvas.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+      @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+        super.onInitializeAccessibilityNodeInfo(host, info);
+        info.setScrollable(images.size() > 1);
+        if (page > 0) info.addAction(new AccessibilityNodeInfo.AccessibilityAction(
+            AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD, "上一张图片"));
+        if (page + 1 < images.size()) info.addAction(new AccessibilityNodeInfo.AccessibilityAction(
+            AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, "下一张图片"));
+      }
+
+      @Override public boolean performAccessibilityAction(View host, int action, Bundle args) {
+        if (action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD && page + 1 < images.size()) {
+          changePage(page + 1);
+          return true;
+        }
+        if (action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD && page > 0) {
+          changePage(page - 1);
+          return true;
+        }
+        return super.performAccessibilityAction(host, action, args);
+      }
+    });
+    canvas.setOnKeyListener((view, key, event) -> {
+      if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+      if (key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT) {
+        changePage(page + (key == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1));
+        return true;
+      }
+      return false;
+    });
     screen.addView(canvas, new FrameLayout.LayoutParams(-1, -1));
 
     FrameLayout top = new FrameLayout(activity);
@@ -78,6 +113,14 @@ final class CommunityPhotoDialog {
     options.setTextSize(22);
     options.setOnClickListener(view -> {
       PopupMenu menu = new PopupMenu(activity, options);
+      if (page > 0) menu.getMenu().add("上一张图片").setOnMenuItemClickListener(item -> {
+        changePage(page - 1);
+        return true;
+      });
+      if (page + 1 < images.size()) menu.getMenu().add("下一张图片").setOnMenuItemClickListener(item -> {
+        changePage(page + 1);
+        return true;
+      });
       menu.getMenu().add("放大").setOnMenuItemClickListener(item -> {
         canvas.stepZoom(1.5f);
         return true;
@@ -92,11 +135,6 @@ final class CommunityPhotoDialog {
     top.addView(topEnd, position(Gravity.END | Gravity.TOP));
     screen.addView(top, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
 
-    previous = control("‹", "上一张图片", () -> changePage(page - 1));
-    next = control("›", "下一张图片", () -> changePage(page + 1));
-    for (TextView arrow : List.of(previous, next)) arrow.setTextSize(25);
-    screen.addView(previous, position(Gravity.START | Gravity.CENTER_VERTICAL));
-    screen.addView(next, position(Gravity.END | Gravity.CENTER_VERTICAL));
     FrameLayout bottom = post == null ? null : footer(post, actions);
     if (bottom != null) screen.addView(bottom, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
 
@@ -108,12 +146,6 @@ final class CommunityPhotoDialog {
             WindowInsets.Type.statusBars() | WindowInsets.Type.displayCutout()).top;
         top.setPadding(safe.left, topInset, safe.right, 0);
         if (bottom != null) bottom.setPadding(safe.left, 0, safe.right, safe.bottom);
-        var left = (FrameLayout.LayoutParams) previous.getLayoutParams();
-        var right = (FrameLayout.LayoutParams) next.getLayoutParams();
-        left.leftMargin = dp(10) + safe.left;
-        right.rightMargin = dp(10) + safe.right;
-        previous.setLayoutParams(left);
-        next.setLayoutParams(right);
       } else {
         top.setPadding(0, insets.getStableInsetTop(), 0, 0);
       }
@@ -252,8 +284,7 @@ final class CommunityPhotoDialog {
     original.setVisibility(thumbnailFirst && !thumbnail.equals(fullUrl(url)) ? View.VISIBLE : View.GONE);
     setOriginalStatus("加载原图", true);
     counter.setText((index + 1) + "/" + images.size());
-    previous.setVisibility(index > 0 ? View.VISIBLE : View.GONE);
-    next.setVisibility(index + 1 < images.size() ? View.VISIBLE : View.GONE);
+    canvas.setContentDescription("帖子图片，第 " + (index + 1) + " 张，共 " + images.size() + " 张");
   }
 
   private static String fullUrl(String url) {
