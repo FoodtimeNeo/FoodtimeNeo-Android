@@ -49,6 +49,9 @@ public final class Models {
     }
   }
 
+  public record FavoriteGroup(String id, String kind, String name, int sortOrder,
+                              long revision, long itemCount) {}
+
   public record DishSearchFilters(List<String> diningHallIds, BigDecimal minPrice,
                                   BigDecimal maxPrice, BigDecimal minRating, String sort) {
     public DishSearchFilters { diningHallIds = diningHallIds == null ? List.of() : List.copyOf(diningHallIds); }

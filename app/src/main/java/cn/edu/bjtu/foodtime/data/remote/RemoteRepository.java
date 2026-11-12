@@ -513,7 +513,47 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
 
   @Override public DishSearchPage favoriteDishes(int page) {
-    return dishRows("users/me/dish-favorites?page=" + page + "&size=20", page);
+    return favoriteDishes(page,null,false);
+  }
+  @Override public DishSearchPage favoriteDishes(int page,String groupId,boolean unfiled) {
+    StringBuilder path=new StringBuilder("users/me/dish-favorites?page=").append(page).append("&size=20");
+    if(groupId!=null&&!groupId.isBlank())path.append("&groupId=").append(encode(groupId));
+    else if(unfiled)path.append("&unfiled=true");
+    return dishRows(path.toString(),page);
+  }
+  @Override public List<FavoriteGroup> favoriteGroups(String kind) {
+    return list("users/me/favorite-groups?kind=" + encode(kind), this::favoriteGroup);
+  }
+  @Override public FavoriteGroup createFavoriteGroup(String kind,String name) {
+    return favoriteGroup(call("POST","users/me/favorite-groups",json("kind",kind,"name",name)));
+  }
+  @Override public FavoriteGroup updateFavoriteGroup(String id,String name,Integer sortOrder,Long expectedRevision) {
+    return favoriteGroup(call("PUT","users/me/favorite-groups/"+encode(id),
+        json("name",name,"sortOrder",sortOrder,"expectedRevision",expectedRevision)));
+  }
+  @Override public void deleteFavoriteGroup(String id) {
+    call("DELETE","users/me/favorite-groups/"+encode(id),null);
+  }
+  @Override public List<String> favoriteGroupMembership(String kind,String targetId) {
+    return groupIds(call("GET","users/me/favorite-groups/memberships?kind="+encode(kind)+"&targetId="+encode(targetId),null));
+  }
+  @Override public List<String> addFavoriteGroupMember(String groupId,String targetId) {
+    return groupIds(call("PUT","users/me/favorite-groups/"+encode(groupId)+"/members/"+encode(targetId),null));
+  }
+  @Override public List<String> removeFavoriteGroupMember(String groupId,String targetId) {
+    return groupIds(call("DELETE","users/me/favorite-groups/"+encode(groupId)+"/members/"+encode(targetId),null));
+  }
+  private FavoriteGroup favoriteGroup(JSONObject row) {
+    String id=text(row,"id"),kind=text(row,"kind"),name=text(row,"name");
+    if(id.isBlank()||name.isBlank())throw new RepositoryException(0,"INVALID_RESPONSE","分组响应异常，请重试",0);
+    return new FavoriteGroup(id,kind,name,row.optInt("sortOrder",0),row.optLong("revision",0),row.optLong("itemCount",0));
+  }
+  private static List<String> groupIds(JSONObject data) {
+    JSONArray rows=data.optJSONArray("groupIds");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","分组响应异常，请重试",0);
+    List<String> ids=new ArrayList<>();
+    for(int i=0;i<rows.length();i++){String id=rows.optString(i,"");if(!id.isBlank())ids.add(id);}
+    return List.copyOf(ids);
   }
 
   @Override public boolean dishFavorite(String dishId) {

@@ -25,6 +25,37 @@ public interface CatalogRepository {
     return searchDishes(query, page);
   }
   default DishSearchPage favoriteDishes(int page) { throw new UnsupportedOperationException(); }
+
+  default DishSearchPage favoriteDishes(int page, String groupId, boolean unfiled) {
+    return favoriteDishes(page);
+  }
+
+  default java.util.List<cn.edu.bjtu.foodtime.domain.model.Models.FavoriteGroup> favoriteGroups(String kind) {
+    throw new UnsupportedOperationException();
+  }
+
+  default cn.edu.bjtu.foodtime.domain.model.Models.FavoriteGroup createFavoriteGroup(String kind, String name) {
+    throw new UnsupportedOperationException();
+  }
+
+  default cn.edu.bjtu.foodtime.domain.model.Models.FavoriteGroup updateFavoriteGroup(
+      String id, String name, Integer sortOrder, Long expectedRevision) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void deleteFavoriteGroup(String id) { throw new UnsupportedOperationException(); }
+
+  default java.util.List<String> favoriteGroupMembership(String kind, String targetId) {
+    throw new UnsupportedOperationException();
+  }
+
+  default java.util.List<String> addFavoriteGroupMember(String groupId, String targetId) {
+    throw new UnsupportedOperationException();
+  }
+
+  default java.util.List<String> removeFavoriteGroupMember(String groupId, String targetId) {
+    throw new UnsupportedOperationException();
+  }
   default boolean dishFavorite(String dishId) { throw new UnsupportedOperationException(); }
   default boolean setDishFavorite(String dishId, boolean saved) { throw new UnsupportedOperationException(); }
 
