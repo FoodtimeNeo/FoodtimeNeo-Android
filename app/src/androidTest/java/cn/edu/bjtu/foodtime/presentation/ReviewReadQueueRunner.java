@@ -45,7 +45,7 @@ public final class ReviewReadQueueRunner extends Instrumentation {
       case "currentUser" -> new User("user","20260001@bjtu.edu.cn","测试用户","user",true);
       case "restoreSession","refresh","loadImage" -> null;
       case "halls" -> List.of(new Hall("hall","测试食堂","",true));
-      case "dish" -> new Dish("dish","stall","多楼恢复测试",new BigDecimal("10"),"",true);
+      case "dish" -> new Dish("dish","stall","多楼恢复测试",new BigDecimal("10"),"",true,1);
       case "stall" -> new Stall("stall","hall","测试档口","",true);
       case "hall" -> new Hall("hall","测试食堂","",true);
       case "photos" -> List.of();
