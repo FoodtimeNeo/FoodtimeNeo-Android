@@ -135,6 +135,10 @@ public interface CatalogRepository {
     throw new UnsupportedOperationException();
   }
 
+  default List<ReportAction> decisionActions(String decisionId) {
+    throw new UnsupportedOperationException();
+  }
+
   default NotificationPreferences notificationPreferences() {
     throw new UnsupportedOperationException();
   }
