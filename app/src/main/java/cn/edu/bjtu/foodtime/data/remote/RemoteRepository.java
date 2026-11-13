@@ -359,7 +359,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private static String actionCode(String input){if(input==null||!input.strip().matches("[0-9]{6}"))throw new IllegalArgumentException("请填写 6 位邮箱验证码");return input.strip();}
   @Override public String unbindSchoolEmail(String code){
     User actor=accountActor();JSONObject row=call("POST","users/me/account-lifecycle/unbind",json("verificationCode",actionCode(code)));sameAccount(actor);
-    JSONObject profile=row.optJSONObject("profile");if(profile==null||!text(profile,"id").equals(actor.id())||!text(profile,"role").equals("visitor"))throw invalidAccount();
+    JSONObject profile=row.optJSONObject("profile");if(profile==null||!text(profile,"id").equals(actor.id())||!Set.of("visitor","user").contains(text(profile,"role"))||!profile.isNull("schoolEmail")||!Boolean.FALSE.equals(profile.opt("schoolEmailVerified")))throw invalidAccount();
     String reusable=accountInstant(row,"schoolEmailReusableAt");synchronized(dashboardLock){user=person(profile);clearRecommendations();}return reusable;
   }
   @Override public String deleteAccount(String code){
