@@ -26,6 +26,15 @@ final class EvidenceSlots {
       requireActor(activity, actor.id());
       String uploaded = activity.repo.uploadEvidence(path);
       requireActor(activity, actor.id());
+      // Keep successful references when a later upload or association fails.
+      activity.runOnUiThread(() -> {
+        var current = activity.repo.currentUser();
+        if (current == null || !actor.id().equals(current.id())) return;
+        for (int index = 0; index < 3; index++) {
+          String slot = key(prefix, index);
+          if (path.equals(activity.drafts.getString(slot, ""))) activity.drafts.putString(slot, uploaded);
+        }
+      });
       urls.add(uploaded);
     }
     return urls;

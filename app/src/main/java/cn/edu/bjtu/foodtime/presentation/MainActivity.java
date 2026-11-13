@@ -263,6 +263,8 @@ public class MainActivity extends Activity {
     screens.put("admin-reviews", AdminScreen::reviews);
     screens.put("admin-notices", AdminNoticesScreen::settings);
     screens.put("admin-reports", ReportsScreen::show);
+    screens.put("admin-report-thread", AdminReportThreadScreen::show);
+    screens.put("admin-appeals", AdminAppealsScreen::show);
     screens.put("feedback", FeedbackScreen::list);
     screens.put("feedback-detail", FeedbackScreen::detail);
     screens.put("admin-feedback", FeedbackScreen::list);
@@ -892,6 +894,8 @@ public class MainActivity extends Activity {
       case "admin-logs" -> "审核日志";
       case "admin-notices" -> "公告管理";
       case "admin-reports" -> "举报处理";
+      case "admin-report-thread" -> "举报追问";
+      case "admin-appeals" -> "申诉复核";
       case "feedback", "admin-feedback" -> "建议与反馈";
       case "feedback-detail", "admin-feedback-detail" -> "反馈详情";
       default -> "正在加载";
