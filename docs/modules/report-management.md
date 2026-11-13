@@ -33,3 +33,5 @@
 `ReportManagementPolicyTest`、`ReportManagementJsonTest` 覆盖能力组合、私有字段、分页和异常响应。`ReportManagementRunner` 仅允许 `.reportmanagementcheck` 且 API 为回环 `18097` 的 Debug 包运行，使用真实窗口、系统触摸及独立 HTTP 夹具，覆盖决定、动作确认、分页返回、证据复用、追问、申诉版本冲突和能力撤销。普通尺寸与窄屏大字体各完成 24 项检查。
 
 夹具不等于真实后端的完整业务联调；正式服务器授权及真实账号的处罚恢复、双方回执和通知仍需按发布前验收清单继续验证。正式 APK 仍只能由 main 成功检查后的发布流程生成。
+
+共享导航在五个入口、320dp／1.3 倍字体下保留横排两字标签；顶部返回与标题留出间距。`NavigationLayoutRunner` 用真实触摸切换个人页再返回举报页，测量点击区、文字行数、选中状态和标题间距，独立计入布局验收，不替代管理业务检查。

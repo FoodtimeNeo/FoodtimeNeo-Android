@@ -914,14 +914,19 @@ public class MainActivity extends Activity {
     LinearLayout bar = Ui.row(this);
     header.addView(bar, new LinearLayout.LayoutParams(-1, -2));
     TextView back = Ui.button(this, "←", false, this::back);
+    back.setTag("app-header-back");
     back.setContentDescription("返回上一级");
     if (stacks.get(tab).size() > 1)
       bar.addView(back, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
     TextView brand = Ui.title(this, "北交干饭吧", 22);
+    brand.setTag("app-header-brand");
     brand.setSingleLine(true);
     brand.setEllipsize(android.text.TextUtils.TruncateAt.END);
     brand.setGravity(Gravity.CENTER_VERTICAL);
-    bar.addView(brand, new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1));
+    var brandLayout = new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1);
+    brandLayout.leftMargin = Ui.dp(this, 8);
+    brandLayout.rightMargin = Ui.dp(this, 8);
+    bar.addView(brand, brandLayout);
     if (communityPager != null) {
       bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_search,
           "搜索食记", () -> go("community-search", route().kind().equals("community-following") ? "following" : "")),
@@ -1054,6 +1059,9 @@ public class MainActivity extends Activity {
 
   private void addTab(LinearLayout nav, String label, String key) {
     TextView b = Ui.button(this, label, false, () -> selectTab(key));
+    b.setTag("main-nav:" + key);
+    b.setSelected(tab.equals(key));
+    b.setPadding(Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8));
     b.setTextColor(tab.equals(key) ? Design.RED : Design.MUTED);
     b.setBackground(Ui.ripple(this, tab.equals(key) ? Design.ALT : Design.PAPER, 0, 0));
     b.setContentDescription(label + (tab.equals(key) ? "，已选中" : ""));
