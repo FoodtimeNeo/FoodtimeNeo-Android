@@ -370,7 +370,7 @@ public class MainActivity extends Activity {
           }
           AppRelease info = release[0];
           if (info == null || info.versionCode() <= cn.edu.bjtu.foodtime.BuildConfig.VERSION_CODE) {
-            if (manual) message("已是最新版本 v" + cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME);
+            if (manual) message("已是最新版本 " + cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.display(cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME));
             if (!manual) maybeReleaseUpdateGate();
             return;
           }
@@ -390,11 +390,11 @@ public class MainActivity extends Activity {
 
   private void showUpdateDialog(AppRelease info) {
     if (isFinishing() || isDestroyed()) { maybeReleaseUpdateGate(); return; }
-    boolean forced = info.minVersionCode() > cn.edu.bjtu.foodtime.BuildConfig.VERSION_CODE;
+    boolean forced = cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.forced(info,cn.edu.bjtu.foodtime.BuildConfig.VERSION_CODE);
     String notes = info.notes() == null || info.notes().isBlank()
         ? "建议更新到最新版本，获得最新功能与修复。" : info.notes();
     AlertDialog dialog = new AlertDialog.Builder(this)
-        .setTitle("发现新版本 v" + info.versionName())
+        .setTitle("发现新版本 " + cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.display(info.versionName()))
         .setMessage(notes)
         .setCancelable(!forced)
         .setPositiveButton("立即更新", (prompt, which) -> startUpdate(info, forced))
@@ -420,7 +420,7 @@ public class MainActivity extends Activity {
     detail.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
     body.addView(label); Ui.gap(body, 8); body.addView(bar); Ui.gap(body, 6); body.addView(detail);
     AlertDialog.Builder builder = new AlertDialog.Builder(this)
-        .setTitle("正在更新到 v" + info.versionName())
+        .setTitle("正在更新到 " + cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.display(info.versionName()))
         .setView(body)
         .setCancelable(!forced);
     if (!forced) builder.setNegativeButton("取消", (progress, which) -> downloader.cancel());
