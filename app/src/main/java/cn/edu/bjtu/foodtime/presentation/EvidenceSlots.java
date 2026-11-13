@@ -19,6 +19,9 @@ final class EvidenceSlots {
   }
 
   static List<String> upload(MainActivity activity, String prefix) {
+    return upload(activity,prefix,(previous,uploaded)->{});
+  }
+  static List<String> upload(MainActivity activity,String prefix,java.util.function.BiConsumer<String,String> progress) {
     var actor = activity.repo.currentUser();
     if (actor == null) throw new IllegalStateException("请先登录");
     List<String> urls = new ArrayList<>();
@@ -26,6 +29,7 @@ final class EvidenceSlots {
       requireActor(activity, actor.id());
       String uploaded = activity.repo.uploadEvidence(path);
       requireActor(activity, actor.id());
+      progress.accept(path,uploaded);
       // Keep successful references when a later upload or association fails.
       activity.runOnUiThread(() -> {
         var current = activity.repo.currentUser();
@@ -47,22 +51,35 @@ final class EvidenceSlots {
   }
 
   static void show(MainActivity activity, LinearLayout parent, String prefix) {
+    show(activity,parent,prefix,false);
+  }
+  static void show(MainActivity activity,LinearLayout parent,String prefix,boolean previews) {
     for (int index = 0; index < 3; index++) {
       String key = key(prefix, index);
       String path = activity.drafts.getString(key, "");
       LinearLayout row = Ui.row(activity);
       TextView choose = Ui.button(activity,
-          path.isBlank() ? "＋ 添加证据 " + (index + 1) : "证据 " + (index + 1) + " 已选择",
+          path.isBlank() ? "＋ 添加证据 " + (index + 1) : previews?"更换 " + (index+1):"证据 " + (index + 1) + " 已选择",
           false, () -> activity.pickImage(key));
+      choose.setTag("evidence-choose:"+index);
       row.addView(choose, new LinearLayout.LayoutParams(0, -2, 1));
       if (!path.isBlank()) {
+        if(previews){
+          var image=Ui.image(activity,Ui.thumb(path),"申诉证据",false);image.setTag("evidence-preview:"+index);
+          image.setContentDescription("查看申诉证据 "+(index+1));image.setFocusable(true);image.setClickable(true);
+          image.setOnClickListener(v->CommunityGallery.openFull(activity,path));
+          var layout=new LinearLayout.LayoutParams(Ui.dp(activity,64),Ui.dp(activity,64));layout.leftMargin=Ui.dp(activity,8);row.addView(image,layout);
+        }
         TextView remove = Ui.button(activity, "移除", false, () -> {
+          if(activity.operationInFlight())return;
           activity.drafts.remove(key);
           activity.redraw();
         });
-        row.addView(remove);
+        remove.setTag("evidence-remove:"+index);
+        var layout=new LinearLayout.LayoutParams(-2,-2);layout.leftMargin=Ui.dp(activity,8);row.addView(remove,layout);
       }
       parent.addView(row);
+      Ui.gap(parent,8);
     }
   }
 

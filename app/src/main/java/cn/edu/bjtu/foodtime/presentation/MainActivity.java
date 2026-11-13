@@ -238,6 +238,7 @@ public class MainActivity extends Activity {
     screens.put("admin-corrections", CorrectionScreen::admin);
     screens.put("history", HistoryScreen::show);
     screens.put("report-receipts", ReportReceiptScreen::show);
+    screens.put("appeal-compose",AppealComposeScreen::show);
     screens.put("report-followups", ReportFollowUpScreen::show);
     screens.put("notification-settings", NotificationSettingsScreen::show);
     screens.put("community", CommunityScreen::feed);
@@ -774,7 +775,7 @@ public class MainActivity extends Activity {
     return q==null?null:new ContentRequest(q,route.id());
   }
 
-  void redraw() { rememberScroll();renderContent(); }
+  void redraw() { rememberScroll();if("appeal_only".equals(repo.sessionMode()))showAppealOnly();else renderContent(); }
 
   private void renderContent() {
     contentRefresh=null;
@@ -1120,6 +1121,7 @@ public class MainActivity extends Activity {
   }
 
   public void pickImage(String key) {
+    if(repo.currentUser()==null||writeInFlight)return;
     pickingKey = key;
     if(!ImagePicker.start(this,ImagePicker.intent(this,false,1,null),
         ImagePicker.fallback(false,null),101)) {

@@ -105,10 +105,6 @@ public interface CatalogRepository {
     throw new UnsupportedOperationException();
   }
 
-  default ModerationDecisionPage myModerationDecisions(int page) {
-    throw new UnsupportedOperationException();
-  }
-
   default ReportFollowUpPage reportFollowUps(String reportId, int page) {
     throw new UnsupportedOperationException();
   }
@@ -122,20 +118,7 @@ public interface CatalogRepository {
     throw new UnsupportedOperationException();
   }
 
-  default void submitAppeal(String decisionId, String content, String requestId) {
-    submitAppeal(decisionId, content, requestId, List.of());
-  }
-
-  default void submitAppeal(String decisionId, String content, String requestId,
-                            List<String> evidenceUrls) {
-    throw new UnsupportedOperationException();
-  }
-
   default String uploadEvidence(String filePath) {
-    throw new UnsupportedOperationException();
-  }
-
-  default List<ReportAction> decisionActions(String decisionId) {
     throw new UnsupportedOperationException();
   }
 
