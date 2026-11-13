@@ -36,7 +36,7 @@ final class DishSearchScreen {
   private final LinearLayout page, results, hallList;
   private final EditText input, minPrice, maxPrice;
   private final Spinner rating, sort;
-  private final TextView search, error, status, hallStatus;
+  private final TextView search, error, status, hallStatus, filterApply, filterReset;
   private final NumberedPagination pagination;
   private boolean loading;
   private final String requestKey = "dish-search:" + UUID.randomUUID();
@@ -53,6 +53,7 @@ final class DishSearchScreen {
     activity.heading(page, "", "跨食堂搜菜",
         "按菜名、价格、食堂和评分筛选菜品。");
     input = Ui.field(page, "菜名", false, false);
+    input.setTag("dish-search-keyword");
     input.setHint("可留空浏览全部菜品");
     input.setFilters(new InputFilter[] { new InputFilter.LengthFilter(50) });
     input.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
@@ -67,23 +68,36 @@ final class DishSearchScreen {
     Ui.gap(page, 12);
 
     LinearLayout filterBox = Ui.col(activity);
+    filterBox.setTag("dish-search-filters");filterBox.setVisibility(View.GONE);
+    TextView filterToggle=Ui.button(activity,"筛选与排序 ▾",false,()->{});
+    filterToggle.setTag("dish-search-filter-toggle");
+    filterToggle.setOnClickListener(v->{boolean open=filterBox.getVisibility()!=View.VISIBLE;filterBox.setVisibility(open?View.VISIBLE:View.GONE);filterToggle.setText(open?"收起筛选 ▴":"筛选与排序 ▾");filterToggle.setContentDescription(open?"筛选与排序，已展开":"筛选与排序，已收起");});
+    page.addView(filterToggle);page.addView(filterBox);
     minPrice = Ui.field(filterBox, "最低价", false, false);
+    minPrice.setTag("dish-search-min-price");
     minPrice.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
     minPrice.setHint("不限");
     maxPrice = Ui.field(filterBox, "最高价", false, false);
+    maxPrice.setTag("dish-search-max-price");
     maxPrice.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
     maxPrice.setHint("不限");
     rating = spinner(filterBox, "最低评分", RATING_LABELS);
+    rating.setTag("dish-search-rating");
     sort = spinner(filterBox, "排序", SORT_LABELS);
+    sort.setTag("dish-search-sort");
     filterBox.addView(Ui.text(activity, "食堂（可多选）", 14, Design.MUTED));
     hallStatus = Ui.text(activity, "正在加载食堂…", 13, Design.MUTED);
     filterBox.addView(hallStatus);
     hallList = Ui.col(activity);
+    filterBox.addView(hallList);
     LinearLayout actions = Ui.row(activity);
-    actions.addView(Ui.button(activity, "应用筛选", true, this::submit),
+    filterApply=Ui.button(activity,"应用筛选",true,this::submit);filterApply.setTag("dish-search-apply");
+    actions.addView(filterApply,
         new LinearLayout.LayoutParams(0, -2, 1));
-    actions.addView(Ui.button(activity, "重置", false, this::reset),
-        new LinearLayout.LayoutParams(0, -2, 1));
+    LinearLayout.LayoutParams resetLayout=new LinearLayout.LayoutParams(0,-2,1);resetLayout.leftMargin=Ui.dp(activity,8);
+    filterReset=Ui.button(activity,"重置",false,this::reset);filterReset.setTag("dish-search-reset");
+    actions.addView(filterReset,resetLayout);
+    filterBox.addView(actions);
 
     Ui.gap(page, 12);
     error = Ui.text(activity, "", 14, Design.RED);
@@ -121,6 +135,7 @@ final class DishSearchScreen {
     hallStatus.setText("");
     for (Hall hall : halls) {
       CheckBox box = new CheckBox(activity);
+      box.setTag("dish-search-hall:"+hall.id());
       box.setText(hall.name());
       box.setChecked(selectedHalls.contains(hall.id()));
       box.setOnCheckedChangeListener((button, checked) -> {
@@ -168,6 +183,7 @@ final class DishSearchScreen {
   }
 
   private void reset() {
+    if(loading)return;
     input.setText("");
     minPrice.setText("");
     maxPrice.setText("");
@@ -186,6 +202,7 @@ final class DishSearchScreen {
   private void load(String query, DishSearchFilters activeFilters, int number) {
     if (number < 1 || loading) return;
     loading=true;
+    filterApply.setEnabled(false);filterReset.setEnabled(false);filterApply.setAlpha(.4f);filterReset.setAlpha(.4f);
     input.setEnabled(false);
     search.setEnabled(false);
     pagination.state(data==null?1:data.page(),totalPages(),false);
@@ -209,6 +226,7 @@ final class DishSearchScreen {
         },
         () -> {
           loading=false;
+          filterApply.setEnabled(true);filterReset.setEnabled(true);filterApply.setAlpha(1f);filterReset.setAlpha(1f);
           input.setEnabled(true);
           search.setEnabled(true);
           updateStatus();
