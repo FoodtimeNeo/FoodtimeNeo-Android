@@ -30,10 +30,11 @@ final class NumberedPagination extends LinearLayout {
     numbers.removeAllViews();int width=getWidth()-getPaddingLeft()-getPaddingRight();if(width<=0)return;
     int gap=Ui.dp(getContext(),4),minimum=Ui.dp(getContext(),44),count=Math.min(total,Math.max(1,width/minimum));
     TextView sample=Ui.text(getContext(),"",16,Design.INK);
+    int dotsWidth=Math.max(Ui.dp(getContext(),16),(int)Math.ceil(sample.getPaint().measureText("..."))+Ui.dp(getContext(),4));
     java.util.List<Integer> items=java.util.List.of(1);
     for(;count>=1;count--){
       items=PaginationItems.build(page,total,count);long required=(long)(items.size()-1)*gap;
-      for(int value:items)required+=value==0?Ui.dp(getContext(),16):Math.max(minimum,(int)Math.ceil(sample.getPaint().measureText(String.valueOf(value)))+Ui.dp(getContext(),20));
+      for(int value:items)required+=value==0?dotsWidth:Math.max(minimum,(int)Math.ceil(sample.getPaint().measureText(String.valueOf(value)))+Ui.dp(getContext(),20));
       if(count==1||required<=width)break;
     }
     for(int i=0;i<items.size();i++){
@@ -41,7 +42,7 @@ final class NumberedPagination extends LinearLayout {
       item.setTextSize(16);item.setPadding(0,0,0,0);item.setGravity(Gravity.CENTER);item.setSelected(value==page);
       if(value==0){item.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);item.setTag("pagination:ellipsis");}
       else {item.setContentDescription("第 "+value+" 页"+(value==page?"，当前页":""));item.setTag("pagination:page:"+value);enabled(item,ready);}
-      int itemWidth=value==0?Ui.dp(getContext(),16):Math.max(minimum,(int)Math.ceil(sample.getPaint().measureText(String.valueOf(value)))+Ui.dp(getContext(),20));
+      int itemWidth=value==0?dotsWidth:Math.max(minimum,(int)Math.ceil(sample.getPaint().measureText(String.valueOf(value)))+Ui.dp(getContext(),20));
       LayoutParams layout=new LayoutParams(itemWidth,Ui.dp(getContext(),48));if(i>0)layout.leftMargin=gap;numbers.addView(item,layout);
     }
     enabled(actions.getChildAt(0),ready&&page>1);enabled(actions.getChildAt(1),ready&&page<total);
