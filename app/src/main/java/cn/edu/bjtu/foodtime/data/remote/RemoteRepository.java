@@ -3,6 +3,7 @@ package cn.edu.bjtu.foodtime.data.remote;
 import cn.edu.bjtu.foodtime.data.prototype.CommunityPrototype;
 import cn.edu.bjtu.foodtime.domain.model.CommunityText;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
+import cn.edu.bjtu.foodtime.domain.model.ReportManagement;
 import cn.edu.bjtu.foodtime.domain.model.FeedbackModels;
 import cn.edu.bjtu.foodtime.domain.model.NoticeSchedule;
 import cn.edu.bjtu.foodtime.domain.model.AccountLifecycle;
@@ -1608,7 +1609,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
 
   @Override public ReportPage reports(int page) {
-    JSONObject result = call("GET", "admin/reports?page=" + page + "&size=20", null);
+    JSONObject result = reportManagementCall("GET", "admin/reports?page=" + page + "&size=20", null);
     JSONArray rows = result.optJSONArray("items");
     if (rows == null) throw new IllegalStateException("举报列表返回格式异常");
     List<ReportRow> items = new ArrayList<>();
@@ -1622,6 +1623,42 @@ public final class RemoteRepository implements FoodtimeRepository {
 
   @Override public void reviewReport(String id) {
     call("PUT", "admin/reports/" + encode(id) + "/review", null);
+  }
+
+  private JSONObject reportManagementCall(String method,String path,JSONObject body) {
+    final String owner;
+    synchronized(dashboardLock){owner=capabilityOwner(user);}
+    if(owner.isEmpty())throw new RepositoryException(401,"AUTH_REQUIRED","请先登录",0);
+    JSONObject result=call(method,path,body);
+    synchronized(dashboardLock){if(!owner.equals(capabilityOwner(user)))throw new RepositoryException(409,"ACCOUNT_CHANGED","账号已变化，请重新打开管理记录",0);}
+    return result;
+  }
+  @Override public void decideReport(String id,String outcome,String reason,String note) {
+    reportManagementCall("POST","admin/reports/"+encode(id)+"/decision",json("outcome",outcome,"publicReason",reason,"internalNote",note));
+  }
+  @Override public ReportManagement.Page<ReportManagement.Decision> adminReportDecisions(int page) {
+    return ReportManagementJson.page(reportManagementCall("GET","admin/reports/decisions?page="+page+"&size=20",null),ReportManagementJson::decision);
+  }
+  @Override public ReportManagement.Page<ReportManagement.FollowUp> adminReportFollowUps(String report,int page) {
+    return ReportManagementJson.page(reportManagementCall("GET","admin/reports/"+encode(report)+"/follow-ups?page="+page+"&size=20",null),ReportManagementJson::followUp);
+  }
+  @Override public void replyToReport(String report,String content,String note,List<String> evidence,String requestId) {
+    reportManagementCall("POST","admin/reports/"+encode(report)+"/follow-ups",json("content",content,"internalNote",note,"evidenceUrls",array(evidence),"clientRequestId",requestId));
+  }
+  @Override public void performReportAction(String report,String action,String note) {
+    reportManagementCall("POST","admin/reports/"+encode(report)+"/actions",json("actionType",action,"note",note));
+  }
+  @Override public ReportManagement.Page<ReportManagement.Appeal> adminAppeals(String status,int page) {
+    return ReportManagementJson.page(reportManagementCall("GET","admin/appeals?page="+page+"&size=20"+(status.isBlank()?"":"&status="+encode(status)),null),ReportManagementJson::appeal);
+  }
+  @Override public ReportManagement.Appeal adminAppeal(String id) {
+    return ReportManagementJson.appeal(reportManagementCall("GET","admin/appeals/"+encode(id),null));
+  }
+  @Override public ReportManagement.Appeal startAppealReview(String id,long revision) {
+    return ReportManagementJson.appeal(reportManagementCall("POST","admin/appeals/"+encode(id)+"/start?expectedRevision="+revision,null));
+  }
+  @Override public ReportManagement.Appeal resolveAppeal(String id,String outcome,String reason,String note,long revision) {
+    return ReportManagementJson.appeal(reportManagementCall("POST","admin/appeals/"+encode(id)+"/resolve",json("outcome",outcome,"publicReason",reason,"internalNote",note,"expectedRevision",revision)));
   }
 
   private JSONObject feedbackCall(boolean admin,String method,String path,JSONObject body) {

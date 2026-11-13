@@ -8,6 +8,8 @@
 
 餐厅与档口独立点评及完整互动：见 [功能与接口说明](modules/venue-reviews.md)。
 
+举报决定、结案后追问回复与申诉复核：见[管理流程与独立接口](modules/report-management.md)。
+
 管理数据看板用户总量、近 7 日／近 30 日趋势及三列新增汇总：见 [接口与页面约定](architecture/admin-dashboard-contract.md)。
 
 原生食堂页每日推荐、详情跳转与本地联调：见 [功能与接口说明](modules/daily-recommendation.md)。
