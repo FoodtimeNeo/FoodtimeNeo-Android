@@ -187,6 +187,12 @@ public final class CommunityPhotoRunner extends Instrumentation {
     catch (ReflectiveOperationException error) { throw new AssertionError(error); }
   }
 
+  private void separateGesture() {
+    // Independent gesture cases must not become an unintended double-tap on ACTION_DOWN.
+    SystemClock.sleep(android.view.ViewConfiguration.getDoubleTapTimeout() + 40L);
+    waitForIdleSync();
+  }
+
   private void smoothSwipe(FrameLayout canvas) throws Exception {
     float width = canvas.getWidth(), y = canvas.getHeight() / 2f;
     long start = SystemClock.uptimeMillis();
@@ -216,6 +222,7 @@ public final class CommunityPhotoRunner extends Instrumentation {
     });
     check(Math.abs(decor.findViewWithTag("photo-thumb").getTranslationX()) < 1, "Incoming image is aligned after settling");
 
+    separateGesture();
     start = SystemClock.uptimeMillis();
     sendTouch(start, MotionEvent.ACTION_DOWN, width * .5f, y);
     sendTouch(start, MotionEvent.ACTION_MOVE, width * .55f, y);
@@ -223,6 +230,7 @@ public final class CommunityPhotoRunner extends Instrumentation {
     await("short swipe rebound", () -> Math.abs(decor.findViewWithTag("photo-thumb").getTranslationX()) < 1);
     check(page() == 1, "Short swipe rebounds without turning a page");
 
+    separateGesture();
     start = SystemClock.uptimeMillis();
     sendTouch(start, MotionEvent.ACTION_DOWN, width * .3f, y);
     sendTouch(start, MotionEvent.ACTION_MOVE, width * .8f, y);
@@ -230,6 +238,7 @@ public final class CommunityPhotoRunner extends Instrumentation {
     await("cancel rebound", () -> Math.abs(decor.findViewWithTag("photo-thumb").getTranslationX()) < 1);
     check(page() == 1, "Cancelled swipe never changes the page");
 
+    separateGesture();
     start = SystemClock.uptimeMillis();
     sendTouch(start, MotionEvent.ACTION_DOWN, width * .7f, y);
     sendTouch(start, MotionEvent.ACTION_MOVE, width * .3f, y);
@@ -332,6 +341,7 @@ public final class CommunityPhotoRunner extends Instrumentation {
       check(findText(decor, "‹") == null && findText(decor, "›") == null,
           "Touch viewer has no persistent side arrows");
       smoothSwipe(canvas);
+      separateGesture();
       float x = canvas.getWidth() / 2f, y = canvas.getHeight() / 2f;
       float fitted = scale();
       var zoomFrames = new java.util.ArrayList<Float>();
