@@ -73,6 +73,7 @@ public final class RestrictedAppealRunner extends Instrumentation {
     check(tag("restricted-open:"+expired)==null,"Expired twenty-third decision has no appeal editor");
     tap("restricted-open:"+decision);await("page twenty-one editor",this::ready);
     ui(()->((EditText)tag("appeal-content")).setText("第二页本人申诉草稿，切页后应保留。"));attach(0);
+    await("pager layout after image import",()->{boolean[] ok={false};ui(()->ok[0]=tag("pagination:page:2")!=null&&tag("pagination:page:2").isEnabled()&&tag("pagination:page:2").isSelected());return ok[0];});
     check(tag("pagination:page:2").isSelected()&&content().contains("第二页"),"Picker return retains page two, expanded decision and text");
     check(tag("evidence-preview:0")!=null,"Picker lifecycle retains the imported evidence");
     tap("pagination:page:1");await("back to page one",()->tag("pagination:page:1").isSelected()&&tag("pagination:page:1").isEnabled());
