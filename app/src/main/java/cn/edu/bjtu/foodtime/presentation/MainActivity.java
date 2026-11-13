@@ -1316,7 +1316,7 @@ public class MainActivity extends Activity {
     }
     if(task.action().equals("注册")) {showAuth(false);message("注册成功，请登录");return;}
     if(repo.currentUser()==null) {signedOut();if(task.origin().kind().equals("account-lifecycle")&&task.action().equals("注销账号"))message("账号已注销，两个邮箱冷却 1 小时后可重新使用；新账号不继承旧数据。");return;}
-    if(task.origin().kind().equals("account-lifecycle")&&task.action().equals("解绑学校邮箱")){clearDraft(task.origin());message("学校邮箱已解绑，账号保留并恢复访客身份；学校邮箱冷却 1 小时后可重新绑定。");}
+    if(task.origin().kind().equals("account-lifecycle")&&task.action().equals("解绑学校邮箱")){clearDraft(task.origin());message("学校邮箱已解绑，账号保留；学校邮箱冷却 1 小时后可重新绑定。");}
     if(task.action().equals("导入头像")){
       drafts.putString("avatarCropTarget",task.imageDraft());go("avatar-crop",outcome.value());return;
     }

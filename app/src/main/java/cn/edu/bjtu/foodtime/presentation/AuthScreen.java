@@ -18,7 +18,7 @@ final class AuthScreen {
     EditText email=Ui.field(card,"邮箱",false,false);
     email.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
     email.setHint("QQ/163/Gmail/Outlook 或学校邮箱");
-    if(register) card.addView(Ui.text(a,"支持 QQ、163、126、Gmail、Outlook 等主流邮箱；学校邮箱可直接发布内容。",13,Design.MUTED));
+    if(register) card.addView(Ui.text(a,"支持 QQ、163、126、Gmail、Outlook 等主流邮箱；注册后的可用功能由平台当前权限策略决定。",13,Design.MUTED));
     LinearLayout invitationBox=new LinearLayout(a);
     invitationBox.setOrientation(LinearLayout.VERTICAL);
     invitationBox.setVisibility(View.GONE);
@@ -116,7 +116,7 @@ final class AuthScreen {
             box.setVisibility(View.GONE);
             return;
           }
-          status.setText(required[0]?"当前注册需要平台发放的 12 位邀请码，大小写均可。":"邀请码可选；使用学校邮箱注册可直接发布内容。");
+          status.setText(required[0]?"当前注册需要平台发放的 12 位邀请码，大小写均可。":"邀请码可选；学校邮箱可在注册后绑定。");
           status.setTextColor(Design.MUTED);
           if(!canSend[0]) status.append("\n当前邮件验证码发送未启用，请联系管理员。");
           if(invitation[0]==null) {

@@ -6,10 +6,10 @@ import android.widget.*;
 final class SchoolEmailScreen {
   static void binder(MainActivity a,LinearLayout page,MainActivity.Route route) {
     if(a.repo.currentUser()==null||a.repo.currentUser().isAdmin())throw new IllegalStateException("管理员和超级管理员不能绑定或解绑学校邮箱");
-    a.heading(page,"03.2","绑定学校邮箱","绑定后解锁发帖、评论、点赞与投稿");
+    a.heading(page,"03.2","绑定学校邮箱","验证并绑定本人的学校邮箱");
     LinearLayout card=Ui.col(a);card.setPadding(Ui.dp(a,18),Ui.dp(a,20),Ui.dp(a,18),Ui.dp(a,20));
     card.setBackground(Ui.shape(a,Design.ALT,0,24));
-    card.addView(Ui.text(a,"当前是访客身份，只能浏览。绑定学号邮箱后即可发布内容。",14,Design.MUTED));
+    card.addView(Ui.text(a,"visitor".equals(a.repo.currentUser().role())?"当前为只读访客，绑定学校邮箱后可参与互动。":"当前账号已可参与互动，学校邮箱绑定为可选认证。",14,Design.MUTED));
     Ui.gap(card,16);
     EditText email=Ui.field(card,"学校邮箱",false,false);
     email.setHint("20260001@bjtu.edu.cn");
@@ -24,7 +24,7 @@ final class SchoolEmailScreen {
     code.setHint("6 位数字");
     code.setInputType(android.text.InputType.TYPE_CLASS_NUMBER);
     Ui.gap(card,12);
-    TextView bind=Ui.button(a,"绑定并解锁",true,() -> {});
+    TextView bind=Ui.button(a,"绑定学校邮箱",true,() -> {});
     bind.setBackground(Ui.ripple(a,Design.RED,0,18));
     send.setOnClickListener(v -> a.request(v,error,
         () -> a.repo.sendSchoolEmailCode(email.getText().toString()),
@@ -33,7 +33,7 @@ final class SchoolEmailScreen {
       String address=email.getText().toString(),verification=code.getText().toString();
       a.request(v,error,
           () -> a.repo.bindSchoolEmail(address,verification),
-          () -> {a.message("绑定成功，已解锁发布权限");a.back();});
+          () -> {a.message("学校邮箱绑定成功");a.back();});
     });
     card.addView(bind,new LinearLayout.LayoutParams(-1,-2));
     page.addView(card,new LinearLayout.LayoutParams(-1,-2));Ui.gap(page,18);
