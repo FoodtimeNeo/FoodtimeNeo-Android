@@ -14,7 +14,7 @@ import static org.junit.Assert.*;
 public class AppealRepositoryTest {
   private ServerSocket server;private ExecutorService workers;private RemoteRepository repo;
   private final List<String> paths=new CopyOnWriteArrayList<>();private volatile JSONObject submitted;
-  private volatile String actor="actor-a";private volatile boolean restricted,mismatch;
+  private volatile String actor="actor-a";private volatile boolean restricted,mismatch;private volatile int responsePage=2,responseSize=20;
   private volatile CountDownLatch entered,release;
   @Before public void start()throws Exception{
     server=new ServerSocket(0,50,InetAddress.getByName("127.0.0.1"));workers=Executors.newCachedThreadPool();
@@ -25,6 +25,8 @@ public class AppealRepositoryTest {
   @Test public void recipientCallsRequireAnAuthenticatedOwner(){assertThrows(RepositoryException.class,()->repo.myModerationDecision("decision"));assertTrue(paths.isEmpty());}
   @Test public void readsTheExactDecisionAndActionArray(){repo.restoreSession();var value=repo.myModerationDecision("decision");assertEquals("decision",value.decisionId());assertEquals("target",value.side());assertTrue(value.appealDeadline()>0);assertEquals(1,repo.decisionActions("decision").size());}
   @Test public void disabledAppealSessionCanReadItsSecondPage(){restricted=true;repo.restoreSession();assertFalse(repo.currentUser().active());assertEquals("appeal_only",repo.sessionMode());var page=repo.myModerationDecisions(2);assertEquals(2,page.page());assertEquals(21,page.total());assertTrue(paths.contains("/api/v1/users/me/moderation-decisions?page=2&size=20"));}
+  @Test public void wrongPageMetadataCannotReplaceTheCurrentPage(){repo.restoreSession();responsePage=1;assertEquals("INVALID_RESPONSE",assertThrows(RepositoryException.class,()->repo.myModerationDecisions(2)).code());}
+  @Test public void zeroPageSizeIsRejectedBeforePaginationArithmetic(){repo.restoreSession();responseSize=0;assertEquals("INVALID_RESPONSE",assertThrows(RepositoryException.class,()->repo.myModerationDecisions(2)).code());}
   @Test public void submissionRetainsEvidenceAndCallerRequestId()throws Exception{repo.restoreSession();var evidence=List.of("/api/v1/media/00000000-0000-4000-8000-000000000001");repo.submitAppeal("decision","申诉内容","same-request",evidence);assertEquals("same-request",submitted.getString("clientRequestId"));assertEquals(evidence.get(0),submitted.getJSONArray("evidenceUrls").getString(0));}
   @Test public void mismatchedDecisionCannotOpenAnEditor(){repo.restoreSession();mismatch=true;assertEquals("INVALID_RESPONSE",assertThrows(RepositoryException.class,()->repo.myModerationDecision("decision")).code());}
   @Test public void lateProjectionIsRejectedAfterAnAccountChange()throws Exception{
@@ -44,7 +46,7 @@ public class AppealRepositoryTest {
     else if(path.endsWith("/users/me/profile")||path.endsWith("/auth/me"))data=new JSONObject().put("id",actor).put("email","fixture@example.test").put("role","user").put("status","active").put("sessionMode",restricted?"appeal_only":"normal");
     else if(path.endsWith("/capabilities"))data=new JSONObject().put("capabilities",new JSONArray()).put("revision","fixture");
     else if(path.endsWith("/decision/actions"))data=new JSONArray().put(new JSONObject().put("id","action").put("decisionId","decision").put("actionType","hide_post"));
-    else if(path.contains("/moderation-decisions?"))data=new JSONObject().put("items",new JSONArray().put(decision())).put("page",2).put("size",20).put("total",21);
+    else if(path.contains("/moderation-decisions?"))data=new JSONObject().put("items",new JSONArray().put(decision())).put("page",responsePage).put("size",responseSize).put("total",21);
     else if(path.endsWith("/decision")){if(entered!=null){entered.countDown();release.await(5,TimeUnit.SECONDS);}data=decision();}
     else if(method.equals("POST")&&path.endsWith("/appeals")){submitted=new JSONObject(new String(body,StandardCharsets.UTF_8));data=new JSONObject().put("id","appeal").put("status","submitted");}
     byte[] bytes=new JSONObject().put("code",status==200?"OK":"ACCOUNT_DISABLED").put("message","fixture").put("data",data).toString().getBytes(StandardCharsets.UTF_8);

@@ -11,6 +11,9 @@ import cn.edu.bjtu.foodtime.domain.model.Models.ModerationDecision;
 final class AppealForm {
   private AppealForm(){}
   static void show(MainActivity a,LinearLayout parent,ModerationDecision decision,Runnable submitted){
+    show(a,parent,decision,submitted,ignored->{});
+  }
+  static void show(MainActivity a,LinearLayout parent,ModerationDecision decision,Runnable submitted,java.util.function.Consumer<Boolean> busy){
     var user=a.repo.currentUser();if(user==null)return;
     String actor=user.id(),mode=a.repo.sessionMode(),id=decision.decisionId();
     var store=new AppealDraftStore(a,BuildConfig.API_BASE_URL,actor);String evidence=store.key("evidence:"+id);
@@ -33,7 +36,7 @@ final class AppealForm {
     EvidenceSlots.show(a,form,evidence,true);
     TextView formError=Ui.text(a,"",14,Design.RED);formError.setTag("appeal-form-error");Ui.observeError(formError);form.addView(formError);
     TextView progress=Ui.text(a,"正在上传证据并提交…",14,Design.MUTED);progress.setVisibility(android.view.View.GONE);form.addView(progress);
-    formError.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){}public void afterTextChanged(Editable value){if(value.length()>0){enabled(form,true);progress.setVisibility(android.view.View.GONE);}}});
+    formError.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){}public void afterTextChanged(Editable value){if(value.length()>0){enabled(form,true);progress.setVisibility(android.view.View.GONE);busy.accept(false);}}});
     TextView submit=Ui.button(a,"提交申诉",true,()->{});submit.setTag("appeal-submit");
     submit.setOnClickListener(view->{
       if(a.operationInFlight())return;
@@ -41,7 +44,7 @@ final class AppealForm {
       if(content.isEmpty()){formError.setText("请填写申诉内容");return;}
       if(content.codePointCount(0,content.length())>2000){formError.setText("申诉内容不能超过2000字");return;}
       if(!current(a,actor,mode)){formError.setText("账号已变化，请重新打开申诉");return;}
-      enabled(form,false);progress.setVisibility(android.view.View.VISIBLE);
+      enabled(form,false);progress.setVisibility(android.view.View.VISIBLE);busy.accept(true);
       a.request(submit,formError,()->{
         require(a,actor,mode);
         var uploaded=EvidenceSlots.upload(a,evidence,(previous,url)->{require(a,actor,mode);store.uploaded(id,previous,url);});
@@ -49,7 +52,7 @@ final class AppealForm {
         a.repo.submitAppeal(id,content,store.requestId(id),uploaded);
       },()->{
         if(!current(a,actor,mode))return;
-        clear(a,store,id,evidence);a.message("申诉已提交");submitted.run();
+        clear(a,store,id,evidence);busy.accept(false);a.message("申诉已提交");submitted.run();
       });
     });form.addView(submit);
   }
