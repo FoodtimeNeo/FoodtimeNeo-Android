@@ -680,7 +680,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public ModerationDecisionPage myModerationDecisions(int page) {
     JSONObject data=appealCall("GET","users/me/moderation-decisions?page="+page+"&size=20",null);
     JSONArray rows=data.optJSONArray("items");
-    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","处理决定响应异常，请重试",0);
+    if(rows==null||data.optInt("page",0)!=page||data.optInt("size",0)<1||data.optLong("total",-1)<rows.length())throw new RepositoryException(502,"INVALID_RESPONSE","处理决定分页响应异常，请重试",0);
     List<ModerationDecision> items=new ArrayList<>();
     for(int i=0;i<rows.length();i++)items.add(moderationDecision(rows.optJSONObject(i)));
     return new ModerationDecisionPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",20));
