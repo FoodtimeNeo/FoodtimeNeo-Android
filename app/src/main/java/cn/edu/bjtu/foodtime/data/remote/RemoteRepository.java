@@ -80,6 +80,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile List<Audit> auditList=List.of();
   private volatile List<User> userList=List.of();
   private volatile List<CommunityPost> communityFeed=List.of();
+  private volatile cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot pinSnapshot=cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot.empty();
+  private String pinOwner="";
   private volatile CommunityPostPage ownCommunityPosts=CommunityPostPage.empty(),ownCommunityFavorites=CommunityPostPage.empty();
   private volatile CommunityFeedSlice followingFeed = new CommunityFeedSlice(List.of(), 0, "");
   private volatile CommunityAuditPage communityAudit=CommunityAuditPage.empty();
@@ -1054,6 +1056,11 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public List<Review> reviews(String id) { return id==null||id.equals("admin")?reviews.getOrDefault("admin",List.of()):dishReviews(id).items(); }
   @Override public List<Photo> photos(String id) { return photos.getOrDefault(id,List.of()); }
   @Override public List<CommunityPost> communityPosts() { return communityFeed; }
+  @Override public cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot communityPins(){synchronized(dashboardLock){return pinOwner.equals(capabilityOwner(user))?pinSnapshot:cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot.empty();}}
+  @Override public cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot managedPins(){return CommunityPinJson.parse(accountCall("GET","admin/community/pins",null));}
+  @Override public cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot pinPost(String id,long revision){return CommunityPinJson.parse(accountCall("PUT","admin/community/pins/"+encode(id),json("expectedRevision",revision)));}
+  @Override public cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot unpinPost(String id,long revision){return CommunityPinJson.parse(accountCall("DELETE","admin/community/pins/"+encode(id)+"?expectedRevision="+revision,null));}
+  @Override public cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot reorderPins(List<String> ids,long revision){return CommunityPinJson.parse(accountCall("PUT","admin/community/pins/order",json("postIds",array(ids),"expectedRevision",revision)));}
   @Override public boolean communityPrototypeEnabled() { return communityPrototype!=null; }
   @Override public CommunityPost communityPost(String id) { return communityPostCache.get(id); }
   @Override public List<CommunityComment> communityComments(String id) { return communityCommentCache.getOrDefault(id,List.of()); }
@@ -1079,10 +1086,16 @@ public final class RemoteRepository implements FoodtimeRepository {
     call("POST","dining-halls/"+hall+"/submissions",json("name",name,"description",description,"coverImageUrl",upload(image)));
   }
   private void loadCommunityFeed(boolean more) {
-    JSONObject data=call("GET","community/feed/cursor?size=20"+(more?"&cursor="+communityCursor:""),null);
-    List<CommunityPost> result=new ArrayList<>(more?communityFeed:List.of());JSONArray values=data.optJSONArray("items");
-    if(values!=null)for(int i=0;i<values.length();i++)result.add(cacheCommunityPost(values.optJSONObject(i)));
-    communityFeed=List.copyOf(result);communityCursor=text(data,"nextCursor");communityHasMore=data.optBoolean("hasMore");
+    String owner=capabilityOwner(user);boolean append=more;JSONObject data;
+    try {data=accountCall("GET","community/feed/cursor?size=20"+(append?"&cursor="+encode(communityCursor)+"&pinRevision="+pinSnapshot.revision():""),null);}
+    catch(RepositoryException changed){if(!append||!changed.code().equals("PIN_SET_CHANGED"))throw changed;append=false;data=accountCall("GET","community/feed/cursor?size=20",null);}
+    var pins=data.optJSONObject("pins")==null?cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot.empty():CommunityPinJson.parse(data.optJSONObject("pins"));
+    synchronized(dashboardLock){
+      if(owner.isEmpty()||!owner.equals(capabilityOwner(user)))throw new RepositoryException(409,"ACCOUNT_CHANGED","账号已变化，请刷新",0);
+      List<CommunityPost> result=new ArrayList<>(append?communityFeed:List.of());JSONArray values=data.optJSONArray("items");
+      if(values!=null)for(int i=0;i<values.length();i++)result.add(cacheCommunityPost(values.optJSONObject(i)));
+      communityFeed=List.copyOf(result);communityCursor=text(data,"nextCursor");communityHasMore=data.optBoolean("hasMore");pinSnapshot=pins;pinOwner=owner;
+    }
   }
   @Override public void loadMoreCommunityPosts(){if(communityHasMore)loadCommunityFeed(true);}
   @Override public CommunityFeedSlice communityFollowing() { return followingFeed; }
@@ -1945,7 +1958,7 @@ public final class RemoteRepository implements FoodtimeRepository {
 
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
     followingFeed = new CommunityFeedSlice(List.of(), 0, "");
-    communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();communityAudit=CommunityAuditPage.empty();communityAuditDetail=null;communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
+    communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();pinSnapshot=cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot.empty();pinOwner="";ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();communityAudit=CommunityAuditPage.empty();communityAuditDetail=null;communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
     dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();
     ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();
     noticePage=NoticePage.empty();noticeNumber=1;messagePage=MessagePage.empty();messageNumber=1;

@@ -248,6 +248,7 @@ public class MainActivity extends Activity {
     screens.put("community-author", CommunityDiscoveryScreen::show);
     screens.put("community-detail", CommunityScreen::detail);
     screens.put("community-create", CommunityScreen::create);
+    screens.put("community-pins", CommunityPinScreen::show);
     screens.put("community-mine", CommunityScreen::collection);
     screens.put("inbox", InboxScreen::inbox);
     screens.put("account-lifecycle",AccountLifecycleScreen::show);

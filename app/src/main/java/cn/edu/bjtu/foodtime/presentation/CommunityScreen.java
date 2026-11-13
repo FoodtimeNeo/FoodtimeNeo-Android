@@ -65,7 +65,7 @@ final class CommunityScreen {
 
   private record Banner(String heading, String intro) {}
 
-  private record FeedBody(List<CommunityPost> posts, boolean hasMore, boolean loading, boolean failed) {}
+  private record FeedBody(List<CommunityPost> posts, boolean hasMore, boolean loading, boolean failed, java.util.List<cn.edu.bjtu.foodtime.domain.model.CommunityPins.Entry> pins) {}
 
   private static void renderFeed(MainActivity a, LinearLayout body, String section, boolean preview) {
     boolean following = section.equals("community-following");
@@ -90,10 +90,11 @@ final class CommunityScreen {
       loadMore = a.repo::loadMoreCommunityPosts;
     }
     FeedBody next = new FeedBody(posts, hasMore, posts.isEmpty() && (preview || a.isPageLoading()),
-        !preview && posts.isEmpty() && a.pageFailed());
+        !preview && posts.isEmpty() && a.pageFailed(), section.equals("community") ? a.repo.communityPins().items() : List.of());
     if (next.equals(body.getTag())) return;
     body.setTag(next);
     body.removeAllViews();
+    if(section.equals("community")){if(CommunityPinScreen.allowed(a))pinManagement(a,body,"");renderPins(a,body,next.pins());}
     if (next.loading()) {
       Ui.empty(body, "正在加载食记…", "");
     } else if (next.failed()) {
@@ -106,6 +107,7 @@ final class CommunityScreen {
         case "community-mine" -> "还没有发布食记";
         default -> "社区还没有公开食记";
       };
+      if(!next.pins().isEmpty())title="暂时没有其他食记";
       String description = switch (section) {
         case "community-following" -> "可以在食记或用户搜索里关注感兴趣的同学。";
         case "community-favorites" -> "收藏的食记会出现在这里。";
@@ -126,6 +128,13 @@ final class CommunityScreen {
         });
       }
     }
+  }
+
+  private static void pinManagement(MainActivity a,LinearLayout body,String id){TextView button=Ui.button(a,"置顶管理",false,()->a.go("community-pins",id));button.setTag("community-pins-open");body.addView(button,new LinearLayout.LayoutParams(-1,-2));Ui.gap(body,8);}
+
+  private static void renderPins(MainActivity a,LinearLayout body,List<cn.edu.bjtu.foodtime.domain.model.CommunityPins.Entry> pins){
+    if(pins.isEmpty())return;LinearLayout card=Ui.card(body);card.setTag("community-pins");card.addView(Ui.title(a,"置顶食记",16));
+    for(var pin:pins){LinearLayout row=Ui.col(a);row.setPadding(Ui.dp(a,4),Ui.dp(a,10),Ui.dp(a,4),Ui.dp(a,10));row.setMinimumHeight(Ui.dp(a,52));TextView title=Ui.text(a,"置顶 · "+pin.title(),15,Design.RED);title.setMaxLines(2);title.setEllipsize(TextUtils.TruncateAt.END);row.addView(title);row.addView(Ui.text(a,"@"+pin.userDisplayName(),12,Design.MUTED));row.setBackground(Ui.ripple(a,Design.PAPER,0,8));row.setFocusable(true);row.setClickable(true);row.setTag("community-pinned-post:"+pin.id());row.setContentDescription("置顶食记："+pin.title()+"，作者"+pin.userDisplayName());row.setOnClickListener(v->a.go("community-detail",pin.id()));card.addView(row,new LinearLayout.LayoutParams(-1,-2));}
   }
 
   static void collection(MainActivity a,LinearLayout page,MainActivity.Route route){
@@ -160,7 +169,7 @@ final class CommunityScreen {
   }
 
   private static void postCard(MainActivity a,LinearLayout column,CommunityPost post) {
-    LinearLayout card=Ui.card(column);card.setPadding(0,0,0,Ui.dp(a,4));
+    LinearLayout card=Ui.card(column);card.setTag("community-post-card:"+post.id());card.setPadding(0,0,0,Ui.dp(a,4));
     card.setBackground(Ui.ripple(a, Design.PAPER, Design.BORDER, 12));
     card.setElevation(0);
     LinearLayout.LayoutParams cardLp=(LinearLayout.LayoutParams)card.getLayoutParams();cardLp.bottomMargin=Ui.dp(a,10);
@@ -209,6 +218,7 @@ final class CommunityScreen {
     LinearLayout copy = Ui.col(a);
     copy.setPadding(Ui.dp(a, 14), Ui.dp(a, 14), Ui.dp(a, 14), Ui.dp(a, 14));
     page.addView(copy);
+    if(CommunityPinScreen.allowed(a)){pinManagement(a,copy,post.id());Ui.gap(copy,10);}
     copy.addView(Ui.title(a, post.title(), 22));
     Ui.gap(copy, 6);
     copy.addView(Ui.text(a, post.content(), 16, Design.INK));
