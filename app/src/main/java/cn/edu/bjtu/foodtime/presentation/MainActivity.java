@@ -248,6 +248,7 @@ public class MainActivity extends Activity {
     screens.put("community-author", CommunityDiscoveryScreen::show);
     screens.put("community-detail", CommunityScreen::detail);
     screens.put("community-create", CommunityScreen::create);
+    screens.put("community-edit", PostEditScreen::show);
     screens.put("community-pins", CommunityPinScreen::show);
     screens.put("community-mine", CommunityScreen::collection);
     screens.put("inbox", InboxScreen::inbox);
@@ -543,6 +544,7 @@ public class MainActivity extends Activity {
   public void back() {
     if(writeInFlight) {message("正在提交，请稍候");return;}
     if(passwordRecovery!=null){passwordRecovery.back();return;}
+    if(route().kind().equals("community-edit")&&PostEditScreen.confirmExit(this))return;
     if(route().kind().equals("avatar-crop")){
       discardPhoto(route().id());
       for(String key:List.of("cropZoom","cropX","cropY","cropRotation"))drafts.remove(draftKey(key));
@@ -750,7 +752,7 @@ public class MainActivity extends Activity {
       case "upload-photo","review" -> ContentRequest.Query.DISH_TARGET;
       case "community" -> ContentRequest.Query.COMMUNITY_FEED;
       case "community-following" -> ContentRequest.Query.COMMUNITY_FOLLOWING;
-      case "community-detail" -> ContentRequest.Query.COMMUNITY_POST;
+      case "community-detail", "community-edit" -> ContentRequest.Query.COMMUNITY_POST;
       case "community-mine" -> ContentRequest.Query.MY_COMMUNITY_POSTS;
       case "community-favorites" -> ContentRequest.Query.MY_COMMUNITY_FAVORITES;
       case "inbox" -> switch(drafts.getString(draftKey("tab"),"notice")) {
@@ -878,6 +880,7 @@ public class MainActivity extends Activity {
       case "community-search" -> "搜索食记";
       case "community-author" -> "作者主页";
       case "community-create" -> "写一页美食手账";
+      case "community-edit" -> "修改食记";
       case "community-mine" -> "我的食记";
       case "community-favorites" -> "我的收藏";
       case "inbox" -> "通知信箱";
@@ -1326,6 +1329,7 @@ public class MainActivity extends Activity {
       CommunityCommentComposer.completeSubmission(drafts, prefix);
       message("已提交审核，通过前仅自己可见");
     }
+    if(task.origin().kind().equals("community-edit")&&task.imageDraft()==null){requireFreshContent("community-detail",task.origin().id());requireFreshContent("community","");}
     if(task.action().equals("发布回复")) {EmbeddedReviewReplies.completeSubmission(this);message("回复已提交，审核通过后公开");}
     if(task.imageDraft()!=null && task.imageDraft().endsWith(":photos")) {applyCommunityPhotos(task.imageDraft(),outcome.value());}
     else if(task.imageDraft()!=null) {
@@ -1333,7 +1337,7 @@ public class MainActivity extends Activity {
       worker.execute(() -> PhotoImport.discard(this,previous));
       if(task.action().equals("裁剪头像")&&route().equals(task.origin())){back();return;}
     }
-    else if(Set.of("review","upload-photo","submit-dish","submit-stall","community-create","admin-new","admin-edit").contains(task.origin().kind())) {
+    else if(Set.of("review","upload-photo","submit-dish","submit-stall","community-create","community-edit","admin-new","admin-edit").contains(task.origin().kind())) {
       clearDraft(task.origin());if(route().equals(task.origin())&&stacks.get(tab).size()>1) stacks.get(tab).remove(stacks.get(tab).size()-1);
     }
     openApp();
