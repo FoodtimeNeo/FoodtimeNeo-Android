@@ -602,26 +602,18 @@ public final class RemoteRepository implements FoodtimeRepository {
     return correction(call("POST","users/me/catalog-corrections",body));
   }
   @Override public NotificationPreferences notificationPreferences() {
-    JSONObject data=call("GET","users/me/notification-preferences",null);
-    JSONArray rows=data.optJSONArray("items");
-    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","提醒设置响应异常，请重试",0);
-    List<NotificationPreference> items=new ArrayList<>();
-    for(int i=0;i<rows.length();i++) {
-      JSONObject row=rows.optJSONObject(i);
-      items.add(new NotificationPreference(text(row,"category"),row.optBoolean("enabled"),
-          row.optLong("revision")));
-    }
-    return new NotificationPreferences(items);
+    return NotificationJson.preferences(accountCall("GET","users/me/notification-preferences",null));
   }
-  @Override public NotificationPreference updateNotificationPreference(String category,boolean enabled,
-      long expectedRevision) {
-    JSONObject data=call("PUT","users/me/notification-preferences/"+encode(category),
-        json("enabled",enabled,"expectedRevision",expectedRevision));
-    return new NotificationPreference(text(data,"category"),data.optBoolean("enabled"),
-        data.optLong("revision"));
+  @Override public NotificationPreference updateNotificationPreference(String category,boolean enabled,long expectedRevision) {
+    var result=NotificationJson.preference(accountCall("PUT","users/me/notification-preferences/"+encode(category),json("enabled",enabled,"expectedRevision",expectedRevision)));
+    if(!category.equals(result.category()))throw NotificationJson.invalid();return result;
+  }
+  @Override public NotificationPreference adoptLegacyMessagePreference(boolean enabled) {
+    var result=NotificationJson.preference(accountCall("POST","users/me/notification-preferences/legacy-message",json("enabled",enabled)));
+    if(!"message".equals(result.category())||result.revision()<2)throw NotificationJson.invalid();return result;
   }
   @Override public NotificationEventPage notificationEvents(long afterSeq,int limit) {
-    JSONObject data=call("GET","users/me/notification-events?afterSeq="+afterSeq+"&limit="+limit,null);
+    JSONObject data=accountCall("GET","users/me/notification-events?afterSeq="+afterSeq+"&limit="+limit,null);
     JSONArray rows=data.optJSONArray("items");
     if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","提醒事件响应异常，请重试",0);
     List<NotificationEvent> items=new ArrayList<>();
@@ -634,7 +626,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     return new NotificationEventPage(items,data.optLong("nextSeq",afterSeq));
   }
   @Override public void markNotificationDelivered(String eventId) {
-    call("POST","users/me/notification-events/"+encode(eventId)+"/delivered",null);
+    accountCall("POST","users/me/notification-events/"+encode(eventId)+"/delivered",null);
   }
 
   @Override public ReportFollowUpPage reportFollowUps(String reportId,int page) {
@@ -1609,7 +1601,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
 
   @Override public ReportPage reports(int page) {
-    JSONObject result = reportManagementCall("GET", "admin/reports?page=" + page + "&size=20", null);
+    JSONObject result = accountCall("GET", "admin/reports?page=" + page + "&size=20", null);
     JSONArray rows = result.optJSONArray("items");
     if (rows == null) throw new IllegalStateException("举报列表返回格式异常");
     List<ReportRow> items = new ArrayList<>();
@@ -1625,7 +1617,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     call("PUT", "admin/reports/" + encode(id) + "/review", null);
   }
 
-  private JSONObject reportManagementCall(String method,String path,JSONObject body) {
+  private JSONObject accountCall(String method,String path,JSONObject body) {
     final String owner;
     synchronized(dashboardLock){owner=capabilityOwner(user);}
     if(owner.isEmpty())throw new RepositoryException(401,"AUTH_REQUIRED","请先登录",0);
@@ -1634,31 +1626,31 @@ public final class RemoteRepository implements FoodtimeRepository {
     return result;
   }
   @Override public void decideReport(String id,String outcome,String reason,String note) {
-    reportManagementCall("POST","admin/reports/"+encode(id)+"/decision",json("outcome",outcome,"publicReason",reason,"internalNote",note));
+    accountCall("POST","admin/reports/"+encode(id)+"/decision",json("outcome",outcome,"publicReason",reason,"internalNote",note));
   }
   @Override public ReportManagement.Page<ReportManagement.Decision> adminReportDecisions(int page) {
-    return ReportManagementJson.page(reportManagementCall("GET","admin/reports/decisions?page="+page+"&size=20",null),ReportManagementJson::decision);
+    return ReportManagementJson.page(accountCall("GET","admin/reports/decisions?page="+page+"&size=20",null),ReportManagementJson::decision);
   }
   @Override public ReportManagement.Page<ReportManagement.FollowUp> adminReportFollowUps(String report,int page) {
-    return ReportManagementJson.page(reportManagementCall("GET","admin/reports/"+encode(report)+"/follow-ups?page="+page+"&size=20",null),ReportManagementJson::followUp);
+    return ReportManagementJson.page(accountCall("GET","admin/reports/"+encode(report)+"/follow-ups?page="+page+"&size=20",null),ReportManagementJson::followUp);
   }
   @Override public void replyToReport(String report,String content,String note,List<String> evidence,String requestId) {
-    reportManagementCall("POST","admin/reports/"+encode(report)+"/follow-ups",json("content",content,"internalNote",note,"evidenceUrls",array(evidence),"clientRequestId",requestId));
+    accountCall("POST","admin/reports/"+encode(report)+"/follow-ups",json("content",content,"internalNote",note,"evidenceUrls",array(evidence),"clientRequestId",requestId));
   }
   @Override public void performReportAction(String report,String action,String note) {
-    reportManagementCall("POST","admin/reports/"+encode(report)+"/actions",json("actionType",action,"note",note));
+    accountCall("POST","admin/reports/"+encode(report)+"/actions",json("actionType",action,"note",note));
   }
   @Override public ReportManagement.Page<ReportManagement.Appeal> adminAppeals(String status,int page) {
-    return ReportManagementJson.page(reportManagementCall("GET","admin/appeals?page="+page+"&size=20"+(status.isBlank()?"":"&status="+encode(status)),null),ReportManagementJson::appeal);
+    return ReportManagementJson.page(accountCall("GET","admin/appeals?page="+page+"&size=20"+(status.isBlank()?"":"&status="+encode(status)),null),ReportManagementJson::appeal);
   }
   @Override public ReportManagement.Appeal adminAppeal(String id) {
-    return ReportManagementJson.appeal(reportManagementCall("GET","admin/appeals/"+encode(id),null));
+    return ReportManagementJson.appeal(accountCall("GET","admin/appeals/"+encode(id),null));
   }
   @Override public ReportManagement.Appeal startAppealReview(String id,long revision) {
-    return ReportManagementJson.appeal(reportManagementCall("POST","admin/appeals/"+encode(id)+"/start?expectedRevision="+revision,null));
+    return ReportManagementJson.appeal(accountCall("POST","admin/appeals/"+encode(id)+"/start?expectedRevision="+revision,null));
   }
   @Override public ReportManagement.Appeal resolveAppeal(String id,String outcome,String reason,String note,long revision) {
-    return ReportManagementJson.appeal(reportManagementCall("POST","admin/appeals/"+encode(id)+"/resolve",json("outcome",outcome,"publicReason",reason,"internalNote",note,"expectedRevision",revision)));
+    return ReportManagementJson.appeal(accountCall("POST","admin/appeals/"+encode(id)+"/resolve",json("outcome",outcome,"publicReason",reason,"internalNote",note,"expectedRevision",revision)));
   }
 
   private JSONObject feedbackCall(boolean admin,String method,String path,JSONObject body) {

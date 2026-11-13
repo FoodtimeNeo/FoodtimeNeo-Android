@@ -144,8 +144,6 @@ final class ProfileScreen {
       roundedAction(a,panel,"浏览历史",false,()->a.go("history",""));
       Ui.gap(panel,10);
       roundedAction(a,panel,"举报与处理决定",false,()->a.go("report-receipts",""));
-      Ui.gap(panel,10);
-      roundedAction(a,panel,"提醒设置",false,()->a.go("notification-settings",""));
     }
     else if(selected==2) roundedAction(a,panel,action,false,() -> a.go("mine-submissions",""));
     else if(selected==3) {
@@ -157,10 +155,7 @@ final class ProfileScreen {
       roundedAction(a,panel,"建议与反馈",false,() -> a.go("feedback",""));
       if(!user.isAdmin()){Ui.gap(panel,10);roundedAction(a,panel,"账号安全与注销",false,()->a.go("account-lifecycle",""));}
       Ui.gap(panel,10);
-      TextView reminders = Ui.button(a, a.privateMessageRemindersConfigured() ? "关闭私信提醒" : "开启私信提醒",
-          false, a::togglePrivateMessageReminders);
-      reminders.setTag("private-message-reminder-toggle");
-      panel.addView(reminders);
+      roundedAction(a,panel,"提醒设置",false,()->a.go("notification-settings",""));
       Ui.gap(panel,10);
       TextView cache=Ui.text(a,"图片缓存",14,Design.MUTED);panel.addView(cache);
       TextView cacheError=Ui.text(a,"",12,Design.RED);panel.addView(cacheError);

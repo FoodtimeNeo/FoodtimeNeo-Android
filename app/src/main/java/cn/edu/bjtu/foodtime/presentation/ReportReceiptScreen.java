@@ -32,7 +32,8 @@ final class ReportReceiptScreen {
 
   static void show(MainActivity activity, LinearLayout page, MainActivity.Route route) {
     activity.heading(page, "04.2", "举报与处理决定", "公开结果、入箱时间与申诉截止");
-    new ReportReceiptScreen(activity, page).render();
+    var screen=new ReportReceiptScreen(activity,page);
+    screen.decisions="decisions".equals(route.id());screen.render();
   }
 
   private void render() {
