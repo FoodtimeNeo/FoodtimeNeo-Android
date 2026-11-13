@@ -36,7 +36,9 @@ final class DishSearchScreen {
   private final LinearLayout page, results, hallList;
   private final EditText input, minPrice, maxPrice;
   private final Spinner rating, sort;
-  private final TextView search, error, status, hallStatus, previous, next;
+  private final TextView search, error, status, hallStatus;
+  private final NumberedPagination pagination;
+  private boolean loading;
   private final String requestKey = "dish-search:" + UUID.randomUUID();
   private final String draftKey;
   private final List<String> selectedHalls = new ArrayList<>();
@@ -92,12 +94,7 @@ final class DishSearchScreen {
     page.addView(status);
     results = Ui.col(activity);
     page.addView(results);
-    LinearLayout controls = Ui.row(activity);
-    previous = Ui.button(activity, "上一页", false, () -> load(submitted, filters, data == null ? 1 : data.page() - 1));
-    next = Ui.button(activity, "下一页", false, () -> load(submitted, filters, data == null ? 1 : data.page() + 1));
-    controls.addView(previous, new LinearLayout.LayoutParams(0, -2, 1));
-    controls.addView(next, new LinearLayout.LayoutParams(0, -2, 1));
-    page.addView(controls);
+    pagination=new NumberedPagination(activity,number->load(submitted,filters,number));page.addView(pagination);
     paint();
     activity.read(requestKey + ":halls", null, error,
         () -> activity.repo.refresh(new ContentRequest(ContentRequest.Query.HALLS, "")),
@@ -187,11 +184,11 @@ final class DishSearchScreen {
   }
 
   private void load(String query, DishSearchFilters activeFilters, int number) {
-    if (number < 1) return;
+    if (number < 1 || loading) return;
+    loading=true;
     input.setEnabled(false);
     search.setEnabled(false);
-    previous.setEnabled(false);
-    next.setEnabled(false);
+    pagination.state(data==null?1:data.page(),totalPages(),false);
     status.setText("正在查找菜品…");
     boolean changed = !query.equals(submitted) || !activeFilters.equals(filters) || data == null;
     submitted = query;
@@ -211,6 +208,7 @@ final class DishSearchScreen {
           paint();
         },
         () -> {
+          loading=false;
           input.setEnabled(true);
           search.setEnabled(true);
           updateStatus();
@@ -239,11 +237,9 @@ final class DishSearchScreen {
   }
 
   private void updateStatus() {
-    previous.setVisibility(data != null && data.page() > 1 ? View.VISIBLE : View.GONE);
-    next.setVisibility(data != null && data.hasMore() ? View.VISIBLE : View.GONE);
-    previous.setEnabled(data != null && data.page() > 1);
-    next.setEnabled(data != null && data.hasMore());
+    pagination.state(data==null?1:data.page(),totalPages(),!loading&&data!=null);
     status.setText(data == null ? "可留空关键词浏览全部菜品。" : data.items().isEmpty()
-        ? "没有匹配的菜品。" : "找到 " + data.total() + " 道菜 · 第 " + data.page() + " 页");
+        ? "没有匹配的菜品。" : "找到 " + data.total() + " 道菜 · 第 " + data.page() + " / "+totalPages()+" 页");
   }
+  private int totalPages(){return data==null?1:(int)Math.min(Integer.MAX_VALUE,Math.max(1,(data.total()-1)/Math.max(1,data.size())+1));}
 }
