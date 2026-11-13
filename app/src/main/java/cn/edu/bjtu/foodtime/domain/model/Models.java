@@ -40,7 +40,9 @@ public final class Models {
       BigDecimal price,
       String description,
       boolean active,
-      long revision) {}
+      long revision, String priceUnit) {
+    public Dish(String id,String stallId,String name,BigDecimal price,String description,boolean active,long revision){this(id,stallId,name,price,description,active,revision,"unspecified");}
+  }
 
   public record DishSearchRow(String id, String name, BigDecimal price,
                               String stallName, String diningHallName,
@@ -56,7 +58,8 @@ public final class Models {
   public record CorrectionProposal(String targetType, String targetId, long baseRevision,
                                    List<String> changedFields, String name, String description,
                                    BigDecimal price, String reason, List<String> evidenceUrls,
-                                   String idempotencyKey) {
+                                   String idempotencyKey, String priceUnit) {
+    public CorrectionProposal(String targetType,String targetId,long baseRevision,List<String> changedFields,String name,String description,BigDecimal price,String reason,List<String> evidenceUrls,String idempotencyKey){this(targetType,targetId,baseRevision,changedFields,name,description,price,reason,evidenceUrls,idempotencyKey,null);}
     public CorrectionProposal { changedFields = List.copyOf(changedFields); evidenceUrls = List.copyOf(evidenceUrls); }
   }
 
@@ -65,7 +68,7 @@ public final class Models {
                                   BigDecimal originalPrice, String proposedName, String proposedDescription,
                                   BigDecimal proposedPrice, List<String> changedFields, String reason,
                                   String status, String reviewNote, long createdAt, long reviewedAt,
-                                  long revision, List<String> evidenceUrls) {
+                                  long revision, List<String> evidenceUrls, String originalPriceUnit, String proposedPriceUnit) {
     public CatalogCorrection { changedFields = List.copyOf(changedFields); evidenceUrls = List.copyOf(evidenceUrls); }
   }
 
@@ -433,7 +436,9 @@ public final class Models {
       String description,
       String price,
       String coverImageUrl,
-      boolean active) {}
+      boolean active, String priceUnit) {
+    public AdminEntity(String id,String name,String description,String price,String coverImageUrl,boolean active){this(id,name,description,price,coverImageUrl,active,"unspecified");}
+  }
 
   public record Audit(
       String id,

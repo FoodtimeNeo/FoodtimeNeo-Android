@@ -3,6 +3,7 @@ package cn.edu.bjtu.foodtime.presentation;
 import android.app.AlertDialog;
 import android.text.InputType;
 import android.widget.CheckBox;
+import android.widget.Spinner;
 import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -47,6 +48,8 @@ final class CorrectionScreen {
     price.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
     price.setText(dish.price() == null ? "" : dish.price().stripTrailingZeros().toPlainString());
 
+    CheckBox unitCheck=check(activity,page,"更正计价单位");
+    Spinner priceUnit=PriceUnits.field(activity,page,dish.priceUnit());
     EvidenceSlots.show(activity, page, "correction-evidence:" + dish.id());
     Ui.gap(page, 8);
     EditText reason = Ui.field(page, "更正理由", false, true);
@@ -60,6 +63,7 @@ final class CorrectionScreen {
       if (nameCheck.isChecked()) fields.add("name");
       if (descriptionCheck.isChecked()) fields.add("description");
       if (priceCheck.isChecked()) fields.add("price");
+      if (unitCheck.isChecked()) fields.add("priceUnit");
       if (fields.isEmpty()) {
         error.setText("请至少勾选一个要更正的字段");
         return;
@@ -80,11 +84,12 @@ final class CorrectionScreen {
         }
       }
       final BigDecimal finalPrice = proposedPrice;
+      String proposedUnit=unitCheck.isChecked()?PriceUnits.value(priceUnit):null;
       activity.request(submit, error, () -> {
         var evidence = EvidenceSlots.upload(activity, "correction-evidence:" + dish.id());
         CorrectionProposal proposal = new CorrectionProposal("dish", dish.id(), dish.revision(),
             fields, name.getText().toString(), description.getText().toString(), finalPrice,
-            reasonText, evidence, idempotencyKey);
+            reasonText, evidence, idempotencyKey,proposedUnit);
         activity.repo.submitCorrection(proposal);
       }, () -> {
         activity.message("纠错提案已提交，等待管理员核对");
@@ -216,6 +221,7 @@ final class CorrectionScreen {
       case "name" -> "名称：" + item.originalName() + " → " + item.proposedName();
       case "description" -> "介绍：" + (item.originalDescription() == null ? "（空）" : item.originalDescription())
           + " → " + (item.proposedDescription() == null ? "（空）" : item.proposedDescription());
+      case "priceUnit" -> "计价单位："+cn.edu.bjtu.foodtime.domain.model.PriceHistory.unit(item.originalPriceUnit())+" → "+cn.edu.bjtu.foodtime.domain.model.PriceHistory.unit(item.proposedPriceUnit());
       case "price" -> "价格：" + price(item.originalPrice()) + " → " + price(item.proposedPrice());
       default -> field;
     };

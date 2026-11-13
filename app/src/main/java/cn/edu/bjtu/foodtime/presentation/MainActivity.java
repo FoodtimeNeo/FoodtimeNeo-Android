@@ -232,6 +232,7 @@ public class MainActivity extends Activity {
     screens.put("venue-mine",VenueScreen::mine);
     screens.put("dining", DiningScreen::halls);
     screens.put("dish-search", DishSearchScreen::show);
+    screens.put("price-history", PriceHistoryScreen::show);
     screens.put("favorite-dishes", FavoriteDishesScreen::show);
     screens.put("correction", CorrectionScreen::submit);
     screens.put("my-corrections", CorrectionScreen::mine);
@@ -597,6 +598,9 @@ public class MainActivity extends Activity {
   /** Force the current page to refresh, used by the community pull gesture/refresh control. */
   public void refreshCurrent() { if(!navigationLoading) render(true); }
 
+  private final java.util.Set<Route> freshContentRequired=new java.util.HashSet<>();
+  /** A successful write can require a page's next paint to wait for fresh server data. */
+  void requireFreshContent(String kind,String id){freshContentRequired.add(new Route(kind,id));}
   private static final long COMMUNITY_FRESH_MS = 60 * 1000L;
   private final Map<String,Long> communityLoadedAt=new HashMap<>();
   private String communityLoadedFor="";
@@ -638,7 +642,7 @@ public class MainActivity extends Activity {
       return;
     }
     boolean catalog=LoadingScreen.catalog(target),dashboard=target.kind().equals("admin-dashboard");
-    boolean immediate=isImmediate(target);
+    boolean immediate=isImmediate(target)&&!freshContentRequired.contains(target);
     boolean retain=(catalog||dashboard&&repo.adminDashboard()!=null)&&contentReady&&displayedLocation.equals(location())&&displayedActor.equals(actor);
     navigationLoading=true;
     LinearLayout[] bodyHolder={null};
@@ -687,6 +691,7 @@ public class MainActivity extends Activity {
           if(immediate) {pageFailed=true;refreshPage();message(safeMessage(failure));return;}
           contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=bodyHolder[0];content.addView(bodyHolder[0],0);LoadingScreen.failure(this,bodyHolder[0],dashboard?"刷新失败，显示上次数据":"加载失败");}else if(retain){content.removeAllViews();LoadingScreen.failure(this,catalog?LoadingScreen.begin(this,content,target):LoadingScreen.general(this,content,target),dashboard?failure.getMessage():"加载失败");}else LoadingScreen.failure(this,bodyHolder[0],dashboard&&failure instanceof RepositoryException?failure.getMessage():"加载失败");return;
         }
+        freshContentRequired.remove(target);
         if(community) {
           if(!communityLoadedFor.equals(actor()))communityLoadedAt.clear();
           communityLoadedFor=actor();
@@ -904,6 +909,7 @@ public class MainActivity extends Activity {
       case "mine-reviews" -> "我的评论";
       case "mine-review-replies" -> "我的回复";
       case "detail" -> "菜品详情";
+      case "price-history" -> "价格变化";
       case "dish-search" -> "跨食堂搜菜";
       case "favorite-dishes" -> "想吃清单";
       case "admin-audit" -> "审核投稿";
@@ -1365,7 +1371,7 @@ public class MainActivity extends Activity {
     NotificationEventReminders.disable(this);
     for(var stack:stacks.values())for(Route item:stack)if(item.kind().equals("avatar-crop"))discardPhoto(item.id());
     pickingKey=null;avatarPickingActor="";
-    cancelNavigation();contentReady=false;displayedActor="";communityLoadedAt.clear();communityLoadedFor="";
+    cancelNavigation();contentReady=false;displayedActor="";communityLoadedAt.clear();communityLoadedFor="";freshContentRequired.clear();
     if(loginNoticeDialog!=null){loginNoticeDialog.dialog.dismiss();loginNoticeDialog=null;}
     loginNotices.reset();noticeErrorShown="";
     for(String key:drafts.keySet()) if(key.endsWith(":image")) {

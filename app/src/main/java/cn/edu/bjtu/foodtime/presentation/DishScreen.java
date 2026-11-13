@@ -40,7 +40,7 @@ final class DishScreen {
     card.setClipToOutline(true);card.setElevation(Ui.dp(a,2));
     LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,12),Ui.dp(a,11),Ui.dp(a,12),Ui.dp(a,13));
     TextView name=Ui.title(a,dish.name(),18);name.setMaxLines(2);body.addView(name);Ui.gap(body,7);
-    LinearLayout meta=Ui.row(a);TextView price=Ui.title(a,"¥"+dish.price().stripTrailingZeros().toPlainString(),17);
+    LinearLayout meta=Ui.row(a);TextView price=Ui.title(a,cn.edu.bjtu.foodtime.domain.model.PriceHistory.price(dish.price(),dish.priceUnit()),17);
     price.setTextColor(Design.RED);meta.addView(price,new LinearLayout.LayoutParams(0,-2,1));
     body.addView(meta);card.addView(body);
     card.setClickable(true);card.setFocusable(true);card.setContentDescription(dish.name()+"，查看详情");
@@ -71,9 +71,10 @@ final class DishScreen {
     LinearLayout heroText = Ui.row(a);
     heroText.setPadding(Ui.dp(a, 16), Ui.dp(a, 12), Ui.dp(a, 16), Ui.dp(a, 8));
     heroText.addView(
-        Ui.title(a, "¥" + d.price().setScale(2), 25), new LinearLayout.LayoutParams(0, -2, 1));
+        Ui.title(a, cn.edu.bjtu.foodtime.domain.model.PriceHistory.price(d.price(),d.priceUnit()), 25), new LinearLayout.LayoutParams(0, -2, 1));
     hero.setOnClickListener(v -> a.go("gallery", d.id()));
     hero.addView(heroText);
+    TextView history=Ui.button(a,"价格变化",false,()->a.go("price-history",d.id()));history.setTag("dish-price-history");hero.addView(history);
     if(!d.description().isBlank()) {
       TextView description=Ui.text(a,d.description(),16,Design.MUTED);
       description.setPadding(Ui.dp(a,16),0,Ui.dp(a,16),Ui.dp(a,16));hero.addView(description);
