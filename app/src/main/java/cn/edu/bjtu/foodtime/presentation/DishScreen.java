@@ -40,7 +40,7 @@ final class DishScreen {
     card.setClipToOutline(true);card.setElevation(Ui.dp(a,2));
     LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,12),Ui.dp(a,11),Ui.dp(a,12),Ui.dp(a,13));
     TextView name=Ui.title(a,dish.name(),18);name.setMaxLines(2);body.addView(name);Ui.gap(body,7);
-    LinearLayout meta=Ui.row(a);TextView price=Ui.title(a,"¥"+dish.price().stripTrailingZeros().toPlainString(),17);
+    LinearLayout meta=Ui.row(a);TextView price=Ui.title(a,cn.edu.bjtu.foodtime.domain.model.PriceHistory.price(dish.price(),dish.priceUnit()),17);
     price.setTextColor(Design.RED);meta.addView(price,new LinearLayout.LayoutParams(0,-2,1));
     body.addView(meta);card.addView(body);
     card.setClickable(true);card.setFocusable(true);card.setContentDescription(dish.name()+"，查看详情");
@@ -51,6 +51,7 @@ final class DishScreen {
   static void detail(MainActivity a, LinearLayout page, MainActivity.Route route) {
     Dish d = a.repo.dish(route.id());
     if (d == null || !d.active()) throw new IllegalArgumentException("菜品不存在或已下架");
+    a.recordVisit("dish", d.id());
     Stall s = a.repo.stall(d.stallId());
     Hall h = a.repo.hall(s.diningHallId());
     a.heading(page, "01.3", d.name(), h.name() + " · " + s.name());
@@ -59,28 +60,21 @@ final class DishScreen {
     hero.setPadding(0, 0, 0, Ui.dp(a, 4));
     FrameLayout photo = detailPhoto(a,d);
     hero.addView(photo);
-    TextView upload = Ui.button(a, "+", false, () -> a.go("upload-photo", d.id()));
-    upload.setTextSize(24);
-    upload.setPadding(0, 0, 0, 0);
+    LinearLayout photoActions=Ui.row(a);photoActions.setPadding(Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,12),0);
+    TextView upload = Ui.button(a, "上传图片", false, () -> a.go("upload-photo", d.id()));
     upload.setContentDescription("上传菜品图片");
-    FrameLayout.LayoutParams up =
-        new FrameLayout.LayoutParams(
-            Ui.dp(a, 48), Ui.dp(a, 48), android.view.Gravity.TOP | android.view.Gravity.END);
-    up.setMargins(0, Ui.dp(a, 8), Ui.dp(a, 8), 0);
-    photo.addView(upload, up);
-    TextView album = Ui.button(a, "图册", false, () -> a.go("gallery", d.id()));
+    photoActions.addView(upload,new LinearLayout.LayoutParams(0,-2,1));
+    TextView album = Ui.button(a, "查看图册", false, () -> a.go("gallery", d.id()));
     album.setContentDescription("查看菜品图册");
-    FrameLayout.LayoutParams al =
-        new FrameLayout.LayoutParams(
-            -2, Ui.dp(a, 48), android.view.Gravity.BOTTOM | android.view.Gravity.END);
-    al.setMargins(0, 0, Ui.dp(a, 8), Ui.dp(a, 8));
-    photo.addView(album, al);
+    LinearLayout.LayoutParams albumLayout=new LinearLayout.LayoutParams(0,-2,1);albumLayout.leftMargin=Ui.dp(a,8);
+    photoActions.addView(album,albumLayout);hero.addView(photoActions);
     LinearLayout heroText = Ui.row(a);
     heroText.setPadding(Ui.dp(a, 16), Ui.dp(a, 12), Ui.dp(a, 16), Ui.dp(a, 8));
     heroText.addView(
-        Ui.title(a, "¥" + d.price().setScale(2), 25), new LinearLayout.LayoutParams(0, -2, 1));
+        Ui.title(a, cn.edu.bjtu.foodtime.domain.model.PriceHistory.price(d.price(),d.priceUnit()), 25), new LinearLayout.LayoutParams(0, -2, 1));
     hero.setOnClickListener(v -> a.go("gallery", d.id()));
     hero.addView(heroText);
+    TextView history=Ui.button(a,"价格变化",false,()->a.go("price-history",d.id()));history.setTag("dish-price-history");hero.addView(history);
     if(!d.description().isBlank()) {
       TextView description=Ui.text(a,d.description(),16,Design.MUTED);
       description.setPadding(Ui.dp(a,16),0,Ui.dp(a,16),Ui.dp(a,16));hero.addView(description);
@@ -109,6 +103,10 @@ final class DishScreen {
       params.leftMargin = Ui.dp(a, 8);
       action.addView(favorite, params);
       setupFavorite(a, favorite, d.id());
+      TextView correct = Ui.button(a, "纠错", false, () -> a.go("correction", d.id()));
+      LinearLayout.LayoutParams correctionParams = new LinearLayout.LayoutParams(0, Ui.dp(a, 48), 1);
+      correctionParams.leftMargin = Ui.dp(a, 8);
+      action.addView(correct, correctionParams);
     }
     page.addView(action);
     Ui.gap(page, 20);
@@ -148,7 +146,8 @@ final class DishScreen {
     List<Photo> photos=a.repo.photos(dish.id());
     if(!photos.isEmpty()) {
       String full=photos.get(0).imageUrl();
-      FrameLayout preview=(FrameLayout)Ui.image(a,Ui.thumb(full),dish.name()+"图片",true);
+      FrameLayout preview=(FrameLayout)Ui.containedImage(a,Ui.thumb(full),dish.name()+"图片");
+      preview.setTag("dish-detail-photo");
       preview.setClickable(true);
       preview.setFocusable(true);
       preview.setContentDescription(dish.name()+"图片，点击查看大图");
@@ -176,7 +175,7 @@ final class DishScreen {
       LinearLayout c = Ui.card(page);
       c.setPadding(0, 0, 0, Ui.dp(a, 4));
       String full = p.imageUrl();
-      FrameLayout preview = (FrameLayout) Ui.image(a, Ui.thumb(full), "菜品图片", true);
+      FrameLayout preview = (FrameLayout) Ui.containedImage(a, Ui.thumb(full), "菜品图片");
       preview.setClickable(true);
       preview.setFocusable(true);
       preview.setContentDescription("菜品图片，点击查看大图");

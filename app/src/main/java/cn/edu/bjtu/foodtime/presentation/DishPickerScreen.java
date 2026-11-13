@@ -220,6 +220,7 @@ final class DishPickerScreen {
 
   private void store(String key, String value) {
     activity.drafts.putString(draft + "linkedDish" + key, value);
+    if ("Id".equals(key) && !value.isBlank()) CommunityScreen.persistDraft(activity);
   }
 
   private void hideKeyboard() {

@@ -24,12 +24,13 @@ jobs:
         github.event.workflow_run.head_branch == 'main' &&
         github.event.workflow_run.head_repository.full_name == github.repository) ||
       (github.event_name == 'workflow_dispatch' &&
-        (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/dev'))
+        github.ref == 'refs/heads/main')
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions:
       contents: read
       pull-requests: read
+      actions: read
     outputs:
       build: ${{ steps.source.outputs.build }}
       sha: ${{ steps.source.outputs.sha }}
@@ -47,10 +48,6 @@ jobs:
           set -euo pipefail
           [[ "$SHA" =~ ^[a-f0-9]{40}$ ]]
           echo "sha=$SHA" >> "$GITHUB_OUTPUT"
-          if [[ "$EVENT_NAME" == 'workflow_dispatch' ]]; then
-            echo "build=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           api() {
             curl --fail --silent --show-error --retry 3 \
               -H "Authorization: Bearer $GH_TOKEN" \
@@ -66,6 +63,14 @@ jobs:
             echo "build=false" >> "$GITHUB_OUTPUT"
             echo 'Skip superseded, non-merge or explicitly excluded main commit.'
             exit 0
+          fi
+          if [[ "$EVENT_NAME" == 'workflow_dispatch' ]]; then
+            success=$(api "actions/workflows/ci.yml/runs?head_sha=$SHA&branch=main&event=push&status=success&per_page=100" \
+              | jq --arg sha "$SHA" '[.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and .conclusion == "success")] | length')
+            if (( success == 0 )); then
+              echo '::error::The exact main commit must pass Android CI before a signed build.'
+              exit 1
+            fi
           fi
           echo "build=true" >> "$GITHUB_OUTPUT"
 
@@ -140,11 +145,7 @@ jobs:
           echo "directory=$release_dir" >> "$GITHUB_OUTPUT"
           version_name=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk_path" | sed -n "s/.*versionName='\([^']*\)'.*/\1/p")
           version_code=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$apk_path" | sed -n "s/.*versionCode='\([0-9]*\)'.*/\1/p")
-          [[ "$version_name" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]
-          [[ "$version_code" =~ ^[0-9]+$ ]]
-          echo "version=$version_name" >> "$GITHUB_OUTPUT"
-          echo "code=$version_code" >> "$GITHUB_OUTPUT"
-          echo "tag=v$version_name" >> "$GITHUB_OUTPUT"
+          python3 scripts/release/release_version.py "$version_name" "$version_code" --github-output >> "$GITHUB_OUTPUT"
 
       - name: Build delta patches and release manifest
         id: delta
@@ -155,12 +156,16 @@ jobs:
           RELEASE_TAG: ${{ steps.apk.outputs.tag }}
           RELEASE_VERSION: ${{ steps.apk.outputs.version }}
           RELEASE_CODE: ${{ steps.apk.outputs.code }}
+          RELEASE_CHANNEL: ${{ steps.apk.outputs.channel }}
+          RELEASE_PRERELEASE: ${{ steps.apk.outputs.prerelease }}
+          MERGE_SHA: ${{ needs.gate.outputs.sha }}
           RELEASE_DIRECTORY: ${{ steps.apk.outputs.directory }}
         run: |
           set -euo pipefail
           sudo apt-get update -qq
           sudo apt-get install -y -qq bsdiff
-          asset_base="https://github.com/$GH_REPO/releases/download/$RELEASE_TAG"
+          encoded_tag=$(python3 -c 'import os,urllib.parse; print(urllib.parse.quote(os.environ["RELEASE_TAG"],safe=""))')
+          asset_base="https://github.com/$GH_REPO/releases/download/$encoded_tag"
           apk="$RELEASE_DIRECTORY/app-release.apk"
           apk_sha=$(sha256sum "$apk" | cut -d' ' -f1)
           apk_size=$(stat -c%s "$apk")
@@ -196,7 +201,9 @@ jobs:
             --arg sha "$apk_sha" \
             --argjson size "$apk_size" \
             --argjson patches "$patches" \
-            '{versionCode:$versionCode,versionName:$versionName,apk:{url:$url,sha256:$sha,size:$size},patches:$patches}' \
+            --arg channel "$RELEASE_CHANNEL" --argjson prerelease "$RELEASE_PRERELEASE" \
+            --arg sourceCommit "$MERGE_SHA" \
+            '{versionCode:$versionCode,versionName:$versionName,channel:$channel,prerelease:$prerelease,sourceCommit:$sourceCommit,sourceRef:"refs/heads/main",apk:{url:$url,sha256:$sha,size:$size},patches:$patches}' \
             > "$RELEASE_DIRECTORY/manifest.json"
           cat "$RELEASE_DIRECTORY/manifest.json"
 
@@ -216,13 +223,17 @@ jobs:
           MERGE_SHA: ${{ needs.gate.outputs.sha }}
           RELEASE_TAG: ${{ steps.apk.outputs.tag }}
           RELEASE_VERSION: ${{ steps.apk.outputs.version }}
+          RELEASE_PRERELEASE: ${{ steps.apk.outputs.prerelease }}
           RELEASE_DIRECTORY: ${{ steps.apk.outputs.directory }}
         run: |
           set -euo pipefail
+          flags=()
+          title="Foodtime Android v${RELEASE_VERSION}"
+          if [[ "$RELEASE_PRERELEASE" == true ]]; then flags+=(--prerelease --latest=false); title+=" 测试版"; fi
           if ! gh release view "$RELEASE_TAG" >/dev/null 2>&1; then
             gh release create "$RELEASE_TAG" \
               --target "$MERGE_SHA" \
-              --title "Foodtime Android v${RELEASE_VERSION}" \
+              --title "$title" "${flags[@]}" \
               --draft \
               --generate-notes
           fi
@@ -235,15 +246,9 @@ jobs:
             [[ -e "$patch" ]] && files+=("$patch")
           done
           gh release upload "$RELEASE_TAG" "${files[@]}" --clobber
-          gh release edit "$RELEASE_TAG" --draft=false
+          gh release edit "$RELEASE_TAG" --draft=false --title "$title" "${flags[@]}"
           echo "### Android Release APK" >> "$GITHUB_STEP_SUMMARY"
           gh release view "$RELEASE_TAG" --json url --jq .url >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Summarize development artifact
-        if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/dev'
-        run: |
-          echo "### Signed development APK" >> "$GITHUB_STEP_SUMMARY"
-          echo "Artifact only: no main merge and no GitHub Release was published." >> "$GITHUB_STEP_SUMMARY"
 
       - name: Remove signing key from runner
         if: always()

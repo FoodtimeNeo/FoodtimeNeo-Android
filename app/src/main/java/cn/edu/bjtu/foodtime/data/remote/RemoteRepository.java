@@ -3,6 +3,7 @@ package cn.edu.bjtu.foodtime.data.remote;
 import cn.edu.bjtu.foodtime.data.prototype.CommunityPrototype;
 import cn.edu.bjtu.foodtime.domain.model.CommunityText;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
+import cn.edu.bjtu.foodtime.domain.model.ReportManagement;
 import cn.edu.bjtu.foodtime.domain.model.FeedbackModels;
 import cn.edu.bjtu.foodtime.domain.model.NoticeSchedule;
 import cn.edu.bjtu.foodtime.domain.model.AccountLifecycle;
@@ -27,6 +28,10 @@ public final class RemoteRepository implements FoodtimeRepository {
   private final CommunityPrototype communityPrototype;
   private volatile String csrf;
   private volatile User user;
+  private volatile CapabilitySnapshot capabilities=CapabilitySnapshot.empty();
+  private volatile String sessionMode="normal";
+  private volatile HistorySettings historySettings;
+  private String capabilitiesOwner="";
   private final Object dashboardLock=new Object();
   private long dashboardRequest;
   private DashboardSnapshot dashboardSnapshot;
@@ -75,6 +80,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   private volatile List<Audit> auditList=List.of();
   private volatile List<User> userList=List.of();
   private volatile List<CommunityPost> communityFeed=List.of();
+  private volatile cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot pinSnapshot=cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot.empty();
+  private String pinOwner="";
   private volatile CommunityPostPage ownCommunityPosts=CommunityPostPage.empty(),ownCommunityFavorites=CommunityPostPage.empty();
   private volatile CommunityFeedSlice followingFeed = new CommunityFeedSlice(List.of(), 0, "");
   private volatile CommunityAuditPage communityAudit=CommunityAuditPage.empty();
@@ -140,14 +147,31 @@ public final class RemoteRepository implements FoodtimeRepository {
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(false);}
   }
   @Override public void restoreSession() {
-    try { profile(); }
-    catch(RepositoryException e) { if(e.status()!=401) throw e; }
+    try {
+      profile();
+      sessionMode="normal";
+      fetchCapabilitiesQuietly();
+    } catch(RepositoryException failure) {
+      if(failure.status()==401) return;
+      if(failure.status()!=403) throw failure;
+      // A disabled account's normal profile endpoint is blocked; /auth/me remains allowed.
+      JSONObject data=call("GET","auth/me",null);
+      if(!"appeal_only".equals(text(data,"sessionMode"))) throw failure;
+      sessionMode="appeal_only";
+      user=new User(text(data,"id"),text(data,"email"),text(data,"displayName"),text(data,"role"),
+          false,"",0,0);
+      clearCapabilities();
+    }
   }
+  @Override public String sessionMode() { return sessionMode; }
   private void profile() {
     try {
       User next=person(call("GET","users/me/profile",null));
       synchronized(dashboardLock) {
-        if(user==null||!user.id().equals(next.id())||!user.role().equals(next.role())||user.active()!=next.active())clearRecommendations();
+        if(user==null||!user.id().equals(next.id())||!user.role().equals(next.role())||user.active()!=next.active()) {
+          clearRecommendations();
+          clearCapabilities();
+        }
         if(!dashboardOwner(user).equals(dashboardOwner(next))) {dashboardSnapshot=null;dashboardRequest++;}
         user=next;
         syncFollowOwner();
@@ -159,6 +183,49 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private static String dashboardOwner(User actor) {
     return actor!=null&&actor.active()&&actor.role().equals("superadmin")?actor.id()+":"+actor.role():"";
+  }
+  @Override public CapabilitySnapshot capabilities() {
+    synchronized(dashboardLock) {
+      return capabilitiesOwner.equals(capabilityOwner(user)) ? capabilities : CapabilitySnapshot.empty();
+    }
+  }
+  @Override public void loadCapabilities() { fetchCapabilities(); }
+  private String capabilityOwner(User actor) {
+    return actor!=null&&actor.active()?actor.id()+":"+actor.role()+":"+http.sessionKey():"";
+  }
+  private void clearCapabilities() {
+    capabilities=CapabilitySnapshot.empty();
+    capabilitiesOwner="";
+  }
+  private void fetchCapabilitiesQuietly() {
+    try { fetchCapabilities(); }
+    catch(RepositoryException failure) {
+      clearCapabilities();
+      if(failure.status()==401) throw failure;
+    }
+  }
+  private void fetchCapabilities() {
+    final String owner;
+    synchronized(dashboardLock) {owner=capabilityOwner(user);}
+    if(owner.isEmpty())throw new RepositoryException(401,"UNAUTHENTICATED","请重新登录",0);
+    JSONObject data=call("GET","users/me/capabilities",null);
+    JSONArray items=data.optJSONArray("capabilities");
+    String revision=text(data,"revision");
+    if(items==null||revision.isBlank())throw invalidCapabilityResponse();
+    List<String> names=new ArrayList<>();
+    for(int i=0;i<items.length();i++) {
+      Object value=items.opt(i);
+      if(!(value instanceof String name)||name.isBlank())throw invalidCapabilityResponse();
+      names.add(name);
+    }
+    synchronized(dashboardLock) {
+      if(!owner.equals(capabilityOwner(user)))throw new RepositoryException(0,"STALE_RESPONSE","请求已失效，请重试",0);
+      capabilities=new CapabilitySnapshot(names,revision);
+      capabilitiesOwner=owner;
+    }
+  }
+  private static RepositoryException invalidCapabilityResponse() {
+    return new RepositoryException(0,"INVALID_RESPONSE","能力响应异常，请稍后重试",0);
   }
   @Override public AdminDashboard adminDashboard() {
     synchronized(dashboardLock) {
@@ -189,10 +256,51 @@ public final class RemoteRepository implements FoodtimeRepository {
     }
   }
   @Override public User login(String account,String password) {
+    return login(account,password,null,null);
+  }
+  @Override public User login(String account,String password,String challengeId,String challengeAnswer) {
     Validation.accountEmail(account); Validation.password(password,false);
     csrf=null; token();
-    call("POST","auth/login",json("account",account.strip(),"password",password));
-    csrf=null; token(); profile(); return user;
+    JSONObject body=json("account",account.strip(),"password",password);
+    if(challengeId!=null&&!challengeId.isBlank()&&challengeAnswer!=null&&!challengeAnswer.isBlank()) {
+      try { body.put("challengeId",challengeId); body.put("challengeAnswer",challengeAnswer.strip()); }
+      catch(JSONException failure) { throw new IllegalArgumentException("验证码参数不合法",failure); }
+    }
+    JSONObject data=call("POST","auth/login",body);
+    csrf=null; token();
+    String mode=text(data,"sessionMode");
+    if("appeal_only".equals(mode)) {
+      JSONObject row=data.optJSONObject("user");
+      sessionMode="appeal_only";
+      user=new User(text(row,"id"),text(row,"email"),text(row,"displayName"),text(row,"role"),
+          false,"",0,0);
+      clearCapabilities();
+      return user;
+    }
+    sessionMode="normal"; profile(); fetchCapabilitiesQuietly(); return user;
+  }
+  @Override public RegistrationPolicy registrationPolicy() {
+    JSONObject data=call("GET","auth/registration-policy",null);
+    String mode=text(data,"mode");
+    if(!mode.equals("open")&&!mode.equals("invitation")&&!mode.equals("closed"))
+      throw new RepositoryException(0,"INVALID_RESPONSE","注册策略响应异常，请稍后重试",0);
+    String revision=text(data,"revision");
+    if(revision.isBlank())throw new RepositoryException(0,"INVALID_RESPONSE","注册策略响应异常，请稍后重试",0);
+    return new RegistrationPolicy(mode,data.optBoolean("canSendEmailCode",false),
+        data.optBoolean("invitationRequired",false),revision);
+  }
+  @Override public CaptchaChallenge captcha() {
+    JSONObject data=call("GET","auth/captcha",null);
+    String challengeId=text(data,"challengeId"),image=text(data,"imageBase64"),expires=text(data,"expiresAt");
+    if(!challengeId.matches("[0-9a-fA-F-]{36}")||image.isBlank())
+      throw new RepositoryException(0,"INVALID_RESPONSE","验证码响应异常，请重试",0);
+    try {
+      java.util.Base64.getDecoder().decode(image);
+      Instant.parse(expires);
+    } catch(RuntimeException failure) {
+      throw new RepositoryException(0,"INVALID_RESPONSE","验证码响应异常，请重试",0);
+    }
+    return new CaptchaChallenge(challengeId,image,expires);
   }
   @Override public String sendVerificationCode(String email) {
     Validation.email(email);
@@ -200,8 +308,17 @@ public final class RemoteRepository implements FoodtimeRepository {
     return ""; // Verification codes only arrive by email; never return or invent a client code.
   }
   @Override public void register(String email,String password,String code) {
+    register(email,password,code,null);
+  }
+  @Override public void register(String email,String password,String code,String invitationCode) {
     Validation.email(email); Validation.password(password,true);
-    call("POST","auth/register",json("email",email.strip(),"password",password,"verificationCode",code));
+    JSONObject body=json("email",email.strip(),"password",password,"verificationCode",code);
+    String invite=invitationCode==null?"":invitationCode.strip();
+    if(!invite.isEmpty()) {
+      try { body.put("invitationCode",invite); }
+      catch(JSONException failure) { throw new IllegalArgumentException("邀请码不合法",failure); }
+    }
+    call("POST","auth/register",body);
   }
   @Override public long sendPasswordResetCode(String email) {
     var response=call("POST","auth/password-reset/email-code",json("email",Validation.accountEmail(email)));
@@ -244,7 +361,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private static String actionCode(String input){if(input==null||!input.strip().matches("[0-9]{6}"))throw new IllegalArgumentException("请填写 6 位邮箱验证码");return input.strip();}
   @Override public String unbindSchoolEmail(String code){
     User actor=accountActor();JSONObject row=call("POST","users/me/account-lifecycle/unbind",json("verificationCode",actionCode(code)));sameAccount(actor);
-    JSONObject profile=row.optJSONObject("profile");if(profile==null||!text(profile,"id").equals(actor.id())||!text(profile,"role").equals("visitor"))throw invalidAccount();
+    JSONObject profile=row.optJSONObject("profile");if(profile==null||!text(profile,"id").equals(actor.id())||!Set.of("visitor","user").contains(text(profile,"role"))||!profile.isNull("schoolEmail")||!Boolean.FALSE.equals(profile.opt("schoolEmailVerified")))throw invalidAccount();
     String reusable=accountInstant(row,"schoolEmailReusableAt");synchronized(dashboardLock){user=person(profile);clearRecommendations();}return reusable;
   }
   @Override public String deleteAccount(String code){
@@ -384,7 +501,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     if(!stalls.containsKey(id)) throw missing("档口不存在或已停用");
   }
   private void fetchDishes(String id) {
-    var items=list("stalls/"+id+"/dishes",j -> new Dish(text(j,"id"),id,text(j,"name"),decimal(j,"price"),"",true));
+    var items=list("stalls/"+id+"/dishes",j -> new Dish(text(j,"id"),id,text(j,"name"),decimal(j,"price"),"",true,j.optLong("revision",0),text(j,"priceUnit")));
     dishes.entrySet().removeIf(e -> e.getValue().stallId().equals(id));
     // The stall page only needs the catalog rows. Loading every dish gallery here turns one
     // navigation into an N+1 request burst, so media stays lazy until DISH_DETAIL is opened.
@@ -407,11 +524,287 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
 
   @Override public DishSearchPage searchDishes(String query, int page) {
-    return dishRows("dishes/search?q=" + encode(query) + "&page=" + page + "&size=20", page);
+    return searchDishes(query,page,DishSearchFilters.empty());
+  }
+  @Override public DishSearchPage searchDishes(String query, int page, DishSearchFilters filters) {
+    StringBuilder path=new StringBuilder("dishes/search?q=").append(encode(query))
+        .append("&page=").append(page).append("&size=20&sort=")
+        .append(encode(filters.sort()==null||filters.sort().isBlank()?"relevance":filters.sort()));
+    if(!filters.diningHallIds().isEmpty()) {
+      List<String> encoded=new ArrayList<>();
+      for(String hall:filters.diningHallIds()) encoded.add(encode(hall));
+      path.append("&diningHallIds=").append(String.join(",",encoded));
+    }
+    if(filters.minPrice()!=null)path.append("&minPrice=").append(filters.minPrice().toPlainString());
+    if(filters.maxPrice()!=null)path.append("&maxPrice=").append(filters.maxPrice().toPlainString());
+    if(filters.minRating()!=null)path.append("&minRating=").append(filters.minRating().toPlainString());
+    return dishRows(path.toString(),page);
   }
 
   @Override public DishSearchPage favoriteDishes(int page) {
-    return dishRows("users/me/dish-favorites?page=" + page + "&size=20", page);
+    return favoriteDishes(page,null,false);
+  }
+  @Override public DishSearchPage favoriteDishes(int page,String groupId,boolean unfiled) {
+    StringBuilder path=new StringBuilder("users/me/dish-favorites?page=").append(page).append("&size=20");
+    if(groupId!=null&&!groupId.isBlank())path.append("&groupId=").append(encode(groupId));
+    else if(unfiled)path.append("&unfiled=true");
+    return dishRows(path.toString(),page);
+  }
+  @Override public List<FavoriteGroup> favoriteGroups(String kind) {
+    return list("users/me/favorite-groups?kind=" + encode(kind), this::favoriteGroup);
+  }
+  @Override public FavoriteGroup createFavoriteGroup(String kind,String name) {
+    return favoriteGroup(call("POST","users/me/favorite-groups",json("kind",kind,"name",name)));
+  }
+  @Override public FavoriteGroup updateFavoriteGroup(String id,String name,Integer sortOrder,Long expectedRevision) {
+    return favoriteGroup(call("PUT","users/me/favorite-groups/"+encode(id),
+        json("name",name,"sortOrder",sortOrder,"expectedRevision",expectedRevision)));
+  }
+  @Override public void deleteFavoriteGroup(String id) {
+    call("DELETE","users/me/favorite-groups/"+encode(id),null);
+  }
+  @Override public List<String> favoriteGroupMembership(String kind,String targetId) {
+    return groupIds(call("GET","users/me/favorite-groups/memberships?kind="+encode(kind)+"&targetId="+encode(targetId),null));
+  }
+  @Override public List<String> addFavoriteGroupMember(String groupId,String targetId) {
+    return groupIds(call("PUT","users/me/favorite-groups/"+encode(groupId)+"/members/"+encode(targetId),null));
+  }
+  @Override public List<String> removeFavoriteGroupMember(String groupId,String targetId) {
+    return groupIds(call("DELETE","users/me/favorite-groups/"+encode(groupId)+"/members/"+encode(targetId),null));
+  }
+  private FavoriteGroup favoriteGroup(JSONObject row) {
+    String id=text(row,"id"),kind=text(row,"kind"),name=text(row,"name");
+    if(id.isBlank()||name.isBlank())throw new RepositoryException(0,"INVALID_RESPONSE","分组响应异常，请重试",0);
+    return new FavoriteGroup(id,kind,name,row.optInt("sortOrder",0),row.optLong("revision",0),row.optLong("itemCount",0));
+  }
+  private static List<String> groupIds(JSONObject data) {
+    JSONArray rows=data.optJSONArray("groupIds");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","分组响应异常，请重试",0);
+    List<String> ids=new ArrayList<>();
+    for(int i=0;i<rows.length();i++){String id=rows.optString(i,"");if(!id.isBlank())ids.add(id);}
+    return List.copyOf(ids);
+  }
+  @Override public CatalogCorrectionPage myCorrections(int page) {
+    JSONObject data=call("GET","users/me/catalog-corrections?page="+page+"&size=20",null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","纠错列表响应异常，请重试",0);
+    List<CatalogCorrection> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++)items.add(correction(rows.optJSONObject(i)));
+    return new CatalogCorrectionPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",20));
+  }
+  @Override public CatalogCorrection submitCorrection(CorrectionProposal proposal) {
+    boolean name=proposal.changedFields().contains("name");
+    boolean description=proposal.changedFields().contains("description");
+    boolean price=proposal.changedFields().contains("price");
+    JSONObject body=json("targetType",proposal.targetType(),"targetId",proposal.targetId(),
+        "baseRevision",proposal.baseRevision(),"changedFields",array(proposal.changedFields()),
+        "name",name?proposal.name():null,"description",description?proposal.description():null,
+        "price",price?proposal.price():null,"priceUnit",proposal.priceUnit(),"reason",proposal.reason(),
+        "evidenceUrls",array(proposal.evidenceUrls()),"idempotencyKey",proposal.idempotencyKey());
+    return correction(call("POST","users/me/catalog-corrections",body));
+  }
+  @Override public NotificationPreferences notificationPreferences() {
+    return NotificationJson.preferences(accountCall("GET","users/me/notification-preferences",null));
+  }
+  @Override public NotificationPreference updateNotificationPreference(String category,boolean enabled,long expectedRevision) {
+    var result=NotificationJson.preference(accountCall("PUT","users/me/notification-preferences/"+encode(category),json("enabled",enabled,"expectedRevision",expectedRevision)));
+    if(!category.equals(result.category()))throw NotificationJson.invalid();return result;
+  }
+  @Override public NotificationPreference adoptLegacyMessagePreference(boolean enabled) {
+    var result=NotificationJson.preference(accountCall("POST","users/me/notification-preferences/legacy-message",json("enabled",enabled)));
+    if(!"message".equals(result.category())||result.revision()<2)throw NotificationJson.invalid();return result;
+  }
+  @Override public NotificationEventPage notificationEvents(long afterSeq,int limit) {
+    JSONObject data=accountCall("GET","users/me/notification-events?afterSeq="+afterSeq+"&limit="+limit,null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","提醒事件响应异常，请重试",0);
+    List<NotificationEvent> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++) {
+      JSONObject row=rows.optJSONObject(i);
+      items.add(new NotificationEvent(text(row,"eventId"),row.optLong("seq"),text(row,"category"),
+          text(row,"title"),text(row,"body"),text(row,"refType"),text(row,"refId"),
+          time(row,"createdAt"),text(row,"deliveryStatus")));
+    }
+    return new NotificationEventPage(items,data.optLong("nextSeq",afterSeq));
+  }
+  @Override public void markNotificationDelivered(String eventId) {
+    accountCall("POST","users/me/notification-events/"+encode(eventId)+"/delivered",null);
+  }
+
+  @Override public ReportFollowUpPage reportFollowUps(String reportId,int page) {
+    JSONObject data=call("GET","users/me/reports/"+encode(reportId)+"/follow-ups?page="+page+"&size=20",null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","追问响应异常，请重试",0);
+    List<ReportFollowUp> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++)items.add(reportFollowUp(rows.optJSONObject(i)));
+    return new ReportFollowUpPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",20));
+  }
+  @Override public ReportFollowUp addReportFollowUp(String reportId,String content,String requestId) {
+    return addReportFollowUp(reportId,content,requestId,List.of());
+  }
+  @Override public ReportFollowUp addReportFollowUp(String reportId,String content,String requestId,
+      List<String> evidenceUrls) {
+    return reportFollowUp(call("POST","users/me/reports/"+encode(reportId)+"/follow-ups",
+        json("content",content,"evidenceUrls",array(evidenceUrls),"clientRequestId",requestId)));
+  }
+  @Override public String uploadEvidence(String filePath) {
+    return upload(filePath);
+  }
+  @Override public List<ReportAction> decisionActions(String decisionId) {
+    String owner=appealOwner();var result=list("users/me/moderation-decisions/"+encode(decisionId)+"/actions",RemoteRepository::reportAction);
+    requireAppealOwner(owner);return result;
+  }
+  private static ReportAction reportAction(JSONObject j) {
+    return new ReportAction(text(j,"id"),text(j,"decisionId"),text(j,"actionType"),text(j,"targetType"),
+        text(j,"targetId"),text(j,"performedBy"),text(j,"note"),time(j,"createdAt"));
+  }
+  @Override public void submitAppeal(String decisionId,String content,String requestId) {
+    submitAppeal(decisionId,content,requestId,List.of());
+  }
+  @Override public void submitAppeal(String decisionId,String content,String requestId,
+      List<String> evidenceUrls) {
+    appealCall("POST","users/me/moderation-decisions/"+encode(decisionId)+"/appeals",
+        json("content",content,"evidenceUrls",array(evidenceUrls),"clientRequestId",requestId));
+  }
+  private static ReportFollowUp reportFollowUp(JSONObject j) {
+    return new ReportFollowUp(text(j,"id"),text(j,"reportId"),text(j,"authorRole"),text(j,"authorName"),
+        text(j,"content"),time(j,"createdAt"),strings(j,"evidenceUrls"));
+  }
+
+  @Override public MyReportPage myReports(int page) {
+    JSONObject data=call("GET","users/me/reports?page="+page+"&size=20",null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","举报回执响应异常，请重试",0);
+    List<MyReport> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++)items.add(myReport(rows.optJSONObject(i)));
+    return new MyReportPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",20));
+  }
+  @Override public ModerationDecisionPage myModerationDecisions(int page) {
+    JSONObject data=appealCall("GET","users/me/moderation-decisions?page="+page+"&size=20",null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null||data.optInt("page",0)!=page||data.optInt("size",0)<1||data.optLong("total",-1)<rows.length())throw new RepositoryException(502,"INVALID_RESPONSE","处理决定分页响应异常，请重试",0);
+    List<ModerationDecision> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++)items.add(moderationDecision(rows.optJSONObject(i)));
+    return new ModerationDecisionPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",20));
+  }
+  @Override public ModerationDecision myModerationDecision(String id){
+    var result=moderationDecision(appealCall("GET","users/me/moderation-decisions/"+encode(id),null));
+    if(!id.equals(result.decisionId()))throw new RepositoryException(502,"INVALID_RESPONSE","处理决定编号不匹配",0);return result;
+  }
+  private String appealOwner(){var actor=user;if(actor==null)throw new RepositoryException(401,"AUTH_REQUIRED","请先登录",0);return actor.id()+":"+sessionMode+":"+http.sessionKey();}
+  private void requireAppealOwner(String owner){if(!owner.equals(appealOwner()))throw new RepositoryException(409,"ACCOUNT_CHANGED","账号已变化，请重新打开申诉",0);}
+  private JSONObject appealCall(String method,String path,JSONObject body){
+    String owner=appealOwner();
+    var result=call(method,path,body);
+    requireAppealOwner(owner);
+    return result;
+  }
+  private static MyReport myReport(JSONObject j) {
+    return new MyReport(text(j,"id"),text(j,"targetType"),text(j,"targetId"),text(j,"postId"),
+        text(j,"reason"),text(j,"excerpt"),text(j,"status"),time(j,"createdAt"),text(j,"decisionId"),
+        text(j,"outcome"),text(j,"publicReason"),time(j,"decidedAt"));
+  }
+  private static ModerationDecision moderationDecision(JSONObject j) {
+    return new ModerationDecision(text(j,"decisionId"),text(j,"reportId"),text(j,"side"),text(j,"targetType"),
+        text(j,"outcome"),text(j,"publicReason"),time(j,"deliveredAt"),time(j,"appealDeadline"),
+        text(j,"appealId"),text(j,"appealStatus"),text(j,"appealOutcome"));
+  }
+
+  @Override public HistorySettings historySettings() {
+    if(historySettings==null) historySettings=historySettings(call("GET","users/me/browsing-history/settings",null));
+    return historySettings;
+  }
+  @Override public HistorySettings refreshHistorySettings() {
+    historySettings=null;
+    return historySettings();
+  }
+  @Override public HistorySettings updateHistorySettings(boolean enabled,long expectedRevision) {
+    historySettings=historySettings(call("PUT","users/me/browsing-history/settings",
+        json("enabled",enabled,"expectedRevision",expectedRevision)));
+    return historySettings;
+  }
+  @Override public HistoryPage history(String kind,int page) {
+    JSONObject data=call("GET","users/me/browsing-history?kind="+encode(kind)+"&page="+page+"&size=50",null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","浏览历史响应异常，请重试",0);
+    List<HistoryItem> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++)items.add(historyItem(rows.optJSONObject(i)));
+    return new HistoryPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",50));
+  }
+  @Override public void recordHistory(String kind,String targetId) {
+    try {
+      HistorySettings settings=historySettings();
+      if(!settings.enabled())return;
+      long epoch="dish".equals(kind)?settings.dishEpoch():settings.postEpoch();
+      String eventId=UUID.randomUUID().toString();
+      try {
+        call("PUT","users/me/browsing-history/"+encode(kind)+"/"+encode(targetId),
+            json("epoch",epoch,"visitEventId",eventId));
+      } catch(RepositoryException stale) {
+        if(!"HISTORY_EPOCH_STALE".equals(stale.code()))return;
+        historySettings=null;
+        settings=historySettings();
+        if(!settings.enabled())return;
+        call("PUT","users/me/browsing-history/"+encode(kind)+"/"+encode(targetId),
+            json("epoch","dish".equals(kind)?settings.dishEpoch():settings.postEpoch(),"visitEventId",eventId));
+      }
+    } catch(RuntimeException ignored) {
+      // History is best-effort and must never turn a detail view into an error.
+    }
+  }
+  @Override public void deleteHistory(String kind,String targetId) {
+    call("DELETE","users/me/browsing-history/"+encode(kind)+"/"+encode(targetId),null);
+    historySettings=null;
+  }
+  @Override public void clearHistory(String kind) {
+    call("DELETE","users/me/browsing-history?kind="+encode(kind),null);
+    historySettings=null;
+  }
+  private static HistorySettings historySettings(JSONObject j) {
+    return new HistorySettings(j.optBoolean("enabled",true),j.optLong("revision"),
+        j.optLong("dishEpoch"),j.optLong("postEpoch"));
+  }
+  private static HistoryItem historyItem(JSONObject j) {
+    return new HistoryItem(text(j,"kind"),text(j,"targetId"),text(j,"diningHallId"),text(j,"stallId"),
+        time(j,"visitedAt"),j.optBoolean("available"),text(j,"title"),text(j,"subtitle"),text(j,"imageUrl"));
+  }
+
+  @Override public CatalogCorrectionAdminPage adminCorrections(String status,int page) {
+    StringBuilder path=new StringBuilder("admin/catalog-corrections?page=").append(page).append("&size=20");
+    if(status!=null&&!status.isBlank())path.append("&status=").append(encode(status));
+    JSONObject data=call("GET",path.toString(),null);
+    JSONArray rows=data.optJSONArray("items");
+    if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","纠错审核列表响应异常，请重试",0);
+    List<CatalogCorrectionAdmin> items=new ArrayList<>();
+    for(int i=0;i<rows.length();i++)items.add(adminCorrection(rows.optJSONObject(i)));
+    return new CatalogCorrectionAdminPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",20));
+  }
+  @Override public CatalogCorrectionAdmin decideCorrection(String id,String decision,String note,long expectedRevision) {
+    return adminCorrection(call("POST","admin/catalog-corrections/"+encode(id)+"/decision",
+        json("decision",decision,"reviewNote",note,"expectedRevision",expectedRevision)));
+  }
+  private CatalogCorrectionAdmin adminCorrection(JSONObject j) {
+    if(j==null||j.optJSONObject("correction")==null)throw new RepositoryException(0,"INVALID_RESPONSE","纠错审核响应异常，请重试",0);
+    return new CatalogCorrectionAdmin(correction(j.optJSONObject("correction")),text(j,"submitterId"),
+        text(j,"submitterName"),text(j,"submitterEmail"));
+  }
+  private static JSONArray array(List<String> values) {
+    JSONArray array=new JSONArray();for(String value:values)array.put(value);return array;
+  }
+  private CatalogCorrection correction(JSONObject j) {
+    if(j==null||text(j,"id").isBlank())throw new RepositoryException(0,"INVALID_RESPONSE","纠错响应异常，请重试",0);
+    return new CatalogCorrection(text(j,"id"),text(j,"targetType"),text(j,"targetId"),text(j,"targetSummary"),
+        j.optLong("baseRevision"),text(j,"originalName"),text(j,"originalDescription"),decimal(j,"originalPrice"),
+        text(j,"proposedName"),text(j,"proposedDescription"),decimal(j,"proposedPrice"),
+        strings(j,"changedFields"),text(j,"reason"),text(j,"status"),text(j,"reviewNote"),
+        time(j,"createdAt"),time(j,"reviewedAt"),j.optLong("revision"),strings(j,"evidenceUrls"),text(j,"originalPriceUnit"),text(j,"proposedPriceUnit"));
+  }
+  private static List<String> strings(JSONObject j,String key) {
+    JSONArray rows=j==null?null:j.optJSONArray(key);
+    if(rows==null)return List.of();
+    List<String> values=new ArrayList<>();
+    for(int i=0;i<rows.length();i++){String value=rows.optString(i,"");if(!value.isBlank())values.add(value);}
+    return List.copyOf(values);
   }
 
   @Override public boolean dishFavorite(String dishId) {
@@ -436,7 +829,8 @@ public final class RemoteRepository implements FoodtimeRepository {
       String id = text(row, "id");
       if (id.isBlank()) throw new IllegalStateException("菜品列表返回格式异常，请重试");
       items.add(new DishSearchRow(id, text(row, "name"), decimal(row, "price"),
-          text(row, "stallName"), text(row, "diningHallName")));
+          text(row, "stallName"), text(row, "diningHallName"),
+          decimal(row, "averageScore"), row.optLong("reviewCount", 0)));
     }
     return new DishSearchPage(items, total, page, size);
   }
@@ -454,7 +848,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     String hall=text(j,"diningHallId");
     if(!halls.containsKey(hall)) fetchHalls();
     if(!stalls.containsKey(stall)) fetchStalls(hall);
-    dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true));
+    dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true,j.optLong("revision",0),text(j,"priceUnit")));
     contexts.put(id,joined(j,true));
   }
   private void fetchDishImages(String id) {
@@ -597,7 +991,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private AdminEntity cacheEntity(String type,JSONObject j) {
     BigDecimal amount=decimal(j,"price");String price=amount==null?"":amount.setScale(2).toPlainString();
-    AdminEntity e=new AdminEntity(text(j,"id"),text(j,"name"),text(j,"description"),price,text(j,"coverImageUrl"),text(j,"status").equals("active"));
+    AdminEntity e=new AdminEntity(text(j,"id"),text(j,"name"),text(j,"description"),price,text(j,"coverImageUrl"),text(j,"status").equals("active"),text(j,"priceUnit"));
     String key=type+":"+e.id(); entities.put(key,e); parents.put(key,text(j,"parentId")); return e;
   }
 
@@ -624,7 +1018,7 @@ public final class RemoteRepository implements FoodtimeRepository {
         text(j,"content"),images,j.optLong("likeCount"),j.optLong("commentCount"),j.optInt("repostCount"),
         text(j,"repostOfId"),text(repost,"userDisplayName"),text(repost,"content"),
         j.optBoolean("likedByMe"),j.optBoolean("favoritedByMe"),text(j,"status"),
-        text(j,"reviewReason"),time(j,"createdAt"),text(j,"title"),text(j,"userAvatarUrl"),details,j.optLong("favoriteCount"),text(j,"reviewStage"),dish,Math.max(0,j.optLong("viewCount")));
+        text(j,"reviewReason"),time(j,"createdAt"),text(j,"title"),text(j,"userAvatarUrl"),details,j.optLong("favoriteCount"),text(j,"reviewStage"),dish,Math.max(0,j.optLong("viewCount")),Math.max(1,j.optLong("contentRevision",1)),time(j,"editedAt"));
   }
 
   private CommunityComment communityComment(JSONObject j) {
@@ -640,7 +1034,7 @@ public final class RemoteRepository implements FoodtimeRepository {
         current.content(),current.imageUrls(),likeCount==null?current.likeCount():likeCount,
         current.commentCount(),current.repostCount(),current.repostOfId(),current.repostAuthor(),
         current.repostContent(),liked==null?current.likedByMe():liked,
-        favorited==null?current.favoritedByMe():favorited,current.status(),current.reviewReason(),current.createdAt(),current.title(),current.userAvatarUrl(),current.images(),favoriteCount==null?current.favoriteCount():favoriteCount,current.reviewStage(),current.linkedDish(),current.viewCount());
+        favorited==null?current.favoritedByMe():favorited,current.status(),current.reviewReason(),current.createdAt(),current.title(),current.userAvatarUrl(),current.images(),favoriteCount==null?current.favoriteCount():favoriteCount,current.reviewStage(),current.linkedDish(),current.viewCount(),current.contentRevision(),current.editedAt());
     communityPostCache.put(id,updated);
     List<CommunityPost> feed=new ArrayList<>(communityFeed);
     for(int i=0;i<feed.size();i++) if(feed.get(i).id().equals(id)) feed.set(i,updated);
@@ -662,6 +1056,11 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public List<Review> reviews(String id) { return id==null||id.equals("admin")?reviews.getOrDefault("admin",List.of()):dishReviews(id).items(); }
   @Override public List<Photo> photos(String id) { return photos.getOrDefault(id,List.of()); }
   @Override public List<CommunityPost> communityPosts() { return communityFeed; }
+  @Override public cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot communityPins(){synchronized(dashboardLock){return pinOwner.equals(capabilityOwner(user))?pinSnapshot:cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot.empty();}}
+  @Override public cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot managedPins(){return CommunityPinJson.parse(accountCall("GET","admin/community/pins",null));}
+  @Override public cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot pinPost(String id,long revision){return CommunityPinJson.parse(accountCall("PUT","admin/community/pins/"+encode(id),json("expectedRevision",revision)));}
+  @Override public cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot unpinPost(String id,long revision){return CommunityPinJson.parse(accountCall("DELETE","admin/community/pins/"+encode(id)+"?expectedRevision="+revision,null));}
+  @Override public cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot reorderPins(List<String> ids,long revision){return CommunityPinJson.parse(accountCall("PUT","admin/community/pins/order",json("postIds",array(ids),"expectedRevision",revision)));}
   @Override public boolean communityPrototypeEnabled() { return communityPrototype!=null; }
   @Override public CommunityPost communityPost(String id) { return communityPostCache.get(id); }
   @Override public List<CommunityComment> communityComments(String id) { return communityCommentCache.getOrDefault(id,List.of()); }
@@ -687,10 +1086,16 @@ public final class RemoteRepository implements FoodtimeRepository {
     call("POST","dining-halls/"+hall+"/submissions",json("name",name,"description",description,"coverImageUrl",upload(image)));
   }
   private void loadCommunityFeed(boolean more) {
-    JSONObject data=call("GET","community/feed/cursor?size=20"+(more?"&cursor="+communityCursor:""),null);
-    List<CommunityPost> result=new ArrayList<>(more?communityFeed:List.of());JSONArray values=data.optJSONArray("items");
-    if(values!=null)for(int i=0;i<values.length();i++)result.add(cacheCommunityPost(values.optJSONObject(i)));
-    communityFeed=List.copyOf(result);communityCursor=text(data,"nextCursor");communityHasMore=data.optBoolean("hasMore");
+    String owner=capabilityOwner(user);boolean append=more;JSONObject data;
+    try {data=accountCall("GET","community/feed/cursor?size=20"+(append?"&cursor="+encode(communityCursor)+"&pinRevision="+pinSnapshot.revision():""),null);}
+    catch(RepositoryException changed){if(!append||!changed.code().equals("PIN_SET_CHANGED"))throw changed;append=false;data=accountCall("GET","community/feed/cursor?size=20",null);}
+    var pins=data.optJSONObject("pins")==null?cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot.empty():CommunityPinJson.parse(data.optJSONObject("pins"));
+    synchronized(dashboardLock){
+      if(owner.isEmpty()||!owner.equals(capabilityOwner(user)))throw new RepositoryException(409,"ACCOUNT_CHANGED","账号已变化，请刷新",0);
+      List<CommunityPost> result=new ArrayList<>(append?communityFeed:List.of());JSONArray values=data.optJSONArray("items");
+      if(values!=null)for(int i=0;i<values.length();i++)result.add(cacheCommunityPost(values.optJSONObject(i)));
+      communityFeed=List.copyOf(result);communityCursor=text(data,"nextCursor");communityHasMore=data.optBoolean("hasMore");pinSnapshot=pins;pinOwner=owner;
+    }
   }
   @Override public void loadMoreCommunityPosts(){if(communityHasMore)loadCommunityFeed(true);}
   @Override public CommunityFeedSlice communityFollowing() { return followingFeed; }
@@ -738,6 +1143,30 @@ public final class RemoteRepository implements FoodtimeRepository {
     for(String image:selected)uploaded.put(communityUploads.computeIfAbsent(image,this::upload));
     call("POST","community/posts",json("title",heading,"content",body,"imageUrls",uploaded,
         "clientRequestId",requestId,"dishId",dishId.isBlank()?null:dishId));
+  }
+  @Override public void editCommunityPost(String id,cn.edu.bjtu.foodtime.domain.repository.PostEditRepository.Edit edit) {
+    final String owner; synchronized(dashboardLock){owner=capabilityOwner(user);}
+    if(owner.isEmpty())throw new RepositoryException(401,"AUTH_REQUIRED","请先登录",0);
+    JSONArray uploaded=new JSONArray();
+    for(String image:edit.images()) {
+      requireEditOwner(owner);
+      String key=owner+":"+image;
+      String reference=communityUploads.get(key);
+      if(reference==null){reference=upload(image);requireEditOwner(owner);communityUploads.put(key,reference);}
+      uploaded.put(reference);
+    }
+    requireEditOwner(owner);
+    accountCall("PUT","community/posts/"+encode(id),json("title",edit.title(),"content",edit.content(),
+        "imageUrls",uploaded,"dishId",edit.dishId().isBlank()?JSONObject.NULL:edit.dishId(),
+        "expectedRevision",edit.expectedRevision(),"clientRequestId",edit.clientRequestId()));
+    requireEditOwner(owner);
+    communityPostCache.remove(id);
+    var remaining=new ArrayList<CommunityPost>();for(var post:communityFeed)if(!post.id().equals(id))remaining.add(post);communityFeed=List.copyOf(remaining);
+    ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();
+  }
+  private void requireEditOwner(String owner){synchronized(dashboardLock){if(!owner.equals(capabilityOwner(user)))throw new RepositoryException(409,"ACCOUNT_CHANGED","账号已变化，请重新打开帖子",0);}}
+  @Override public void moderateCommunity(String type,String id,String action,String reason,long revision){
+    accountCall("POST","admin/community/"+type+"/"+id,json("action",action,"reason",reason,"contentRevision",type.equals("posts")?revision:JSONObject.NULL));
   }
   private CommunityCommentPage commentPage(String path,CommunityCommentPage prior){
     JSONObject data=call("GET",path,null);JSONArray values=data.optJSONArray("items");
@@ -1222,7 +1651,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
 
   @Override public ReportPage reports(int page) {
-    JSONObject result = call("GET", "admin/reports?page=" + page + "&size=20", null);
+    JSONObject result = accountCall("GET", "admin/reports?page=" + page + "&size=20", null);
     JSONArray rows = result.optJSONArray("items");
     if (rows == null) throw new IllegalStateException("举报列表返回格式异常");
     List<ReportRow> items = new ArrayList<>();
@@ -1236,6 +1665,42 @@ public final class RemoteRepository implements FoodtimeRepository {
 
   @Override public void reviewReport(String id) {
     call("PUT", "admin/reports/" + encode(id) + "/review", null);
+  }
+
+  private JSONObject accountCall(String method,String path,JSONObject body) {
+    final String owner;
+    synchronized(dashboardLock){owner=capabilityOwner(user);}
+    if(owner.isEmpty())throw new RepositoryException(401,"AUTH_REQUIRED","请先登录",0);
+    JSONObject result=call(method,path,body);
+    synchronized(dashboardLock){if(!owner.equals(capabilityOwner(user)))throw new RepositoryException(409,"ACCOUNT_CHANGED","账号已变化，请重新打开管理记录",0);}
+    return result;
+  }
+  @Override public void decideReport(String id,String outcome,String reason,String note) {
+    accountCall("POST","admin/reports/"+encode(id)+"/decision",json("outcome",outcome,"publicReason",reason,"internalNote",note));
+  }
+  @Override public ReportManagement.Page<ReportManagement.Decision> adminReportDecisions(int page) {
+    return ReportManagementJson.page(accountCall("GET","admin/reports/decisions?page="+page+"&size=20",null),ReportManagementJson::decision);
+  }
+  @Override public ReportManagement.Page<ReportManagement.FollowUp> adminReportFollowUps(String report,int page) {
+    return ReportManagementJson.page(accountCall("GET","admin/reports/"+encode(report)+"/follow-ups?page="+page+"&size=20",null),ReportManagementJson::followUp);
+  }
+  @Override public void replyToReport(String report,String content,String note,List<String> evidence,String requestId) {
+    accountCall("POST","admin/reports/"+encode(report)+"/follow-ups",json("content",content,"internalNote",note,"evidenceUrls",array(evidence),"clientRequestId",requestId));
+  }
+  @Override public void performReportAction(String report,String action,String note) {
+    accountCall("POST","admin/reports/"+encode(report)+"/actions",json("actionType",action,"note",note));
+  }
+  @Override public ReportManagement.Page<ReportManagement.Appeal> adminAppeals(String status,int page) {
+    return ReportManagementJson.page(accountCall("GET","admin/appeals?page="+page+"&size=20"+(status.isBlank()?"":"&status="+encode(status)),null),ReportManagementJson::appeal);
+  }
+  @Override public ReportManagement.Appeal adminAppeal(String id) {
+    return ReportManagementJson.appeal(accountCall("GET","admin/appeals/"+encode(id),null));
+  }
+  @Override public ReportManagement.Appeal startAppealReview(String id,long revision) {
+    return ReportManagementJson.appeal(accountCall("POST","admin/appeals/"+encode(id)+"/start?expectedRevision="+revision,null));
+  }
+  @Override public ReportManagement.Appeal resolveAppeal(String id,String outcome,String reason,String note,long revision) {
+    return ReportManagementJson.appeal(accountCall("POST","admin/appeals/"+encode(id)+"/resolve",json("outcome",outcome,"publicReason",reason,"internalNote",note,"expectedRevision",revision)));
   }
 
   private JSONObject feedbackCall(boolean admin,String method,String path,JSONObject body) {
@@ -1310,11 +1775,23 @@ public final class RemoteRepository implements FoodtimeRepository {
     Submission target=queue.stream().filter(s -> s.id().equals(id)).findFirst().orElseThrow(() -> missing("投稿不存在，请刷新"));
     call("POST","admin/moderation/"+target.type()+"/"+id,json("action",action,"reason",reason,"price",price));
   }
+  @Override public cn.edu.bjtu.foodtime.domain.model.PriceHistory.Snapshot priceHistory(String dish,int days){
+    var j=accountCall("GET","dishes/"+encode(dish)+"/price-history?days="+days,null);
+    if(!dish.equals(text(j,"dishId"))||j.optJSONArray("records")==null||time(j,"windowEnd")<=0)throw new RepositoryException(502,"INVALID_RESPONSE","价格记录响应异常",0);
+    var rows=new ArrayList<cn.edu.bjtu.foodtime.domain.model.PriceHistory.Entry>();var array=j.optJSONArray("records");
+    for(int i=0;i<array.length();i++){var row=array.optJSONObject(i);if(row==null||time(row,"recordedAt")<=0||text(row,"id").isBlank())throw new RepositoryException(502,"INVALID_RESPONSE","价格记录响应异常",0);rows.add(new cn.edu.bjtu.foodtime.domain.model.PriceHistory.Entry(text(row,"id"),decimal(row,"price"),text(row,"priceUnit"),time(row,"recordedAt"),text(row,"origin"),row.optLong("revision"),row.optBoolean("carriedForward")));}
+    return new cn.edu.bjtu.foodtime.domain.model.PriceHistory.Snapshot(dish,text(j,"dishName"),decimal(j,"currentPrice"),text(j,"priceUnit"),j.optLong("revision"),time(j,"windowStart"),time(j,"windowEnd"),j.optLong("totalRecords"),j.optBoolean("canManage"),rows);
+  }
+  @Override public void correctPriceHistory(String dish,String entry,BigDecimal price,String unit,long revision){accountCall("PUT","admin/dishes/"+encode(dish)+"/price-history/"+encode(entry),json("price",price,"priceUnit",unit,"expectedRevision",revision));}
+  @Override public void deletePriceHistory(String dish,String entry,long revision){accountCall("DELETE","admin/dishes/"+encode(dish)+"/price-history/"+encode(entry)+"?expectedRevision="+revision,null);}
   @Override public void editEntity(String type,String id,String parent,String name,String description,String price,String image,boolean active) {
+    editEntity(type,id,parent,name,description,price,image,active,null);
+  }
+  @Override public void editEntity(String type,String id,String parent,String name,String description,String price,String image,boolean active,String unit) {
     String reference=image==null||image.isBlank()?null:image.startsWith("file:")?upload(image):image;
     String path="admin/catalog/"+table(type)+(id.isBlank()?"":"/"+id);
     call(id.isBlank()?"POST":"PUT",path,json("parentId",parent.isBlank()?null:parent,"name",name,"description",description,
-        "price",type.equals("dishes")?Validation.price(price):null,"coverImageUrl",reference,"status",active?"active":"inactive"));
+        "price",type.equals("dishes")?Validation.price(price):null,"priceUnit",unit,"coverImageUrl",reference,"status",active?"active":"inactive"));
   }
   @Override public void removeEntity(String type,String id) { call("DELETE","admin/catalog/"+table(type)+"/"+id,null); }
   @Override public long recordCommunityPostView(String postId,String requestId) {
@@ -1500,12 +1977,12 @@ public final class RemoteRepository implements FoodtimeRepository {
     catalogUploads.clear();
     venues.clear();
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(true);}
-    synchronized(dashboardLock) {user=null;dashboardSnapshot=null;dashboardRequest++;resetFollows();clearRecommendations();}
+    synchronized(dashboardLock) {user=null;sessionMode="normal";dashboardSnapshot=null;dashboardRequest++;resetFollows();clearRecommendations();clearCapabilities();historySettings=null;}
     avatarUploads.clear();csrf=null;http.clearSession(); hallList=List.of();halls.clear();stalls.clear();dishes.clear();
 
     stallLists.clear();dishLists.clear();reviews.clear();photos.clear();ratings.clear();contexts.clear();catalog.clear();entities.clear();parents.clear();
     followingFeed = new CommunityFeedSlice(List.of(), 0, "");
-    communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();communityAudit=CommunityAuditPage.empty();communityAuditDetail=null;communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
+    communityPostCache.clear();communityCommentCache.clear();communityFeed=List.of();pinSnapshot=cn.edu.bjtu.foodtime.domain.model.CommunityPins.Snapshot.empty();pinOwner="";ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();communityAudit=CommunityAuditPage.empty();communityAuditDetail=null;communityUploads.clear();communityRoots.clear();communityReplies.clear();communityCursor="";communityHasMore=false;
     dishReviewPages.clear();replyPages.clear();ownReplies=ReplyPage.empty();
     ownReviews=List.of();ownSubmissions=List.of();queue=List.of();auditList=List.of();userList=List.of();
     noticePage=NoticePage.empty();noticeNumber=1;messagePage=MessagePage.empty();messageNumber=1;

@@ -49,5 +49,8 @@ jobs:
         with:
           cache-provider: basic
 
+      - name: Verify release version metadata
+        run: python3 -B -m unittest discover -s scripts/release -p 'test_*.py'
+
       - name: Verify project
         run: ./gradlew verifyArchitecture testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest --no-configuration-cache

@@ -8,15 +8,19 @@ import android.graphics.Color;
 import android.graphics.Matrix;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
+import android.os.Bundle;
 import android.text.Editable;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.view.Gravity;
 import android.view.GestureDetector;
 import android.view.MotionEvent;
+import android.view.KeyEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.WindowInsets;
+import android.view.accessibility.AccessibilityNodeInfo;
+import android.view.animation.LinearInterpolator;
 import android.view.animation.PathInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -25,6 +29,8 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityPost;
 import cn.edu.bjtu.foodtime.domain.model.CommunityText;
+import cn.edu.bjtu.foodtime.domain.validation.PhotoZoomGeometry;
+import cn.edu.bjtu.foodtime.R;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.function.IntConsumer;
@@ -39,7 +45,7 @@ final class CommunityPhotoDialog {
   private final boolean thumbnailFirst;
   private final Dialog dialog;
   private final PhotoCanvas canvas;
-  private final TextView original, counter, previous, next;
+  private final TextView original, counter;
   private FrameLayout originalLayer;
   private int page;
   private record PhotoLayer(FrameLayout view, int page, boolean full) {}
@@ -54,6 +60,38 @@ final class CommunityPhotoDialog {
     FrameLayout screen = new FrameLayout(activity);
     screen.setBackgroundColor(Color.BLACK);
     canvas = new PhotoCanvas(post != null);
+    canvas.setFocusable(true);
+    canvas.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+    canvas.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+      @Override public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+        super.onInitializeAccessibilityNodeInfo(host, info);
+        info.setScrollable(images.size() > 1);
+        if (page > 0) info.addAction(new AccessibilityNodeInfo.AccessibilityAction(
+            AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD, "上一张图片"));
+        if (page + 1 < images.size()) info.addAction(new AccessibilityNodeInfo.AccessibilityAction(
+            AccessibilityNodeInfo.ACTION_SCROLL_FORWARD, "下一张图片"));
+      }
+
+      @Override public boolean performAccessibilityAction(View host, int action, Bundle args) {
+        if (action == AccessibilityNodeInfo.ACTION_SCROLL_FORWARD && page + 1 < images.size()) {
+          changePage(page + 1);
+          return true;
+        }
+        if (action == AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD && page > 0) {
+          changePage(page - 1);
+          return true;
+        }
+        return super.performAccessibilityAction(host, action, args);
+      }
+    });
+    canvas.setOnKeyListener((view, key, event) -> {
+      if (event.getAction() != KeyEvent.ACTION_DOWN) return false;
+      if (key == KeyEvent.KEYCODE_DPAD_LEFT || key == KeyEvent.KEYCODE_DPAD_RIGHT) {
+        changePage(page + (key == KeyEvent.KEYCODE_DPAD_LEFT ? -1 : 1));
+        return true;
+      }
+      return false;
+    });
     screen.addView(canvas, new FrameLayout.LayoutParams(-1, -1));
 
     FrameLayout top = new FrameLayout(activity);
@@ -76,6 +114,14 @@ final class CommunityPhotoDialog {
     options.setTextSize(22);
     options.setOnClickListener(view -> {
       PopupMenu menu = new PopupMenu(activity, options);
+      if (page > 0) menu.getMenu().add("上一张图片").setOnMenuItemClickListener(item -> {
+        changePage(page - 1);
+        return true;
+      });
+      if (page + 1 < images.size()) menu.getMenu().add("下一张图片").setOnMenuItemClickListener(item -> {
+        changePage(page + 1);
+        return true;
+      });
       menu.getMenu().add("放大").setOnMenuItemClickListener(item -> {
         canvas.stepZoom(1.5f);
         return true;
@@ -90,11 +136,6 @@ final class CommunityPhotoDialog {
     top.addView(topEnd, position(Gravity.END | Gravity.TOP));
     screen.addView(top, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
 
-    previous = control("‹", "上一张图片", () -> changePage(page - 1));
-    next = control("›", "下一张图片", () -> changePage(page + 1));
-    for (TextView arrow : List.of(previous, next)) arrow.setTextSize(25);
-    screen.addView(previous, position(Gravity.START | Gravity.CENTER_VERTICAL));
-    screen.addView(next, position(Gravity.END | Gravity.CENTER_VERTICAL));
     FrameLayout bottom = post == null ? null : footer(post, actions);
     if (bottom != null) screen.addView(bottom, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
 
@@ -106,12 +147,6 @@ final class CommunityPhotoDialog {
             WindowInsets.Type.statusBars() | WindowInsets.Type.displayCutout()).top;
         top.setPadding(safe.left, topInset, safe.right, 0);
         if (bottom != null) bottom.setPadding(safe.left, 0, safe.right, safe.bottom);
-        var left = (FrameLayout.LayoutParams) previous.getLayoutParams();
-        var right = (FrameLayout.LayoutParams) next.getLayoutParams();
-        left.leftMargin = dp(10) + safe.left;
-        right.rightMargin = dp(10) + safe.right;
-        previous.setLayoutParams(left);
-        next.setLayoutParams(right);
       } else {
         top.setPadding(0, insets.getStableInsetTop(), 0, 0);
       }
@@ -125,7 +160,10 @@ final class CommunityPhotoDialog {
     dialog.show();
     dialog.getWindow().setLayout(-1, -1);
   }
-  void dismiss() { dialog.dismiss(); }
+  void dismiss() {
+    canvas.stopZoomAnimation();
+    dialog.dismiss();
+  }
 
   private int dp(int value) { return Ui.dp(activity, value); }
 
@@ -145,6 +183,37 @@ final class CommunityPhotoDialog {
     button.setContentDescription(description);
     button.setBackground(Ui.ripple(activity, 0xdd303030, Color.TRANSPARENT, 24));
     return button;
+  }
+
+  private TextView photoAction(String label, String description, Runnable action, int icon) {
+    TextView button = control(label, description, action);
+    button.setTextSize(16);
+    button.setMinHeight(dp(76));
+    button.setMaxLines(2);
+    button.setPadding(dp(8), dp(8), dp(8), dp(8));
+    button.setCompoundDrawablePadding(dp(6));
+    button.setBackground(Ui.ripple(activity, 0xdd303030, Color.TRANSPARENT, 16));
+    setPhotoActionIcon(button, icon, Color.WHITE);
+    return button;
+  }
+
+  private void setPhotoActionIcon(TextView button, int resource, int color) {
+    var drawable = activity.getDrawable(resource).mutate();
+    drawable.setTint(color);
+    drawable.setBounds(0, 0, dp(28), dp(28));
+    button.setCompoundDrawables(null, drawable, null, null);
+  }
+
+  private void bindPhotoLike(TextView button, CharSequence label) {
+    String value = label.toString();
+    boolean liked = value.contains("♥");
+    String count = value.replace("♡", "").replace("♥", "").strip();
+    button.setText((liked ? "已赞 " : "点赞 ") + count);
+    button.setSelected(liked);
+    button.setTextColor(liked ? 0xffff999c : Color.WHITE);
+    button.setContentDescription((liked ? "已点赞，" : "点赞帖子，") + count + "个赞");
+    setPhotoActionIcon(button, liked ? R.drawable.ic_photo_liked : R.drawable.ic_photo_like,
+        liked ? 0xffff999c : Color.WHITE);
   }
 
   private FrameLayout footer(CommunityPost post, PostActions actions) {
@@ -186,29 +255,33 @@ final class CommunityPhotoDialog {
     details.addView(postLink, new LinearLayout.LayoutParams(-2, -2));
     if (actions != null) {
       LinearLayout row = Ui.row(activity);
-      TextView share = control("↗ 分享", "分享帖子", actions.share());
-      TextView comment = control("评论 " + post.commentCount(), "查看评论", () -> {
+      TextView share = photoAction("分享", "分享帖子", actions.share(), R.drawable.ic_photo_share);
+      share.setTag("photo-action-share");
+      TextView comment = photoAction("评论 " + post.commentCount(), "查看评论", () -> {
         dialog.dismiss();
         actions.comment().run();
-      });
-      TextView like = control(actions.like().getText().toString(), "点赞帖子", () -> {
+      }, R.drawable.ic_photo_comment);
+      comment.setTag("photo-action-comment");
+      TextView like = photoAction("", "点赞帖子", () -> {
         if (actions.like().isEnabled()) actions.like().performClick();
-      });
+      }, R.drawable.ic_photo_like);
+      like.setTag("photo-action-like");
+      bindPhotoLike(like, actions.like().getText());
       TextWatcher mirror = new TextWatcher() {
         @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) {}
         @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
-          like.setText(value);
-          like.setContentDescription(value);
+          bindPhotoLike(like, value);
         }
         @Override public void afterTextChanged(Editable value) {}
       };
       actions.like().addTextChangedListener(mirror);
-      dialog.setOnDismissListener(unused -> actions.like().removeTextChangedListener(mirror));
+      dialog.setOnDismissListener(unused -> {
+        actions.like().removeTextChangedListener(mirror);
+        canvas.stopZoomAnimation();
+      });
       for (TextView action : List.of(share, comment, like)) {
-        action.setTextSize(13);
-        action.setPadding(dp(4), 0, dp(4), 0);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
-        params.setMargins(dp(3), 0, dp(3), 0);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -1, 1);
+        params.setMargins(dp(6), 0, dp(6), 0);
         row.addView(action, params);
       }
       details.addView(row);
@@ -244,8 +317,7 @@ final class CommunityPhotoDialog {
     original.setVisibility(thumbnailFirst && !thumbnail.equals(fullUrl(url)) ? View.VISIBLE : View.GONE);
     setOriginalStatus("加载原图", true);
     counter.setText((index + 1) + "/" + images.size());
-    previous.setVisibility(index > 0 ? View.VISIBLE : View.GONE);
-    next.setVisibility(index + 1 < images.size() ? View.VISIBLE : View.GONE);
+    canvas.setContentDescription("帖子图片，第 " + (index + 1) + " 张，共 " + images.size() + " 张");
   }
 
   private static String fullUrl(String url) {
@@ -297,6 +369,7 @@ final class CommunityPhotoDialog {
     private float swipeOffset, initialOffset;
     private int swipeAxis;
     private ValueAnimator settling;
+    private ValueAnimator zoomAnimator;
 
     void ensurePage(int imagePage) {
       if (imagePage < 0 || imagePage >= images.size() ||
@@ -371,6 +444,7 @@ final class CommunityPhotoDialog {
       setTag("photo-canvas");
       pinch = new ScaleGestureDetector(activity, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
         @Override public boolean onScaleBegin(ScaleGestureDetector detector) {
+          stopZoomAnimation();
           focusX = detector.getFocusX();
           focusY = detector.getFocusY();
           return true;
@@ -390,8 +464,7 @@ final class CommunityPhotoDialog {
         }
         @Override public boolean onDoubleTap(MotionEvent event) {
           if (multiplePointers) return false;
-          if (scale > 1) resetZoom();
-          else zoom(2.5f, event.getX(), event.getY(), event.getX(), event.getY());
+          animateZoom(scale > 1 ? 1f : 2.5f, event.getX(), event.getY());
           return true;
         }
         @Override public boolean onScroll(MotionEvent first, MotionEvent current, float dx, float dy) {
@@ -416,6 +489,7 @@ final class CommunityPhotoDialog {
       int action = event.getActionMasked();
       if (action == MotionEvent.ACTION_DOWN) {
         stopSettling();
+        stopZoomAnimation();
         initialOffset = swipeOffset;
         swipeAxis = 0;
         multiplePointers = false;
@@ -423,6 +497,7 @@ final class CommunityPhotoDialog {
         downY = event.getY();
       } else if (action == MotionEvent.ACTION_POINTER_DOWN) {
         multiplePointers = true;
+        stopZoomAnimation();
         settleTo(page);
       }
       pinch.onTouchEvent(event);
@@ -450,20 +525,64 @@ final class CommunityPhotoDialog {
     @Override protected void onSizeChanged(int width, int height, int oldWidth, int oldHeight) {
       super.onSizeChanged(width, height, oldWidth, oldHeight);
       stopSettling();
+      stopZoomAnimation();
       swipeOffset = 0;
       updateImages();
     }
 
     @Override protected void onDetachedFromWindow() {
       stopSettling();
+      stopZoomAnimation();
       super.onDetachedFromWindow();
     }
 
     void resetZoom() {
+      stopZoomAnimation();
       scale = 1;
       shiftX = 0;
       shiftY = 0;
       updateImages();
+    }
+
+    void stopZoomAnimation() {
+      ValueAnimator running = zoomAnimator;
+      zoomAnimator = null;
+      if (running != null) running.cancel();
+    }
+
+    /** One zoom animation at a time; new double taps continue from the visible state. */
+    private void animateZoom(float target, float anchorX, float anchorY) {
+      stopZoomAnimation();
+      float fromScale = scale, fromShiftX = shiftX, fromShiftY = shiftY;
+      float bounded = PhotoZoomGeometry.clampScale(target);
+      if (Math.abs(bounded - fromScale) < .0001f) return;
+      if (Build.VERSION.SDK_INT >= 26 && !ValueAnimator.areAnimatorsEnabled()) {
+        zoom(bounded, anchorX, anchorY, anchorX, anchorY);
+        return;
+      }
+      final float centerX = getWidth() / 2f, centerY = getHeight() / 2f;
+      zoomAnimator = ValueAnimator.ofFloat(0f, 1f);
+      zoomAnimator.setDuration(260);
+      zoomAnimator.setInterpolator(new LinearInterpolator());
+      zoomAnimator.addUpdateListener(animation -> {
+        float progress = (float) animation.getAnimatedValue();
+        float eased = PhotoZoomGeometry.easeOutCubic(progress);
+        scale = PhotoZoomGeometry.interpolateScale(fromScale, bounded, eased);
+        shiftX = PhotoZoomGeometry.anchoredShift(anchorX, centerX, fromShiftX, fromScale, scale);
+        shiftY = PhotoZoomGeometry.anchoredShift(anchorY, centerY, fromShiftY, fromScale, scale);
+        updateImages();
+      });
+      zoomAnimator.addListener(new AnimatorListenerAdapter() {
+        @Override public void onAnimationEnd(Animator animation) {
+          if (zoomAnimator != animation) return;
+          zoomAnimator = null;
+          scale = bounded;
+          shiftX = PhotoZoomGeometry.anchoredShift(anchorX, centerX, fromShiftX, fromScale, scale);
+          shiftY = PhotoZoomGeometry.anchoredShift(anchorY, centerY, fromShiftY, fromScale, scale);
+          updateImages();
+        }
+      });
+      zoomAnimator.start();
     }
 
     private void zoom(float target, float fromX, float fromY, float toX, float toY) {
@@ -478,7 +597,7 @@ final class CommunityPhotoDialog {
 
     void stepZoom(float factor) {
       float cx = getWidth() / 2f, cy = getHeight() / 2f;
-      zoom(scale * factor, cx, cy, cx, cy);
+      animateZoom(scale * factor, cx, cy);
     }
 
     void updateImages() {

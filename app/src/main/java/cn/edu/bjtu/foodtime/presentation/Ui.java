@@ -220,7 +220,7 @@ public final class Ui {
     input.setId(caption.getLabelFor());
     l.addView(input, new LinearLayout.LayoutParams(-1, -2));
     gap(l, 16);
-    if (!password && !label.equals("邮箱验证码") && c instanceof MainActivity a) {
+    if (!password && !label.contains("邀请码") && !label.contains("验证码") && c instanceof MainActivity a) {
       String key = a.draftKey(label);
       input.setText(a.drafts.getString(key, ""));
       observe(input, () -> a.drafts.putString(key, input.getText().toString()));
@@ -284,20 +284,31 @@ public final class Ui {
     return imageFrame(c,path,label,Math.max(.65f,Math.min(1.35f,heightRatio)),false,false);
   }
 
+  /** Complete dish photos, with bounded height and paper margins for extreme aspect ratios. */
+  public static View containedImage(Context c,String path,String label) {
+    return imageFrame(c,path,label,.9f,true,false,true);
+  }
+
   @android.annotation.SuppressLint("DrawAllocation") // Bitmap decoding below runs in IMAGES, never in onMeasure/draw.
   private static View imageFrame(Context c,String path,String label,float initialRatio,
       boolean adaptive,boolean shortBlank) {
+    return imageFrame(c,path,label,initialRatio,adaptive,shortBlank,false);
+  }
+  @android.annotation.SuppressLint("DrawAllocation")
+  private static View imageFrame(Context c,String path,String label,float initialRatio,
+      boolean adaptive,boolean shortBlank,boolean contain) {
     final float[] heightRatio={initialRatio};
     FrameLayout frame = new FrameLayout(c) {
       @Override protected void onMeasure(int w,int h) {
         int width=MeasureSpec.getSize(w);
         int height=shortBlank&&(path==null||path.isBlank())?dp(c,120):Math.round(width*heightRatio[0]);
+        if(contain)height=Math.max(dp(c,120),Math.min(height,dp(c,Math.min(420,c.getResources().getConfiguration().screenHeightDp*.55f))));
         super.onMeasure(w,MeasureSpec.makeMeasureSpec(height,MeasureSpec.EXACTLY));
       }
     };
     frame.setBackgroundColor(Design.ALT);
     ImageView image = new ImageView(c);
-    image.setScaleType(ImageView.ScaleType.CENTER_CROP);
+    image.setScaleType(contain?ImageView.ScaleType.FIT_CENTER:ImageView.ScaleType.CENTER_CROP);
     image.setContentDescription(label);
     TextView placeholder=text(c,label,14,Design.MUTED);placeholder.setGravity(Gravity.CENTER);
     placeholder.setPadding(dp(c,16),0,dp(c,16),0);
@@ -305,7 +316,8 @@ public final class Ui {
     if(path!=null&&!path.isBlank() && c instanceof MainActivity a) {
       ImageLoader.bind(a,frame,image,placeholder,path,loaded -> {
         if(adaptive&&loaded.getWidth()>0) {
-          heightRatio[0]=Math.max(.72f,Math.min(1.45f,(float)loaded.getHeight()/loaded.getWidth()));
+          float ratio=(float)loaded.getHeight()/loaded.getWidth();
+          heightRatio[0]=contain?ratio:Math.max(.72f,Math.min(1.45f,ratio));
           frame.requestLayout();
         }
       });

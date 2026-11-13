@@ -6,8 +6,9 @@
 
 | 行为 | 接口 |
 | --- | --- |
-| CSRF、登录、注册验证码、注册、退出 | /auth/csrf、/auth/login、/auth/register/email-code、/auth/register、/auth/logout |
+| CSRF、注册策略、登录、登录验证码、注册验证码、注册、退出 | /auth/csrf、/auth/registration-policy、/auth/login、/auth/captcha、/auth/register/email-code、/auth/register、/auth/logout |
 | 当前资料与改密 | /users/me/profile、/users/me/password |
+| 当前有效能力 | GET /users/me/capabilities |
 | 关注／粉丝 | GET /users/{当前用户UUID}/following、/followers，page/size 分页；PUT/DELETE /users/{目标UUID}/follow |
 | 三级目录 | /dining-halls、/dining-halls/{id}/stalls、/stalls/{id}/dishes；data为数组 |
 | 菜品详情、实时评分、评论、图册 | /dishes/{id}及/rating、/reviews、/images；评论/图册分页 |
@@ -58,3 +59,27 @@ GET/POST /reviews/{id}/replies，公开列表size20与nextCursor游标；POST携
 ## 回复点赞（2026-10-20）
 
 PUT/DELETE /review-replies/{id}/like，响应likedByMe/likeCount/counterVersion。公开回复附带同样字段，直接显示；处理中禁用重复操作，失败保留状态并显示错误。只更新回复统计及按钮，不刷新整个菜品页，不改变一级评论计数或菜品评分。
+
+## 邀请注册（2026-11-12）
+
+注册页先请求 `GET /auth/registration-policy`，按返回的 `mode` 渲染：
+
+- `open`：邀请码可选；
+- `invitation`：邀请码必填，提交时随 `POST /auth/register` 透传；
+- `closed`：显示“注册暂未开放”，不再提交或发送验证码。
+
+策略读取失败不默认开放，页面显示错误与重试；服务端仍是最终裁决者，注册请求仍可能返回 `REGISTRATION_CLOSED`、`INVITATION_REQUIRED` 或 `INVITATION_CODE_INVALID`。邀请码不写入 Activity 草稿 Bundle；`Ui.field` 对含“邀请码”的字段跳过自动草稿保存。该接口不暴露限流值、邮箱白名单或邀请码列表。
+
+## 能力授权（2026-11-12）
+
+登录成功和恢复会话后读取 `GET /users/me/capabilities`，保存 `capabilities` 与 `revision`。管理动作的显示和启用只依据服务器返回的能力名（如 `catalog.edit`、`moderation.review`），不在客户端按角色名推断；写请求仍由服务器逐次校验。读取失败保持空能力并允许重试，不默认授权。退出、401、切号或角色/状态变化时清空能力快照。
+
+## 登录验证码（2026-11-12）
+
+登录返回 `CAPTCHA_REQUIRED` 时，客户端请求 `GET /auth/captcha`，在登录页显示 PNG 图片和答案输入框；再次提交时携带 `challengeId`/`challengeAnswer`。`CAPTCHA_INVALID` 表示题目无效、过期、已消费或设备不匹配，客户端清空答案并换题，不把服务端错误解释为密码错误。图片只在内存中解码展示，不写入草稿或磁盘；答案字段跳过 `Ui.field` 自动草稿。验证码默认未启用，由服务端部署决定；客户端只响应服务端错误码，不按版本自行跳过。
+
+## 跨食堂搜菜筛选（2026-11-12）
+
+`DishSearchScreen` 支持 `q`（可空浏览全部）、食堂多选、最低/最高价、最低评分（不限/3.0/3.5/4.0/4.5）与排序（综合/价格升降/评分优先）。筛选参数以 `DishSearchFilters` 传给 `RemoteRepository.searchDishes`，`sort` 只允许服务端白名单值；空价格/评分不传，按服务端“未知保留且后排”规则显示。
+
+响应 `DishSearchRow` 新增 `averageScore`/`reviewCount`；`averageScore` 为 null 时显示“暂无评分”，`reviewCount` 为 0。价格 null 显示“价格待补充”，不能按 0 处理。筛选变化使用独立读取 key，旧请求的迟到结果不能覆盖当前条件；不可变的筛选条件与页码共同决定请求。

@@ -22,9 +22,13 @@ final class AdminScreen {
     Ui.action(card,"审核日志",false,() -> a.go("admin-logs",""));
     if(a.repo.currentUser().role().equals("superadmin")) {
       Ui.gap(card,12);Ui.action(card,"公告管理",false,() -> a.go("admin-notices",""));
-      Ui.gap(card,12);Ui.action(card,"举报处理",false,() -> a.go("admin-reports",""));
+      Ui.gap(card,12);Ui.action(card,"纠错审核",false,() -> a.go("admin-corrections",""));
       Ui.gap(card,12);Ui.action(card,"建议与反馈管理",false,() -> a.go("admin-feedback",""));
       Ui.gap(card,12);Ui.action(card,"用户管理",false,() -> a.go("admin-users",""));
+    }
+    if(cn.edu.bjtu.foodtime.domain.validation.ReportManagementPolicy.review(a.repo.capabilities())
+        ||cn.edu.bjtu.foodtime.domain.validation.ReportManagementPolicy.appeals(a.repo.capabilities())) {
+      Ui.gap(card,12);Ui.action(card,"举报与申诉",false,() -> a.go("admin-reports",""));
     }
   }
   static String pendingLabel(MainActivity a) {
@@ -131,6 +135,8 @@ final class AdminScreen {
     description.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});
     EditText price=table.equals("dishes")?Ui.field(form,"价格（元）",false,false):null;
     if(price!=null) price.setInputType(8194);
+    Spinner priceUnit=price==null?null:PriceUnits.field(a,form,a.drafts.getString(a.draftKey("price-unit"),item==null?"unspecified":item.priceUnit()));
+    if(priceUnit!=null)priceUnit.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){public void onItemSelected(android.widget.AdapterView<?> parent,android.view.View view,int position,long id){a.drafts.putString(a.draftKey("price-unit"),PriceUnits.value(priceUnit));}public void onNothingSelected(android.widget.AdapterView<?> parent){}});
     if(item!=null&&!a.drafts.containsKey(a.draftKey("loaded"))) {
       name.setText(item.name());description.setText(item.description());if(price!=null) price.setText(item.price());
       a.drafts.putBoolean(a.draftKey("loaded"),true);
@@ -146,8 +152,8 @@ final class AdminScreen {
     TextView error=Ui.text(a,"",14,Design.RED);form.addView(error);Ui.gap(form,12);
     Ui.submit(form,"保存",error,() -> {
       String title=Validation.text(name.getText().toString(),table.equals("dishes")?120:100,"名称"),body=description.getText().toString();
-      String amount=price==null?"":price.getText().toString();if(price!=null) Validation.price(amount);boolean active=enabled.isChecked();
-      return () -> a.repo.editEntity(table,creating?"":value,creating?value:"",title,body,amount,image,active);
+      String amount=price==null?"":price.getText().toString();if(price!=null) Validation.price(amount);boolean active=enabled.isChecked();String selectedUnit=priceUnit==null?null:PriceUnits.value(priceUnit);
+      return () -> a.repo.editEntity(table,creating?"":value,creating?value:"",title,body,amount,image,active,selectedUnit);
     },() -> {a.clearDraft(route);a.message("已保存");a.back();});
     if(!creating) {
       Ui.gap(form,12);Ui.action(form,"删除",false,() -> Ui.confirm(a,"删除这条记录？","存在关联记录时只能停用",

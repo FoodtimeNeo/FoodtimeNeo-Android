@@ -46,10 +46,11 @@ final class ProfileScreen {
     TextView update=Ui.button(a,"检查更新",false,() -> a.checkAppRelease(true));
     update.setTextSize(13);update.setMinHeight(Ui.dp(a,38));
     update.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,19));update.setTextColor(Design.INK);
-    update.setContentDescription("检查应用更新，当前版本"+cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME);
+    update.setContentDescription("检查应用更新，当前版本"+cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.display(cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME));
     LinearLayout.LayoutParams updateLp=new LinearLayout.LayoutParams(-2,-2);updateLp.leftMargin=Ui.dp(a,8);
     identityFoot.addView(update,updateLp);
     identity.addView(identityFoot);
+    identity.addView(Ui.text(a,"当前版本 "+cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.display(cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME),12,Design.MUTED));
     page.addView(identity,new LinearLayout.LayoutParams(-1,-2));Ui.gap(page,20);
     if("visitor".equals(user.role())) {
       LinearLayout guest=Ui.col(a);guest.setPadding(Ui.dp(a,18),Ui.dp(a,16),Ui.dp(a,18),Ui.dp(a,18));
@@ -138,6 +139,12 @@ final class ProfileScreen {
       roundedAction(a,panel,"我的收藏",false,()->a.go("community-favorites",""));
       Ui.gap(panel,10);
       roundedAction(a,panel,"想吃清单",false,()->a.go("favorite-dishes",""));
+      Ui.gap(panel,10);
+      roundedAction(a,panel,"我的纠错",false,()->a.go("my-corrections",""));
+      Ui.gap(panel,10);
+      roundedAction(a,panel,"浏览历史",false,()->a.go("history",""));
+      Ui.gap(panel,10);
+      roundedAction(a,panel,"举报与处理决定",false,()->a.go("report-receipts",""));
     }
     else if(selected==2) roundedAction(a,panel,action,false,() -> a.go("mine-submissions",""));
     else if(selected==3) {
@@ -149,10 +156,7 @@ final class ProfileScreen {
       roundedAction(a,panel,"建议与反馈",false,() -> a.go("feedback",""));
       if(!user.isAdmin()){Ui.gap(panel,10);roundedAction(a,panel,"账号安全与注销",false,()->a.go("account-lifecycle",""));}
       Ui.gap(panel,10);
-      TextView reminders = Ui.button(a, a.privateMessageRemindersConfigured() ? "关闭私信提醒" : "开启私信提醒",
-          false, a::togglePrivateMessageReminders);
-      reminders.setTag("private-message-reminder-toggle");
-      panel.addView(reminders);
+      roundedAction(a,panel,"提醒设置",false,()->a.go("notification-settings",""));
       Ui.gap(panel,10);
       TextView cache=Ui.text(a,"图片缓存",14,Design.MUTED);panel.addView(cache);
       TextView cacheError=Ui.text(a,"",12,Design.RED);panel.addView(cacheError);

@@ -9,5 +9,6 @@ captures/
 .cxx/
 .DS_Store
 .release-signing/
+__pycache__/
 *.jks
 *.keystore

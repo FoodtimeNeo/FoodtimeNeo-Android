@@ -30,7 +30,7 @@ final class FeedbackScreen {
     final List<TextView> controls=new ArrayList<>();final String key="feedback-list:"+UUID.randomUUID();
     boolean archived,busy;Page current;
     ListScreen(MainActivity a,LinearLayout page,boolean admin){
-      this.a=a;this.admin=admin;a.heading(page,"",admin?"建议与反馈管理":"建议与反馈",admin?"仅超级管理员可查看全部反馈和回复。":"访客每天 2 条，认证用户每天 5 条；同设备每天合计 10 条，每天 UTC+8 00:00 重置。");
+      this.a=a;this.admin=admin;a.heading(page,"",admin?"建议与反馈管理":"建议与反馈",admin?"仅超级管理员可查看全部反馈和回复。":"当前账号每天 "+("visitor".equals(a.repo.currentUser().role())?2:5)+" 条反馈；同设备每天合计 10 条，每天 UTC+8 00:00 重置。");
       if(admin){
         Ui.action(page,"导出未完成反馈（CSV）",false,()->a.feedbackDocuments.export());
         page.addView(Ui.text(a,"保留反馈编号、反馈类型、反馈内容，新增回复、处理状态两列。状态填写待处理、处理中或已完成，空白不修改。处理中由导出设置。保存为 CSV UTF-8。",14,Design.MUTED));

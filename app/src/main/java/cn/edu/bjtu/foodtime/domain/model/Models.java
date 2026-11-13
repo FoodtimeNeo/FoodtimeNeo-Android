@@ -4,6 +4,19 @@ import java.math.BigDecimal;
 import java.util.List;
 
 public final class Models {
+  /** Public registration capabilities; never contains limits, invitation inventory or account state. */
+  public record RegistrationPolicy(String mode, boolean canSendEmailCode, boolean invitationRequired, String revision) {
+    public boolean closed() { return "closed".equals(mode); }
+    public static RegistrationPolicy open() { return new RegistrationPolicy("open", true, false, "open:email"); }
+  }
+  /** Server-projected management capabilities for the current account. */
+  public record CapabilitySnapshot(List<String> capabilities, String revision) {
+    public CapabilitySnapshot { capabilities = List.copyOf(capabilities); }
+    public static CapabilitySnapshot empty() { return new CapabilitySnapshot(List.of(), ""); }
+    public boolean can(String capability) { return capabilities.contains(capability); }
+  }
+  /** One-time login challenge image; the answer is never part of this payload. */
+  public record CaptchaChallenge(String challengeId, String imageBase64, String expiresAt) {}
   public record DailyRecommendations(java.time.LocalDate date, String algorithmVersion, List<RecommendedDish> items) {
     public DailyRecommendations { items=List.copyOf(items); }
   }
@@ -26,10 +39,114 @@ public final class Models {
       String name,
       BigDecimal price,
       String description,
-      boolean active) {}
+      boolean active,
+      long revision, String priceUnit) {
+    public Dish(String id,String stallId,String name,BigDecimal price,String description,boolean active,long revision){this(id,stallId,name,price,description,active,revision,"unspecified");}
+  }
 
   public record DishSearchRow(String id, String name, BigDecimal price,
-                              String stallName, String diningHallName) {}
+                              String stallName, String diningHallName,
+                              BigDecimal averageScore, long reviewCount) {
+    public DishSearchRow(String id,String name,BigDecimal price,String stallName,String diningHallName) {
+      this(id,name,price,stallName,diningHallName,null,0);
+    }
+  }
+
+  public record FavoriteGroup(String id, String kind, String name, int sortOrder,
+                              long revision, long itemCount) {}
+
+  public record CorrectionProposal(String targetType, String targetId, long baseRevision,
+                                   List<String> changedFields, String name, String description,
+                                   BigDecimal price, String reason, List<String> evidenceUrls,
+                                   String idempotencyKey, String priceUnit) {
+    public CorrectionProposal(String targetType,String targetId,long baseRevision,List<String> changedFields,String name,String description,BigDecimal price,String reason,List<String> evidenceUrls,String idempotencyKey){this(targetType,targetId,baseRevision,changedFields,name,description,price,reason,evidenceUrls,idempotencyKey,null);}
+    public CorrectionProposal { changedFields = List.copyOf(changedFields); evidenceUrls = List.copyOf(evidenceUrls); }
+  }
+
+  public record CatalogCorrection(String id, String targetType, String targetId, String targetSummary,
+                                  long baseRevision, String originalName, String originalDescription,
+                                  BigDecimal originalPrice, String proposedName, String proposedDescription,
+                                  BigDecimal proposedPrice, List<String> changedFields, String reason,
+                                  String status, String reviewNote, long createdAt, long reviewedAt,
+                                  long revision, List<String> evidenceUrls, String originalPriceUnit, String proposedPriceUnit) {
+    public CatalogCorrection { changedFields = List.copyOf(changedFields); evidenceUrls = List.copyOf(evidenceUrls); }
+  }
+
+  public record CatalogCorrectionPage(List<CatalogCorrection> items, long total, int page, int size) {
+    public CatalogCorrectionPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
+  public record CatalogCorrectionAdmin(CatalogCorrection correction, String submitterId,
+                                       String submitterName, String submitterEmail) {}
+
+  public record CatalogCorrectionAdminPage(List<CatalogCorrectionAdmin> items, long total, int page, int size) {
+    public CatalogCorrectionAdminPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
+  public record HistorySettings(boolean enabled, long revision, long dishEpoch, long postEpoch) {}
+
+  public record HistoryItem(String kind, String targetId, String diningHallId, String stallId,
+                            long visitedAt, boolean available, String title, String subtitle,
+                            String imageUrl) {}
+
+  public record HistoryPage(List<HistoryItem> items, long total, int page, int size) {
+    public HistoryPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
+  public record MyReport(String id, String targetType, String targetId, String postId,
+                         String reason, String excerpt, String status, long createdAt,
+                         String decisionId, String outcome, String publicReason, long decidedAt) {}
+
+  public record MyReportPage(List<MyReport> items, long total, int page, int size) {
+    public MyReportPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
+  public record ModerationDecision(String decisionId, String reportId, String side, String targetType,
+                                   String outcome, String publicReason, long deliveredAt,
+                                   long appealDeadline, String appealId, String appealStatus,
+                                   String appealOutcome) {}
+
+  public record ReportAction(String id, String decisionId, String actionType, String targetType,
+                             String targetId, String performedBy, String note, long createdAt) {}
+
+  public record ReportFollowUp(String id, String reportId, String authorRole, String authorName,
+                               String content, long createdAt, List<String> evidenceUrls) {
+    public ReportFollowUp { evidenceUrls = List.copyOf(evidenceUrls); }
+  }
+
+  public record ReportFollowUpPage(List<ReportFollowUp> items, long total, int page, int size) {
+    public ReportFollowUpPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
+  public record NotificationPreference(String category, boolean enabled, long revision) {}
+
+  public record NotificationPreferences(List<NotificationPreference> items) {
+    public NotificationPreferences { items = List.copyOf(items); }
+  }
+
+  public record NotificationEvent(String eventId, long seq, String category, String title,
+                                  String body, String refType, String refId, long createdAt,
+                                  String deliveryStatus) {}
+
+  public record NotificationEventPage(List<NotificationEvent> items, long nextSeq) {
+    public NotificationEventPage { items = List.copyOf(items); }
+  }
+
+  public record ModerationDecisionPage(List<ModerationDecision> items, long total, int page, int size) {
+    public ModerationDecisionPage { items = List.copyOf(items); }
+    public boolean hasMore() { return (long) page * size < total; }
+  }
+
+  public record DishSearchFilters(List<String> diningHallIds, BigDecimal minPrice,
+                                  BigDecimal maxPrice, BigDecimal minRating, String sort) {
+    public DishSearchFilters { diningHallIds = diningHallIds == null ? List.of() : List.copyOf(diningHallIds); }
+    public static DishSearchFilters empty() { return new DishSearchFilters(List.of(), null, null, null, "relevance"); }
+  }
 
   public record DishSearchPage(List<DishSearchRow> items, long total, int page, int size) {
     public DishSearchPage { items = List.copyOf(items); }
@@ -185,7 +302,14 @@ public final class Models {
   public record CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
       long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
       boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt,
-      String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage,LinkedDish linkedDish,long viewCount) {
+      String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage,LinkedDish linkedDish,long viewCount,long contentRevision,long editedAt) {
+    public CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
+        long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
+        boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt,
+        String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage,LinkedDish linkedDish,long viewCount) {
+      this(id,userId,userDisplayName,content,imageUrls,likeCount,commentCount,repostCount,repostOfId,repostAuthor,repostContent,
+          likedByMe,favoritedByMe,status,reviewReason,createdAt,title,userAvatarUrl,images,favoriteCount,reviewStage,linkedDish,viewCount,1,0);
+    }
     public CommunityPost {imageUrls=imageUrls==null?List.of():List.copyOf(imageUrls);images=images==null?List.of():List.copyOf(images);}
     public CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
         long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
@@ -319,7 +443,9 @@ public final class Models {
       String description,
       String price,
       String coverImageUrl,
-      boolean active) {}
+      boolean active, String priceUnit) {
+    public AdminEntity(String id,String name,String description,String price,String coverImageUrl,boolean active){this(id,name,description,price,coverImageUrl,active,"unspecified");}
+  }
 
   public record Audit(
       String id,

@@ -65,7 +65,7 @@ final class CommunityScreen {
 
   private record Banner(String heading, String intro) {}
 
-  private record FeedBody(List<CommunityPost> posts, boolean hasMore, boolean loading, boolean failed) {}
+  private record FeedBody(List<CommunityPost> posts, boolean hasMore, boolean loading, boolean failed, java.util.List<cn.edu.bjtu.foodtime.domain.model.CommunityPins.Entry> pins) {}
 
   private static void renderFeed(MainActivity a, LinearLayout body, String section, boolean preview) {
     boolean following = section.equals("community-following");
@@ -90,10 +90,11 @@ final class CommunityScreen {
       loadMore = a.repo::loadMoreCommunityPosts;
     }
     FeedBody next = new FeedBody(posts, hasMore, posts.isEmpty() && (preview || a.isPageLoading()),
-        !preview && posts.isEmpty() && a.pageFailed());
+        !preview && posts.isEmpty() && a.pageFailed(), section.equals("community") ? a.repo.communityPins().items() : List.of());
     if (next.equals(body.getTag())) return;
     body.setTag(next);
     body.removeAllViews();
+    if(section.equals("community")){if(CommunityPinScreen.allowed(a))pinManagement(a,body,"");renderPins(a,body,next.pins());}
     if (next.loading()) {
       Ui.empty(body, "正在加载食记…", "");
     } else if (next.failed()) {
@@ -106,6 +107,7 @@ final class CommunityScreen {
         case "community-mine" -> "还没有发布食记";
         default -> "社区还没有公开食记";
       };
+      if(!next.pins().isEmpty())title="暂时没有其他食记";
       String description = switch (section) {
         case "community-following" -> "可以在食记或用户搜索里关注感兴趣的同学。";
         case "community-favorites" -> "收藏的食记会出现在这里。";
@@ -128,10 +130,17 @@ final class CommunityScreen {
     }
   }
 
+  private static void pinManagement(MainActivity a,LinearLayout body,String id){TextView button=Ui.button(a,"置顶管理",false,()->a.go("community-pins",id));button.setTag("community-pins-open");body.addView(button,new LinearLayout.LayoutParams(-1,-2));Ui.gap(body,8);}
+
+  private static void renderPins(MainActivity a,LinearLayout body,List<cn.edu.bjtu.foodtime.domain.model.CommunityPins.Entry> pins){
+    if(pins.isEmpty())return;LinearLayout card=Ui.card(body);card.setTag("community-pins");card.addView(Ui.title(a,"置顶食记",16));
+    for(var pin:pins){LinearLayout row=Ui.col(a);row.setPadding(Ui.dp(a,4),Ui.dp(a,10),Ui.dp(a,4),Ui.dp(a,10));row.setMinimumHeight(Ui.dp(a,52));TextView title=Ui.text(a,"置顶 · "+pin.title(),15,Design.RED);title.setMaxLines(2);title.setEllipsize(TextUtils.TruncateAt.END);row.addView(title);row.addView(Ui.text(a,"@"+pin.userDisplayName(),12,Design.MUTED));row.setBackground(Ui.ripple(a,Design.PAPER,0,8));row.setFocusable(true);row.setClickable(true);row.setTag("community-pinned-post:"+pin.id());row.setContentDescription("置顶食记："+pin.title()+"，作者"+pin.userDisplayName());row.setOnClickListener(v->a.go("community-detail",pin.id()));card.addView(row,new LinearLayout.LayoutParams(-1,-2));}
+  }
+
   static void collection(MainActivity a,LinearLayout page,MainActivity.Route route){
     if (a.isCommunityHub()) { feed(a, page, route); return; }
     boolean favorites=route.kind().equals("community-favorites");var result=a.repo.communityCollection(favorites);
-    a.heading(page,"02",favorites?"我的收藏":"我的食记",favorites?"收藏的公开食记都在这里。":"查看发布记录与审核进度；食记发布后不可编辑。");
+    a.heading(page,"02",favorites?"我的收藏":"我的食记",favorites?"收藏的公开食记都在这里。":"查看发布记录与审核进度；可在详情修改自己的食记。");
     if(result.items().isEmpty())Ui.empty(page,favorites?"还没有收藏食记":"还没有发布食记",favorites?"在食记详情点击收藏，方便下次再找。":"发布一篇校园美食记录吧。");
     else waterfall(a,page,result.items());
     if(result.hasMore()){
@@ -160,7 +169,7 @@ final class CommunityScreen {
   }
 
   private static void postCard(MainActivity a,LinearLayout column,CommunityPost post) {
-    LinearLayout card=Ui.card(column);card.setPadding(0,0,0,Ui.dp(a,4));
+    LinearLayout card=Ui.card(column);card.setTag("community-post-card:"+post.id());card.setPadding(0,0,0,Ui.dp(a,4));
     card.setBackground(Ui.ripple(a, Design.PAPER, Design.BORDER, 12));
     card.setElevation(0);
     LinearLayout.LayoutParams cardLp=(LinearLayout.LayoutParams)card.getLayoutParams();cardLp.bottomMargin=Ui.dp(a,10);
@@ -194,6 +203,7 @@ final class CommunityScreen {
   static void detail(MainActivity a,LinearLayout page,MainActivity.Route route) {
     CommunityPost post=a.repo.communityPost(route.id());
     if(post==null) throw new IllegalArgumentException("动态不存在或暂不可见");
+    if(post.status().equals("approved")) a.recordVisit("post", post.id());
     if(post.status().equals("pending")) {
       TextView notice = Ui.text(a, "这篇食记正在审核，通过前仅自己可见。", 14, Design.RED);
       notice.setPadding(Ui.dp(a, 14), Ui.dp(a, 10), Ui.dp(a, 14), Ui.dp(a, 10));
@@ -208,6 +218,8 @@ final class CommunityScreen {
     LinearLayout copy = Ui.col(a);
     copy.setPadding(Ui.dp(a, 14), Ui.dp(a, 14), Ui.dp(a, 14), Ui.dp(a, 14));
     page.addView(copy);
+    if(CommunityPinScreen.allowed(a)){pinManagement(a,copy,post.id());Ui.gap(copy,10);}
+    if(PostEditScreen.allowed(a,post)){TextView edit=Ui.button(a,"修改食记",false,()->{a.requireFreshContent("community-edit",post.id());a.go("community-edit",post.id());});edit.setTag("post-edit-open");copy.addView(edit);Ui.gap(copy,8);}
     copy.addView(Ui.title(a, post.title(), 22));
     Ui.gap(copy, 6);
     copy.addView(Ui.text(a, post.content(), 16, Design.INK));
@@ -235,6 +247,7 @@ final class CommunityScreen {
     TextView viewCount=Ui.text(a,viewLabel(Math.max(post.viewCount(),a.drafts.getLong(countKey))),12,Design.MUTED);
     LinearLayout.LayoutParams countLayout=new LinearLayout.LayoutParams(-2,-2); countLayout.leftMargin=Ui.dp(a,4);
     metadata.addView(viewCount,countLayout); copy.addView(metadata);
+    if(post.editedAt()>0)copy.addView(Ui.text(a,"修改于 "+format(post.editedAt()),12,Design.MUTED));
     if(!a.drafts.getBoolean(recordedKey)) {
       String openedRequest=requestId; long[] count={post.viewCount()};
       a.recordPostView("post-view:"+openedRequest,
@@ -334,13 +347,63 @@ final class CommunityScreen {
     if(!post.images().isEmpty()&&post.images().get(0).width()>0)return Math.max(.72f,Math.min(1.45f,(float)post.images().get(0).height()/post.images().get(0).width()));
     return 1f;
   }
-  private static String photoKey(MainActivity a,int i){return a.draftKey("photo:"+i+":image");}
-  private static List<String> selectedPhotos(MainActivity a){
+  static String photoKey(MainActivity a,int i){return a.draftKey("photo:"+i+":image");}
+  static List<String> selectedPhotos(MainActivity a){
     List<String> images=new ArrayList<>();for(int i=0;i<9;i++){String path=a.drafts.getString(photoKey(a,i),"");if(!path.isBlank())images.add(path);}return images;
   }
-  private static void savePhotos(MainActivity a,List<String> images){for(int i=0;i<9;i++)a.drafts.putString(photoKey(a,i),i<images.size()?images.get(i):"");a.redraw();}
+  static void savePhotos(MainActivity a,List<String> images){for(int i=0;i<9;i++)a.drafts.putString(photoKey(a,i),i<images.size()?images.get(i):"");persistDraft(a);a.redraw();}
+  static void persistDraft(MainActivity a){
+    if(a.repo.currentUser()==null||!a.route().kind().equals("community-create"))return;
+    PostDraftStore.save(a,a.repo.currentUser().id(),
+        a.drafts.getString(a.draftKey("食记标题"),""),
+        a.drafts.getString(a.draftKey("动态正文"),""),
+        a.drafts.getString(a.draftKey("linkedDishId"),""),
+        selectedPhotos(a));
+  }
   static void create(MainActivity a,LinearLayout page,MainActivity.Route route) {
     a.heading(page,"02.2","写一页美食手账","分享真实的校园美食体验，审核通过后公开。");
+    String ownerId=a.repo.currentUser()==null?"":a.repo.currentUser().id();
+    boolean empty=a.drafts.getString(a.draftKey("食记标题"),"").isBlank()
+        &&a.drafts.getString(a.draftKey("动态正文"),"").isBlank()
+        &&a.drafts.getString(a.draftKey("linkedDishId"),"").isBlank()
+        &&selectedPhotos(a).isEmpty();
+    PostDraftStore.Draft restored=ownerId.isBlank()||!empty?null:PostDraftStore.load(a,ownerId);
+    if(restored!=null){
+      a.drafts.putString(a.draftKey("食记标题"),restored.title());
+      a.drafts.putString(a.draftKey("动态正文"),restored.content());
+      a.drafts.putString(a.draftKey("linkedDishId"),restored.linkedDishId());
+      for(int i=0;i<9;i++)a.drafts.putString(photoKey(a,i),i<restored.images().size()?restored.images().get(i):"");
+    }
+    if(restored!=null){
+      LinearLayout notice=Ui.card(page);
+      notice.addView(Ui.text(a,"已恢复本机草稿；关闭页面后修改会自动保存。",14,Design.MUTED));
+      Ui.link(notice,"删除本机草稿",()->{PostDraftStore.delete(a,ownerId);a.clearDraft(a.route());a.redraw();});
+      page.addView(notice);
+    }
+    photoEditor(a,page,false);
+    LinearLayout form=Ui.card(page);form.addView(Ui.title(a,"02 · 标题与心得",18));Ui.gap(form,12);
+    EditText title=Ui.field(form,"食记标题",false,false);title.setHint("标题，最多50字");title.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(50)});
+    EditText content=Ui.field(form,"动态正文",false,true);content.setHint("正文，最多2000字");content.setMinLines(5);content.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(2000)});
+    DishPickerScreen.show(a, form);
+    TextView error=Ui.text(a,"",13,Design.RED);form.addView(error);MainActivity.Route origin=a.route();
+    android.os.Handler draftHandler=new android.os.Handler(android.os.Looper.getMainLooper());
+    Runnable persist=()->{if(!ownerId.isBlank())PostDraftStore.save(a,ownerId,title.getText().toString(),content.getText().toString(),a.drafts.getString(a.draftKey("linkedDishId"),""),selectedPhotos(a));};
+    Runnable scheduleSave=()->{draftHandler.removeCallbacks(persist);draftHandler.postDelayed(persist,500);};
+    Ui.observe(title,scheduleSave);Ui.observe(content,scheduleSave);
+    form.addView(Ui.text(a,"关闭或返回后，本机自动保存一份草稿；只有确认发布成功后才会删除。",12,Design.MUTED));
+    Ui.submit(form,"盖章发布",error,()->{
+      String dishId = a.drafts.getString(a.draftKey("linkedDishId"), "");
+      String heading=Validation.text(title.getText().toString(),50,"标题"),body=Validation.text(content.getText().toString(),2000,"正文");
+      List<String> photos=selectedPhotos(a);if(photos.isEmpty())throw new IllegalArgumentException("请添加至少1张图片");
+      String fingerprint=heading+"\n"+body+"\n"+String.join("|",photos)
+          +(dishId.isBlank()?"":"\n"+dishId),key=a.draftKey("requestId");
+      if(!fingerprint.equals(a.drafts.getString(a.draftKey("payload"),""))){a.drafts.putString(key,UUID.randomUUID().toString());a.drafts.putString(a.draftKey("payload"),fingerprint);}
+      String requestId=a.drafts.getString(key);
+      return ()->a.repo.submitCommunityPost(heading,body,photos,requestId,dishId);
+    },()->{if(!ownerId.isBlank())PostDraftStore.delete(a,ownerId);a.clearDraft(origin);a.back();a.message("食记已提交审核，可在我的食记查看进度");});
+  }
+
+  static void photoEditor(MainActivity a,LinearLayout page,boolean optional) {
     List<String> selected=selectedPhotos(a);
     LinearLayout photo=Ui.card(page);photo.addView(Ui.title(a,"01 · 美食实拍 "+selected.size()+"/9",18));Ui.gap(photo,10);
     for(int i=0;i<selected.size();i++){
@@ -352,22 +415,7 @@ final class CommunityScreen {
       item.addView(controls);photo.addView(item);Ui.gap(photo,8);
     }
     if(selected.size()<9)Ui.action(photo,"选择照片（可多选）",false,a::pickCommunityPhotos);
-    photo.addView(Ui.text(a,"1–9张图片，首张为封面；可前移调整顺序。",12,Design.MUTED));
-    LinearLayout form=Ui.card(page);form.addView(Ui.title(a,"02 · 标题与心得",18));Ui.gap(form,12);
-    EditText title=Ui.field(form,"食记标题",false,false);title.setHint("标题，最多50字");title.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(50)});
-    EditText content=Ui.field(form,"动态正文",false,true);content.setHint("正文，最多2000字");content.setMinLines(5);content.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(2000)});
-    DishPickerScreen.show(a, form);
-    TextView error=Ui.text(a,"",13,Design.RED);form.addView(error);MainActivity.Route origin=a.route();
-    Ui.submit(form,"盖章发布",error,()->{
-      String dishId = a.drafts.getString(a.draftKey("linkedDishId"), "");
-      String heading=Validation.text(title.getText().toString(),50,"标题"),body=Validation.text(content.getText().toString(),2000,"正文");
-      List<String> photos=selectedPhotos(a);if(photos.isEmpty())throw new IllegalArgumentException("请添加至少1张图片");
-      String fingerprint=heading+"\n"+body+"\n"+String.join("|",photos)
-          +(dishId.isBlank()?"":"\n"+dishId),key=a.draftKey("requestId");
-      if(!fingerprint.equals(a.drafts.getString(a.draftKey("payload"),""))){a.drafts.putString(key,UUID.randomUUID().toString());a.drafts.putString(a.draftKey("payload"),fingerprint);}
-      String requestId=a.drafts.getString(key);
-      return ()->a.repo.submitCommunityPost(heading,body,photos,requestId,dishId);
-    },()->{a.clearDraft(origin);a.back();a.message("食记已提交审核，可在我的食记查看进度");});
+    photo.addView(Ui.text(a,optional?"转发帖可不配图，最多9张；首张为封面。":"1–9张图片，首张为封面；可前移调整顺序。",12,Design.MUTED));
   }
 
   private static String format(long value) {

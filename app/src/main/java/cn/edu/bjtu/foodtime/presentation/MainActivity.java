@@ -77,7 +77,8 @@ public class MainActivity extends Activity {
   private final List<Runnable> deferredReads=new ArrayList<>();
   private final android.os.Handler noticeUi=new android.os.Handler(android.os.Looper.getMainLooper());
   private String noticeErrorShown="";
-  private static final int REQUEST_PRIVATE_MESSAGE_NOTIFICATION = 1092;
+  private final NotificationPermission notificationPermission = new NotificationPermission();
+  private cn.edu.bjtu.foodtime.domain.notification.NotificationOpenTarget incomingNotification;
   private String incomingPost = "";
   private boolean incomingInbox;
   private String actor(){var user=repo==null?null:repo.currentUser();return user==null?"":user.id()+":"+user.role();}
@@ -144,6 +145,9 @@ public class MainActivity extends Activity {
       if (positions != null) scrollPositions.putAll(positions);
       incomingPost = state.getString("incomingPost", "");
       incomingInbox = state.getBoolean("incomingInbox");
+      incomingNotification = cn.edu.bjtu.foodtime.domain.notification.NotificationOpenTarget.parse(
+          state.getString("notificationActor"),state.getString("notificationCategory"),
+          state.getString("notificationRefType"),state.getString("notificationRefId"));
     } else {
       captureIncoming(getIntent());
     }
@@ -159,12 +163,18 @@ public class MainActivity extends Activity {
 
   private void captureIncoming(Intent intent) {
     if (intent == null) return;
-    if (PrivateMessageReminders.OPEN_INBOX.equals(intent.getAction())) {
+    if (NotificationEventReminders.OPEN_EVENT.equals(intent.getAction())) {
+      var target = cn.edu.bjtu.foodtime.domain.notification.NotificationOpenTarget.parse(
+          intent.getStringExtra("actor"),intent.getStringExtra("category"),intent.getStringExtra("refType"),intent.getStringExtra("refId"));
+      if (target != null) {incomingNotification=target;incomingInbox=false;incomingPost="";}
+    } else if (PrivateMessageReminders.OPEN_INBOX.equals(intent.getAction())) {
+      incomingNotification=null;
       incomingInbox = true;
       incomingPost = "";
     } else if (Intent.ACTION_VIEW.equals(intent.getAction())) {
       String id = CommunityShareLink.postId(intent.getDataString());
       if (!id.isEmpty()) {
+        incomingNotification=null;
         incomingPost = id;
         incomingInbox = false;
       }
@@ -173,7 +183,18 @@ public class MainActivity extends Activity {
 
   private boolean consumeIncoming() {
     if (repo.currentUser() == null || writeInFlight || pendingOperation != 0
-        || (!incomingInbox && incomingPost.isEmpty())) return false;
+        || (!incomingInbox && incomingPost.isEmpty() && incomingNotification==null)) return false;
+    if ("appeal_only".equals(repo.sessionMode())) return false;
+    if (incomingNotification!=null) {
+      var notification=incomingNotification;incomingNotification=null;
+      if (!notification.actor().equals(repo.currentUser().id())) {message("这条提醒属于其他账号，请切换账号后查看。");return false;}
+      if (contentReady) rememberScroll();
+      var destination=notification.destination();tab="profile";
+      if (!destination.inboxTab().isEmpty()) drafts.putString("inbox::tab",destination.inboxTab());
+      Route target=new Route(destination.kind(),destination.id());
+      if (!target.equals(route())) stacks.get(tab).add(target);
+      return true;
+    }
     if (contentReady) rememberScroll();
     Route target;
     if (incomingInbox) {
@@ -211,13 +232,24 @@ public class MainActivity extends Activity {
     screens.put("venue-mine",VenueScreen::mine);
     screens.put("dining", DiningScreen::halls);
     screens.put("dish-search", DishSearchScreen::show);
+    screens.put("price-history", PriceHistoryScreen::show);
     screens.put("favorite-dishes", FavoriteDishesScreen::show);
+    screens.put("correction", CorrectionScreen::submit);
+    screens.put("my-corrections", CorrectionScreen::mine);
+    screens.put("admin-corrections", CorrectionScreen::admin);
+    screens.put("history", HistoryScreen::show);
+    screens.put("report-receipts", ReportReceiptScreen::show);
+    screens.put("appeal-compose",AppealComposeScreen::show);
+    screens.put("report-followups", ReportFollowUpScreen::show);
+    screens.put("notification-settings", NotificationSettingsScreen::show);
     screens.put("community", CommunityScreen::feed);
     screens.put("community-following", CommunityScreen::feed);
     screens.put("community-search", CommunityDiscoveryScreen::show);
     screens.put("community-author", CommunityDiscoveryScreen::show);
     screens.put("community-detail", CommunityScreen::detail);
     screens.put("community-create", CommunityScreen::create);
+    screens.put("community-edit", PostEditScreen::show);
+    screens.put("community-pins", CommunityPinScreen::show);
     screens.put("community-mine", CommunityScreen::collection);
     screens.put("inbox", InboxScreen::inbox);
     screens.put("account-lifecycle",AccountLifecycleScreen::show);
@@ -256,6 +288,8 @@ public class MainActivity extends Activity {
     screens.put("admin-reviews", AdminScreen::reviews);
     screens.put("admin-notices", AdminNoticesScreen::settings);
     screens.put("admin-reports", ReportsScreen::show);
+    screens.put("admin-report-thread", AdminReportThreadScreen::show);
+    screens.put("admin-appeals", AdminAppealsScreen::show);
     screens.put("feedback", FeedbackScreen::list);
     screens.put("feedback-detail", FeedbackScreen::detail);
     screens.put("admin-feedback", FeedbackScreen::list);
@@ -287,16 +321,29 @@ public class MainActivity extends Activity {
       showAuth(false);
       return;
     }
+    if ("appeal_only".equals(repo.sessionMode())) {
+      showAppealOnly();
+      return;
+    }
     if (tab.equals("admin") && !repo.currentUser().isAdmin()) tab = "dining";
     if (tab.equals("dashboard") && !repo.currentUser().role().equals("superadmin")) tab = "dining";
     consumeIncoming();
-    if (PrivateMessageReminders.configured(this, repo.currentUser().id())) {
-      PrivateMessageReminders.ensureScheduled(this);
-    }
+    NotificationEventReminders.configure(this, repo.currentUser().id());
+    NotificationEventReminders.ensureScheduled(this);
+    NotificationEventReminders.initialize(this,repo,inboxWorker);
     loginNotices.check(repo,inboxWorker);
     render();
     updateCheckPending = true;
     checkAppRelease(false);
+  }
+
+  private void showAppealOnly() {
+    tab = "profile";
+    if (stacks.get(tab) == null || stacks.get(tab).isEmpty()) stacks.get(tab).add(new Route("profile", ""));
+    shell(false);
+    header.removeAllViews();
+    content.removeAllViews();
+    AppealOnlyScreen.show(this, content);
   }
 
   /** 应用内更新检查：开屏自动一次，个人页可手动再次触发。 */
@@ -323,7 +370,7 @@ public class MainActivity extends Activity {
           }
           AppRelease info = release[0];
           if (info == null || info.versionCode() <= cn.edu.bjtu.foodtime.BuildConfig.VERSION_CODE) {
-            if (manual) message("已是最新版本 v" + cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME);
+            if (manual) message("已是最新版本 " + cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.display(cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME));
             if (!manual) maybeReleaseUpdateGate();
             return;
           }
@@ -343,11 +390,11 @@ public class MainActivity extends Activity {
 
   private void showUpdateDialog(AppRelease info) {
     if (isFinishing() || isDestroyed()) { maybeReleaseUpdateGate(); return; }
-    boolean forced = info.minVersionCode() > cn.edu.bjtu.foodtime.BuildConfig.VERSION_CODE;
+    boolean forced = cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.forced(info,cn.edu.bjtu.foodtime.BuildConfig.VERSION_CODE);
     String notes = info.notes() == null || info.notes().isBlank()
         ? "建议更新到最新版本，获得最新功能与修复。" : info.notes();
     AlertDialog dialog = new AlertDialog.Builder(this)
-        .setTitle("发现新版本 v" + info.versionName())
+        .setTitle("发现新版本 " + cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.display(info.versionName()))
         .setMessage(notes)
         .setCancelable(!forced)
         .setPositiveButton("立即更新", (prompt, which) -> startUpdate(info, forced))
@@ -373,7 +420,7 @@ public class MainActivity extends Activity {
     detail.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
     body.addView(label); Ui.gap(body, 8); body.addView(bar); Ui.gap(body, 6); body.addView(detail);
     AlertDialog.Builder builder = new AlertDialog.Builder(this)
-        .setTitle("正在更新到 v" + info.versionName())
+        .setTitle("正在更新到 " + cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.display(info.versionName()))
         .setView(body)
         .setCancelable(!forced);
     if (!forced) builder.setNegativeButton("取消", (progress, which) -> downloader.cancel());
@@ -497,6 +544,7 @@ public class MainActivity extends Activity {
   public void back() {
     if(writeInFlight) {message("正在提交，请稍候");return;}
     if(passwordRecovery!=null){passwordRecovery.back();return;}
+    if(route().kind().equals("community-edit")&&PostEditScreen.confirmExit(this))return;
     if(route().kind().equals("avatar-crop")){
       discardPhoto(route().id());
       for(String key:List.of("cropZoom","cropX","cropY","cropRotation"))drafts.remove(draftKey(key));
@@ -540,6 +588,7 @@ public class MainActivity extends Activity {
     state.putString("tab", tab);
     state.putString("incomingPost", incomingPost);
     state.putBoolean("incomingInbox", incomingInbox);
+    if(incomingNotification!=null){state.putString("notificationActor",incomingNotification.actor());state.putString("notificationCategory",incomingNotification.category());state.putString("notificationRefType",incomingNotification.refType());state.putString("notificationRefId",incomingNotification.refId());}
     for (String key : stacks.keySet()) {
       ArrayList<String> saved = new ArrayList<>();
       for (Route route : stacks.get(key)) saved.add(route.kind() + "|" + route.id());
@@ -552,6 +601,9 @@ public class MainActivity extends Activity {
   /** Force the current page to refresh, used by the community pull gesture/refresh control. */
   public void refreshCurrent() { if(!navigationLoading) render(true); }
 
+  private final java.util.Set<Route> freshContentRequired=new java.util.HashSet<>();
+  /** A successful write can require a page's next paint to wait for fresh server data. */
+  void requireFreshContent(String kind,String id){freshContentRequired.add(new Route(kind,id));}
   private static final long COMMUNITY_FRESH_MS = 60 * 1000L;
   private final Map<String,Long> communityLoadedAt=new HashMap<>();
   private String communityLoadedFor="";
@@ -593,7 +645,7 @@ public class MainActivity extends Activity {
       return;
     }
     boolean catalog=LoadingScreen.catalog(target),dashboard=target.kind().equals("admin-dashboard");
-    boolean immediate=isImmediate(target);
+    boolean immediate=isImmediate(target)&&!freshContentRequired.contains(target);
     boolean retain=(catalog||dashboard&&repo.adminDashboard()!=null)&&contentReady&&displayedLocation.equals(location())&&displayedActor.equals(actor);
     navigationLoading=true;
     LinearLayout[] bodyHolder={null};
@@ -642,6 +694,7 @@ public class MainActivity extends Activity {
           if(immediate) {pageFailed=true;refreshPage();message(safeMessage(failure));return;}
           contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=bodyHolder[0];content.addView(bodyHolder[0],0);LoadingScreen.failure(this,bodyHolder[0],dashboard?"刷新失败，显示上次数据":"加载失败");}else if(retain){content.removeAllViews();LoadingScreen.failure(this,catalog?LoadingScreen.begin(this,content,target):LoadingScreen.general(this,content,target),dashboard?failure.getMessage():"加载失败");}else LoadingScreen.failure(this,bodyHolder[0],dashboard&&failure instanceof RepositoryException?failure.getMessage():"加载失败");return;
         }
+        freshContentRequired.remove(target);
         if(community) {
           if(!communityLoadedFor.equals(actor()))communityLoadedAt.clear();
           communityLoadedFor=actor();
@@ -699,7 +752,7 @@ public class MainActivity extends Activity {
       case "upload-photo","review" -> ContentRequest.Query.DISH_TARGET;
       case "community" -> ContentRequest.Query.COMMUNITY_FEED;
       case "community-following" -> ContentRequest.Query.COMMUNITY_FOLLOWING;
-      case "community-detail" -> ContentRequest.Query.COMMUNITY_POST;
+      case "community-detail", "community-edit" -> ContentRequest.Query.COMMUNITY_POST;
       case "community-mine" -> ContentRequest.Query.MY_COMMUNITY_POSTS;
       case "community-favorites" -> ContentRequest.Query.MY_COMMUNITY_FAVORITES;
       case "inbox" -> switch(drafts.getString(draftKey("tab"),"notice")) {
@@ -730,7 +783,7 @@ public class MainActivity extends Activity {
     return q==null?null:new ContentRequest(q,route.id());
   }
 
-  void redraw() { rememberScroll();renderContent(); }
+  void redraw() { rememberScroll();if("appeal_only".equals(repo.sessionMode()))showAppealOnly();else renderContent(); }
 
   private void renderContent() {
     contentRefresh=null;
@@ -827,6 +880,7 @@ public class MainActivity extends Activity {
       case "community-search" -> "搜索食记";
       case "community-author" -> "作者主页";
       case "community-create" -> "写一页美食手账";
+      case "community-edit" -> "修改食记";
       case "community-mine" -> "我的食记";
       case "community-favorites" -> "我的收藏";
       case "inbox" -> "通知信箱";
@@ -838,6 +892,13 @@ public class MainActivity extends Activity {
       case "submit-dish" -> "投稿新菜品";
       case "submit-stall" -> "投稿新档口";
       case "mine-submissions" -> "我的提交";
+      case "correction" -> "目录纠错";
+      case "my-corrections" -> "我的纠错";
+      case "admin-corrections" -> "目录纠错审核";
+      case "history" -> "浏览历史";
+      case "report-receipts" -> "举报与处理决定";
+      case "report-followups" -> "追问记录";
+      case "notification-settings" -> "提醒设置";
       case "following" -> "我的关注";
       case "user-search" -> "搜索用户";
       case "followers" -> "关注我的";
@@ -852,6 +913,7 @@ public class MainActivity extends Activity {
       case "mine-reviews" -> "我的评论";
       case "mine-review-replies" -> "我的回复";
       case "detail" -> "菜品详情";
+      case "price-history" -> "价格变化";
       case "dish-search" -> "跨食堂搜菜";
       case "favorite-dishes" -> "想吃清单";
       case "admin-audit" -> "审核投稿";
@@ -863,6 +925,8 @@ public class MainActivity extends Activity {
       case "admin-logs" -> "审核日志";
       case "admin-notices" -> "公告管理";
       case "admin-reports" -> "举报处理";
+      case "admin-report-thread" -> "举报追问";
+      case "admin-appeals" -> "申诉复核";
       case "feedback", "admin-feedback" -> "建议与反馈";
       case "feedback-detail", "admin-feedback-detail" -> "反馈详情";
       default -> "正在加载";
@@ -881,14 +945,19 @@ public class MainActivity extends Activity {
     LinearLayout bar = Ui.row(this);
     header.addView(bar, new LinearLayout.LayoutParams(-1, -2));
     TextView back = Ui.button(this, "←", false, this::back);
+    back.setTag("app-header-back");
     back.setContentDescription("返回上一级");
     if (stacks.get(tab).size() > 1)
       bar.addView(back, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
     TextView brand = Ui.title(this, "北交干饭吧", 22);
+    brand.setTag("app-header-brand");
     brand.setSingleLine(true);
     brand.setEllipsize(android.text.TextUtils.TruncateAt.END);
     brand.setGravity(Gravity.CENTER_VERTICAL);
-    bar.addView(brand, new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1));
+    var brandLayout = new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1);
+    brandLayout.leftMargin = Ui.dp(this, 8);
+    brandLayout.rightMargin = Ui.dp(this, 8);
+    bar.addView(brand, brandLayout);
     if (communityPager != null) {
       bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_search,
           "搜索食记", () -> go("community-search", route().kind().equals("community-following") ? "following" : "")),
@@ -1021,6 +1090,9 @@ public class MainActivity extends Activity {
 
   private void addTab(LinearLayout nav, String label, String key) {
     TextView b = Ui.button(this, label, false, () -> selectTab(key));
+    b.setTag("main-nav:" + key);
+    b.setSelected(tab.equals(key));
+    b.setPadding(Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8));
     b.setTextColor(tab.equals(key) ? Design.RED : Design.MUTED);
     b.setBackground(Ui.ripple(this, tab.equals(key) ? Design.ALT : Design.PAPER, 0, 0));
     b.setContentDescription(label + (tab.equals(key) ? "，已选中" : ""));
@@ -1059,14 +1131,23 @@ public class MainActivity extends Activity {
   }
 
   public void pickImage(String key) {
+    if(repo.currentUser()==null||writeInFlight)return;
     pickingKey = key;
-    startActivityForResult(imagePickerIntent(), 101);
+    if(!ImagePicker.start(this,ImagePicker.intent(this,false,1,null),
+        ImagePicker.fallback(false,null),101)) {
+      pickingKey=null;
+      message("无法打开图片选择器，请从文件选择");
+    }
   }
   public void pickAvatar(String key){
     if(repo.currentUser()==null||writeInFlight)return;
     pickingKey=key;avatarPickingActor=repo.currentUser().id();
-    android.content.Intent intent=imagePickerIntent();intent.putExtra(android.content.Intent.EXTRA_MIME_TYPES,new String[]{"image/jpeg","image/png"});
-    startActivityForResult(intent,103);
+    String[] mime={"image/jpeg","image/png"};
+    if(!ImagePicker.start(this,ImagePicker.intent(this,false,1,mime),
+        ImagePicker.fallback(false,mime),103)) {
+      pickingKey=null;avatarPickingActor="";
+      message("无法打开图片选择器，请从文件选择");
+    }
   }
   void finishAvatarCrop(View trigger,TextView error,String target,Supplier<String> encode){
     startOperation(trigger,error,"裁剪头像",target,encode,path->{
@@ -1076,8 +1157,14 @@ public class MainActivity extends Activity {
 
   public void pickCommunityPhotos() {
     pickingKey=draftKey("photos");
-    android.content.Intent intent=imagePickerIntent();intent.putExtra(android.content.Intent.EXTRA_ALLOW_MULTIPLE,true);
-    startActivityForResult(intent,102);
+    int count=0;
+    for(int i=0;i<9;i++)if(!drafts.getString(draftKey("photo:"+i+":image"),"").isBlank())count++;
+    int remaining=Math.max(1,9-count);
+    if(!ImagePicker.start(this,ImagePicker.intent(this,true,remaining,null),
+        ImagePicker.fallback(true,null),102)) {
+      pickingKey=null;
+      message("无法打开图片选择器，请从文件选择");
+    }
   }
   void discardPhoto(String path){worker.execute(()->PhotoImport.discard(this,path));}
   private void applyCommunityPhotos(String prefix,String paths){
@@ -1089,11 +1176,8 @@ public class MainActivity extends Activity {
   }
 
   static android.content.Intent imagePickerIntent() {
-    android.content.Intent intent =
-        new android.content.Intent(android.content.Intent.ACTION_OPEN_DOCUMENT);
-    intent.setType("image/*");
-    intent.addCategory(android.content.Intent.CATEGORY_OPENABLE);
-    return intent;
+    // Kept for existing instrumentation harnesses; production uses ImagePicker's album-first adapter.
+    return ImagePicker.fallback(false,null);
   }
 
   @Override
@@ -1102,9 +1186,9 @@ public class MainActivity extends Activity {
     if(feedbackDocuments.result(request,result,data))return;
     if(request==103){
       String target=pickingKey,actor=avatarPickingActor;pickingKey=null;avatarPickingActor="";
-      if(result!=RESULT_OK||data==null||data.getData()==null||target==null)return;
+      android.net.Uri selected=result==RESULT_OK?ImagePicker.firstUri(data):null;
+      if(selected==null||target==null)return;
       if(repo.currentUser()==null||!repo.currentUser().id().equals(actor)||!route().kind().equals("profile-edit")||!target.equals(draftKey("image"))){message("登录状态或页面已变化，请重新选择头像");return;}
-      android.net.Uri selected=data.getData();
       startOperation(null,null,"导入头像",target,()->PhotoImport.prepareAvatar(this,selected),path->{
         if(repo.currentUser()==null||!repo.currentUser().id().equals(actor)){discardPhoto(path);message("登录状态已变化，请重新选择头像");return;}
         drafts.putString("avatarCropTarget",target);go("avatar-crop",path);
@@ -1126,14 +1210,14 @@ public class MainActivity extends Activity {
     }
     if (request == 101
         && result == RESULT_OK
-        && data != null
-        && data.getData() != null
         && pickingKey != null) {
       String selectedKey=pickingKey;
-      android.net.Uri selected=data.getData();
+      android.net.Uri selected=ImagePicker.firstUri(data);
+      if(selected==null)return;
       startOperation(null,null,"导入图片",selectedKey,() -> PhotoImport.prepare(this,selected),path -> {
         rememberScroll();String previous=drafts.getString(selectedKey,"");drafts.putString(selectedKey,path);
-        worker.execute(() -> PhotoImport.discard(this,previous));renderContent();
+        worker.execute(() -> PhotoImport.discard(this,previous));
+        if ("appeal_only".equals(repo.sessionMode())) showAppealOnly(); else renderContent();
       });
     }
   }
@@ -1162,6 +1246,11 @@ public class MainActivity extends Activity {
   }
   void recordPostView(String key,Runnable work,Runnable success) {
     read(statisticsWorker,key,null,new TextView(this),work,success,() -> {});
+  }
+  /** Best-effort history write; never blocks or failures the detail screen. */
+  void recordVisit(String kind,String targetId) {
+    read(statisticsWorker,"history-visit:"+kind+":"+targetId,null,new TextView(this),
+        () -> repo.recordHistory(kind,targetId),() -> {},() -> {});
   }
   private void read(Executor executor,String key,View trigger,TextView error,Runnable work,Runnable success,Runnable finished) {
     if(trigger!=null) trigger.setEnabled(false);
@@ -1231,7 +1320,7 @@ public class MainActivity extends Activity {
     }
     if(task.action().equals("注册")) {showAuth(false);message("注册成功，请登录");return;}
     if(repo.currentUser()==null) {signedOut();if(task.origin().kind().equals("account-lifecycle")&&task.action().equals("注销账号"))message("账号已注销，两个邮箱冷却 1 小时后可重新使用；新账号不继承旧数据。");return;}
-    if(task.origin().kind().equals("account-lifecycle")&&task.action().equals("解绑学校邮箱")){clearDraft(task.origin());message("学校邮箱已解绑，账号保留并恢复访客身份；学校邮箱冷却 1 小时后可重新绑定。");}
+    if(task.origin().kind().equals("account-lifecycle")&&task.action().equals("解绑学校邮箱")){clearDraft(task.origin());message("学校邮箱已解绑，账号保留；学校邮箱冷却 1 小时后可重新绑定。");}
     if(task.action().equals("导入头像")){
       drafts.putString("avatarCropTarget",task.imageDraft());go("avatar-crop",outcome.value());return;
     }
@@ -1240,6 +1329,7 @@ public class MainActivity extends Activity {
       CommunityCommentComposer.completeSubmission(drafts, prefix);
       message("已提交审核，通过前仅自己可见");
     }
+    if(task.origin().kind().equals("community-edit")&&task.imageDraft()==null){requireFreshContent("community-detail",task.origin().id());requireFreshContent("community","");}
     if(task.action().equals("发布回复")) {EmbeddedReviewReplies.completeSubmission(this);message("回复已提交，审核通过后公开");}
     if(task.imageDraft()!=null && task.imageDraft().endsWith(":photos")) {applyCommunityPhotos(task.imageDraft(),outcome.value());}
     else if(task.imageDraft()!=null) {
@@ -1247,7 +1337,7 @@ public class MainActivity extends Activity {
       worker.execute(() -> PhotoImport.discard(this,previous));
       if(task.action().equals("裁剪头像")&&route().equals(task.origin())){back();return;}
     }
-    else if(Set.of("review","upload-photo","submit-dish","submit-stall","community-create","admin-new","admin-edit").contains(task.origin().kind())) {
+    else if(Set.of("review","upload-photo","submit-dish","submit-stall","community-create","community-edit","admin-new","admin-edit").contains(task.origin().kind())) {
       clearDraft(task.origin());if(route().equals(task.origin())&&stacks.get(tab).size()>1) stacks.get(tab).remove(stacks.get(tab).size()-1);
     }
     openApp();
@@ -1281,10 +1371,12 @@ public class MainActivity extends Activity {
   private void clearNavigation() {
     if(accountActionConfirmation!=null){accountActionConfirmation.dismiss();accountActionConfirmation=null;}
     feedbackDocuments.reset();
+    notificationPermission.clear();
     PrivateMessageReminders.disable(this);
+    NotificationEventReminders.disable(this);
     for(var stack:stacks.values())for(Route item:stack)if(item.kind().equals("avatar-crop"))discardPhoto(item.id());
     pickingKey=null;avatarPickingActor="";
-    cancelNavigation();contentReady=false;displayedActor="";communityLoadedAt.clear();communityLoadedFor="";
+    cancelNavigation();contentReady=false;displayedActor="";communityLoadedAt.clear();communityLoadedFor="";freshContentRequired.clear();
     if(loginNoticeDialog!=null){loginNoticeDialog.dialog.dismiss();loginNoticeDialog=null;}
     loginNotices.reset();noticeErrorShown="";
     for(String key:drafts.keySet()) if(key.endsWith(":image")) {
@@ -1313,6 +1405,7 @@ public class MainActivity extends Activity {
     noticeUi.post(this::drainNotices);
     if(contentReady&&repo!=null&&repo.currentUser()!=null&&loginNotices!=null)loginNotices.foreground(repo,inboxWorker);
     syncPrivateMessageUnread();
+    NotificationSettingsScreen.refreshPermissionState(this);
   }
 
   private void syncPrivateMessageUnread() {
@@ -1327,57 +1420,15 @@ public class MainActivity extends Activity {
       ProfileScreen.updateUnreadBadge(this);
       InboxScreen.updateDirectBadge(this);
       if (chat && repo.directUnreadCount() > 0) refreshContent();
-      else PrivateMessageReminders.update(this, user.id(), repo.directUnreadCount());
     }, () -> {});
   }
 
-  boolean privateMessageRemindersConfigured() {
-    var user = repo.currentUser();
-    return user != null && PrivateMessageReminders.configured(this, user.id());
-  }
-
-  void togglePrivateMessageReminders() {
-    if (privateMessageRemindersConfigured()) {
-      PrivateMessageReminders.disable(this);
-      updateReminderToggle();
-      return;
-    }
-    if (android.os.Build.VERSION.SDK_INT >= 33
-        && checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-      requestPermissions(new String[]{android.Manifest.permission.POST_NOTIFICATIONS}, REQUEST_PRIVATE_MESSAGE_NOTIFICATION);
-      return;
-    }
-    enablePrivateMessageReminders();
-  }
-
-  @Override public void onRequestPermissionsResult(int code, String[] permissions, int[] grantResults) {
-    super.onRequestPermissionsResult(code, permissions, grantResults);
-    if (code == REQUEST_PRIVATE_MESSAGE_NOTIFICATION) {
-      if (grantResults.length > 0 && grantResults[0] == android.content.pm.PackageManager.PERMISSION_GRANTED) {
-        enablePrivateMessageReminders();
-      } else {
-        message("系统未允许通知，可在系统设置中开启。");
-      }
-    }
-  }
-
-  private void enablePrivateMessageReminders() {
-    var user = repo.currentUser();
-    if (user == null) return;
-    if (PrivateMessageReminders.enable(this, user.id(), repo.directUnreadCount())) {
-      updateReminderToggle();
-    } else {
-      message("未能开启私信提醒，请检查系统通知设置。");
-    }
-  }
-
-  private void updateReminderToggle() {
-    TextView control = root == null ? null : root.findViewWithTag("private-message-reminder-toggle");
-    if (control != null) {
-      control.setText(privateMessageRemindersConfigured() ? "关闭私信提醒" : "开启私信提醒");
-    }
+  void requestNotificationPermission(Runnable allowed) {notificationPermission.request(this,allowed);}
+  @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] grantResults) {
+    super.onRequestPermissionsResult(code,permissions,grantResults);
+    if(code==NotificationPermission.REQUEST_CODE)notificationPermission.result(this,grantResults);
   }
   @Override protected void onPause() { super.onPause();foreground=false;if(communityPager!=null)communityPager.cancelSwipe();resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW||level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL||level>=android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND)Ui.trimImages();}
-  @Override protected void onDestroy() {if(accountActionConfirmation!=null)accountActionConfirmation.dismiss();if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();if(feedbackDocuments!=null)feedbackDocuments.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override protected void onDestroy() {notificationPermission.clear();if(accountActionConfirmation!=null)accountActionConfirmation.dismiss();if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();if(feedbackDocuments!=null)feedbackDocuments.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }

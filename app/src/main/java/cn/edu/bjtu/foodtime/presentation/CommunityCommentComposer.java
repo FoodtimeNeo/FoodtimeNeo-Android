@@ -26,6 +26,7 @@ import cn.edu.bjtu.foodtime.domain.model.Models.CommunityComment;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityPost;
 import cn.edu.bjtu.foodtime.domain.validation.Validation;
 import java.util.UUID;
+import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /** Drafts are scoped to the post or exact reply target, independent of the sheet lifecycle. */
@@ -36,13 +37,16 @@ final class CommunityCommentComposer {
   private final View page;
   private final CommunityPost post;
   private final Runnable onChanged;
+  private final BiConsumer<String, String> onSubmitted;
   private Dialog current;
 
-  CommunityCommentComposer(MainActivity activity, View page, CommunityPost post, Runnable onChanged) {
+  CommunityCommentComposer(MainActivity activity, View page, CommunityPost post, Runnable onChanged,
+      BiConsumer<String, String> onSubmitted) {
     this.activity = activity;
     this.page = page;
     this.post = post;
     this.onChanged = onChanged;
+    this.onSubmitted = onSubmitted;
     page.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
       @Override public void onViewAttachedToWindow(View view) {}
       @Override public void onViewDetachedFromWindow(View view) {
@@ -152,7 +156,7 @@ final class CommunityCommentComposer {
           () -> activity.repo.submitCommunityComment(post.id(), body, rootId, targetId, request), created -> {
             completeSubmission(activity.drafts, activity.draftKey(""));
             dialog.dismiss();
-            onChanged.run();
+            onSubmitted.accept(rootId, body);
             activity.message("已提交审核，通过前仅自己可见");
             if (created != null && !created.isBlank()) watchApproval(rootId, created, 0);
           });

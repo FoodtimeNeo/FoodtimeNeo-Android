@@ -20,7 +20,108 @@ public interface CatalogRepository {
   default DishSearchPage searchDishes(String query, int page) {
     throw new UnsupportedOperationException();
   }
+
+  default DishSearchPage searchDishes(String query, int page, cn.edu.bjtu.foodtime.domain.model.Models.DishSearchFilters filters) {
+    return searchDishes(query, page);
+  }
   default DishSearchPage favoriteDishes(int page) { throw new UnsupportedOperationException(); }
+
+  default DishSearchPage favoriteDishes(int page, String groupId, boolean unfiled) {
+    return favoriteDishes(page);
+  }
+
+  default java.util.List<cn.edu.bjtu.foodtime.domain.model.Models.FavoriteGroup> favoriteGroups(String kind) {
+    throw new UnsupportedOperationException();
+  }
+
+  default cn.edu.bjtu.foodtime.domain.model.Models.FavoriteGroup createFavoriteGroup(String kind, String name) {
+    throw new UnsupportedOperationException();
+  }
+
+  default cn.edu.bjtu.foodtime.domain.model.Models.FavoriteGroup updateFavoriteGroup(
+      String id, String name, Integer sortOrder, Long expectedRevision) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void deleteFavoriteGroup(String id) { throw new UnsupportedOperationException(); }
+
+  default java.util.List<String> favoriteGroupMembership(String kind, String targetId) {
+    throw new UnsupportedOperationException();
+  }
+
+  default java.util.List<String> addFavoriteGroupMember(String groupId, String targetId) {
+    throw new UnsupportedOperationException();
+  }
+
+  default java.util.List<String> removeFavoriteGroupMember(String groupId, String targetId) {
+    throw new UnsupportedOperationException();
+  }
+
+  default CatalogCorrectionPage myCorrections(int page) {
+    throw new UnsupportedOperationException();
+  }
+
+  default CatalogCorrection submitCorrection(CorrectionProposal proposal) {
+    throw new UnsupportedOperationException();
+  }
+
+  default CatalogCorrectionAdminPage adminCorrections(String status, int page) {
+    throw new UnsupportedOperationException();
+  }
+
+  default CatalogCorrectionAdmin decideCorrection(String id, String decision, String note, long expectedRevision) {
+    throw new UnsupportedOperationException();
+  }
+
+  default HistorySettings historySettings() {
+    throw new UnsupportedOperationException();
+  }
+
+  default HistorySettings refreshHistorySettings() {
+    return historySettings();
+  }
+
+  default HistorySettings updateHistorySettings(boolean enabled, long expectedRevision) {
+    throw new UnsupportedOperationException();
+  }
+
+  default HistoryPage history(String kind, int page) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void recordHistory(String kind, String targetId) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void deleteHistory(String kind, String targetId) {
+    throw new UnsupportedOperationException();
+  }
+
+  default void clearHistory(String kind) {
+    throw new UnsupportedOperationException();
+  }
+
+  default MyReportPage myReports(int page) {
+    throw new UnsupportedOperationException();
+  }
+
+  default ReportFollowUpPage reportFollowUps(String reportId, int page) {
+    throw new UnsupportedOperationException();
+  }
+
+  default ReportFollowUp addReportFollowUp(String reportId, String content, String requestId) {
+    return addReportFollowUp(reportId, content, requestId, List.of());
+  }
+
+  default ReportFollowUp addReportFollowUp(String reportId, String content, String requestId,
+                                            List<String> evidenceUrls) {
+    throw new UnsupportedOperationException();
+  }
+
+  default String uploadEvidence(String filePath) {
+    throw new UnsupportedOperationException();
+  }
+
   default boolean dishFavorite(String dishId) { throw new UnsupportedOperationException(); }
   default boolean setDishFavorite(String dishId, boolean saved) { throw new UnsupportedOperationException(); }
 

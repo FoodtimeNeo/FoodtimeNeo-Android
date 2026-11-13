@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /** Screen-facing contract. Network implementations should load/cache off the main thread. */
-public interface FoodtimeRepository extends AuthRepository, CatalogRepository, VenueRepository {
+public interface FoodtimeRepository extends AuthRepository, CatalogRepository, VenueRepository, ReportManagementRepository, NotificationRepository, AppealRepository, PriceHistoryRepository, CommunityPinRepository, PostEditRepository {
   /** Run on a worker. Read methods below return immutable cached snapshots. */
   default void restoreSession() {}
   default void refresh(ContentRequest request) {}
@@ -85,6 +85,7 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default CommunityAuditPage communityAudit(){return CommunityAuditPage.empty();}
   default CommunityAuditDetail communityAuditDetail(){return null;}
   default void moderateCommunity(String type,String id,String action,String reason){throw new UnsupportedOperationException();}
+  default void moderateCommunity(String type,String id,String action,String reason,long revision){throw new UnsupportedOperationException();}
   default void removeCommunityAsAdmin(String type,String id,String reason){throw new UnsupportedOperationException();}
   default CommunityAction toggleCommunityLike(String targetType, String targetId) {
     throw new UnsupportedOperationException("此数据源不支持点赞");
@@ -199,6 +200,7 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
 
   AdminEntity entity(String table, String id);
 
+  default void editEntity(String type,String id,String parent,String name,String description,String price,String image,boolean active,String unit){editEntity(type,id,parent,name,description,price,image,active);}
   void editEntity(
       String table,
       String id,

@@ -31,7 +31,7 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 
 `127.0.0.1` 指向设备自身，通过ADB反向映射访问电脑8080服务。若电脑Backend监听18080，可使用 `adb reverse tcp:8080 tcp:18080`，应用地址仍保持设备端8080。多设备时为每条ADB命令指定同一 `-s <设备序列号>`。
 
-`FOODTIME_API_BASE_URL` 应包含 `/api/v1/`。明文HTTP只放行指定服务器和127.0.0.1，其他服务使用HTTPS；只改构建地址不会自动扩大明文白名单。Cookie绑定服务来源，切换来源会放弃旧会话；应用不预填线上凭据。
+`FOODTIME_API_BASE_URL` 应包含 `/api/v1/`。Release 默认禁止明文，`verifyReleaseBaseUrl` 会在地址不是 HTTPS（回环除外）时使 `assembleRelease`/`bundleRelease` 失败；debug 仅放行 `127.0.0.1`、`10.0.2.2` 回环。只改构建地址不会自动扩大明文白名单。Cookie绑定服务来源，切换来源会放弃旧会话；应用不预填线上凭据。
 
 Debug和Release默认都关闭社区原型并使用真实接口。社区联调后端应包含V19–V23迁移；用FOODTIME_API_BASE_URL选择本机服务。
 
@@ -67,7 +67,7 @@ adb shell am instrument -w cn.edu.bjtu.foodtime.ipcheck.test/cn.edu.bjtu.foodtim
 ## GitHub CI与Release
 
 - [CI](../../.github/workflows/ci.yml) 在main/dev的PR及push时运行架构、JVM测试、Lint、Debug与测试包构建；构建测试包不等于运行设备测试。PR进入main时要求来源为dev。
-- [CD](../../.github/workflows/cd.yml) 在 main 合并提交的 Android CI 成功后运行，检出通过 CI 的同一 SHA，再执行架构、JVM 测试、Release Lint 和签名构建。支持 PR 合并与明确授权的本地合并推送，跳过过期、非合并和带 `skip-release` 的发布提交。支持在 Actions 选择 main 手动执行；dev 手动运行仅生成验收制品。
+- [CD](../../.github/workflows/cd.yml) 在 main 合并提交的 Android CI 成功后运行，检出通过 CI 的同一 SHA，再执行架构、JVM 测试、Release Lint 和签名构建。支持 PR 合并与明确授权的本地合并推送，跳过过期、非合并和带 `skip-release` 的发布提交。支持在 Actions 选择 main 手动执行，且再次核对该准确提交的 main CI 成功；不再从 dev 构建固定签名制品。
 - 产物为真正的release变体 `app-release.apk`，使用固定发布证书签名，并以 `apksigner verify` 校验。同步生成 `app-release.apk.sha256`；两份文件上传Actions artifact（保留30天）及GitHub Release。Release先以草稿创建，附件完整上传后公开；失败重跑可覆盖同一次运行的附件，不重复创建标签。
 - Release需要 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD` 四个Actions Secrets，缺少任何一项会停止发布。本文不读取或保存它们的实际值。
 - 自动标签为 `android-main-<运行编号>-<短SHA>`。仅同步dev或推送文档功能分支不会触发这条main发布流程；实际发布结果以Actions与Release为准，不能从YAML存在推断已经发布成功。
@@ -95,9 +95,9 @@ CD通过Gradle环境变量传递签名参数，临时密钥只写入runner的临
 
 通过Instrumentation运行参数userAccount、adminAccount、testPassword传入本地测试账号；接口Runner还需要superadminAccount。账号凭据由调用方提供。完整写入测试创建临时帖子并以带原因软下架结束，重复运行遵守正常上传/提交限制。当前结构、接口说明及后端验收见Backend的docs/community-delivery.md。
 
-正式包的网络安全配置禁止全部明文连接；仅 debug 资源覆盖允许 `127.0.0.1`。`IpConnectionRunner` 同时验证服务器 IP 的 HTTP 被禁止、调试回环例外和真实 HTTPS API。修复版保持版本名1.0.1，versionCode递增至5；正式下载制品须由原发布证书签名后更新。
+正式包的网络安全配置禁止全部明文连接；仅 debug 资源覆盖允许 `127.0.0.1`／`10.0.2.2`，并由 release base URL 门禁再次校验。`IpConnectionRunner` 同时验证服务器 IP 的 HTTP 被禁止、调试回环例外和真实 HTTPS API。修复版保持版本名1.0.1，versionCode递增至5；正式下载制品须由原发布证书签名后更新。
 
-在dev分支手动运行Android CD，仅生成同签名的验收APK与校验文件，不创建GitHub Release、不合并main；main及已合并发布PR仍按原流程发布。签名密钥只由GitHub Actions Secrets注入，不需要导出到开发机。
+验收阶段使用独立后缀的 Debug APK；固定签名制品只能从 CI 通过的 main 合并提交构建。签名密钥只由 GitHub Actions Secrets 注入，不导出到开发机。
 
 ## 发布打包与应用内更新
 
@@ -115,7 +115,7 @@ CD通过Gradle环境变量传递签名参数，临时密钥只写入runner的临
 4. `apksigner verify --print-certs` 校验签名，`aapt dump badging` 读取 versionName
 5. 发布 GitHub Release `v{versionName}`，附件为 `app-release.apk` 与 `.sha256`
 
-也可在 Actions 页面手动 `workflow_dispatch` 触发（main/dev 均可，dev 只上传 Artifact 不发布 Release）。
+也可在 Actions 页面手动 `workflow_dispatch` 触发（仅 main，并核对该准确提交的成功 CI）。
 
 ### 本地构建正式包
 
@@ -153,3 +153,9 @@ App 启动后自动检查一次；「我的」页「检查更新」可手动触�
 4. 更新 Web 的 `src/constants/download.js`（版本、大小、更新时间）
 5. 更新后端 `APP_RELEASE_*` 环境变量并重启
 
+
+## α／β 测试版
+
+`versionName` 与标签保留 `2.0.0α`／`v2.0.0α` 等展示形式，版本提取由 `scripts/release/release_version.py` 校验，CI 同时测试 α、β、无后缀及非法输入。npm／Maven 对应内部形式 `2.0.0-alpha`。Android 升级仅比较递增的整数 versionCode，测试版始终允许稍后更新。
+
+CD 明确标注 prerelease，不取代 GitHub latest 正式版；安装包、清单与增量包仍对应同一通过 CI 的 main SHA。清单记录 channel、prerelease 和 sourceCommit，标签路径按 UTF-8 编码。v2.0.0α 的公开更新配置见 [发布说明](../releases/release-2.0.0-alpha.md)，线上是否提示由部署配置决定。
