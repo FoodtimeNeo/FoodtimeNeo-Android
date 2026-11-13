@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /** Screen-facing contract. Network implementations should load/cache off the main thread. */
-public interface FoodtimeRepository extends AuthRepository, CatalogRepository, VenueRepository, ReportManagementRepository, NotificationRepository, AppealRepository {
+public interface FoodtimeRepository extends AuthRepository, CatalogRepository, VenueRepository, ReportManagementRepository, NotificationRepository, AppealRepository, PriceHistoryRepository {
   /** Run on a worker. Read methods below return immutable cached snapshots. */
   default void restoreSession() {}
   default void refresh(ContentRequest request) {}
@@ -199,6 +199,7 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
 
   AdminEntity entity(String table, String id);
 
+  default void editEntity(String type,String id,String parent,String name,String description,String price,String image,boolean active,String unit){editEntity(type,id,parent,name,description,price,image,active);}
   void editEntity(
       String table,
       String id,

@@ -499,7 +499,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     if(!stalls.containsKey(id)) throw missing("档口不存在或已停用");
   }
   private void fetchDishes(String id) {
-    var items=list("stalls/"+id+"/dishes",j -> new Dish(text(j,"id"),id,text(j,"name"),decimal(j,"price"),"",true,j.optLong("revision",0)));
+    var items=list("stalls/"+id+"/dishes",j -> new Dish(text(j,"id"),id,text(j,"name"),decimal(j,"price"),"",true,j.optLong("revision",0),text(j,"priceUnit")));
     dishes.entrySet().removeIf(e -> e.getValue().stallId().equals(id));
     // The stall page only needs the catalog rows. Loading every dish gallery here turns one
     // navigation into an N+1 request burst, so media stays lazy until DISH_DETAIL is opened.
@@ -597,7 +597,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     JSONObject body=json("targetType",proposal.targetType(),"targetId",proposal.targetId(),
         "baseRevision",proposal.baseRevision(),"changedFields",array(proposal.changedFields()),
         "name",name?proposal.name():null,"description",description?proposal.description():null,
-        "price",price?proposal.price():null,"reason",proposal.reason(),
+        "price",price?proposal.price():null,"priceUnit",proposal.priceUnit(),"reason",proposal.reason(),
         "evidenceUrls",array(proposal.evidenceUrls()),"idempotencyKey",proposal.idempotencyKey());
     return correction(call("POST","users/me/catalog-corrections",body));
   }
@@ -795,7 +795,7 @@ public final class RemoteRepository implements FoodtimeRepository {
         j.optLong("baseRevision"),text(j,"originalName"),text(j,"originalDescription"),decimal(j,"originalPrice"),
         text(j,"proposedName"),text(j,"proposedDescription"),decimal(j,"proposedPrice"),
         strings(j,"changedFields"),text(j,"reason"),text(j,"status"),text(j,"reviewNote"),
-        time(j,"createdAt"),time(j,"reviewedAt"),j.optLong("revision"),strings(j,"evidenceUrls"));
+        time(j,"createdAt"),time(j,"reviewedAt"),j.optLong("revision"),strings(j,"evidenceUrls"),text(j,"originalPriceUnit"),text(j,"proposedPriceUnit"));
   }
   private static List<String> strings(JSONObject j,String key) {
     JSONArray rows=j==null?null:j.optJSONArray(key);
@@ -846,7 +846,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     String hall=text(j,"diningHallId");
     if(!halls.containsKey(hall)) fetchHalls();
     if(!stalls.containsKey(stall)) fetchStalls(hall);
-    dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true,j.optLong("revision",0)));
+    dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true,j.optLong("revision",0),text(j,"priceUnit")));
     contexts.put(id,joined(j,true));
   }
   private void fetchDishImages(String id) {
@@ -989,7 +989,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private AdminEntity cacheEntity(String type,JSONObject j) {
     BigDecimal amount=decimal(j,"price");String price=amount==null?"":amount.setScale(2).toPlainString();
-    AdminEntity e=new AdminEntity(text(j,"id"),text(j,"name"),text(j,"description"),price,text(j,"coverImageUrl"),text(j,"status").equals("active"));
+    AdminEntity e=new AdminEntity(text(j,"id"),text(j,"name"),text(j,"description"),price,text(j,"coverImageUrl"),text(j,"status").equals("active"),text(j,"priceUnit"));
     String key=type+":"+e.id(); entities.put(key,e); parents.put(key,text(j,"parentId")); return e;
   }
 
@@ -1738,11 +1738,23 @@ public final class RemoteRepository implements FoodtimeRepository {
     Submission target=queue.stream().filter(s -> s.id().equals(id)).findFirst().orElseThrow(() -> missing("投稿不存在，请刷新"));
     call("POST","admin/moderation/"+target.type()+"/"+id,json("action",action,"reason",reason,"price",price));
   }
+  @Override public cn.edu.bjtu.foodtime.domain.model.PriceHistory.Snapshot priceHistory(String dish,int days){
+    var j=accountCall("GET","dishes/"+encode(dish)+"/price-history?days="+days,null);
+    if(!dish.equals(text(j,"dishId"))||j.optJSONArray("records")==null||time(j,"windowEnd")<=0)throw new RepositoryException(502,"INVALID_RESPONSE","价格记录响应异常",0);
+    var rows=new ArrayList<cn.edu.bjtu.foodtime.domain.model.PriceHistory.Entry>();var array=j.optJSONArray("records");
+    for(int i=0;i<array.length();i++){var row=array.optJSONObject(i);if(row==null||time(row,"recordedAt")<=0||text(row,"id").isBlank())throw new RepositoryException(502,"INVALID_RESPONSE","价格记录响应异常",0);rows.add(new cn.edu.bjtu.foodtime.domain.model.PriceHistory.Entry(text(row,"id"),decimal(row,"price"),text(row,"priceUnit"),time(row,"recordedAt"),text(row,"origin"),row.optLong("revision"),row.optBoolean("carriedForward")));}
+    return new cn.edu.bjtu.foodtime.domain.model.PriceHistory.Snapshot(dish,text(j,"dishName"),decimal(j,"currentPrice"),text(j,"priceUnit"),j.optLong("revision"),time(j,"windowStart"),time(j,"windowEnd"),j.optLong("totalRecords"),j.optBoolean("canManage"),rows);
+  }
+  @Override public void correctPriceHistory(String dish,String entry,BigDecimal price,String unit,long revision){accountCall("PUT","admin/dishes/"+encode(dish)+"/price-history/"+encode(entry),json("price",price,"priceUnit",unit,"expectedRevision",revision));}
+  @Override public void deletePriceHistory(String dish,String entry,long revision){accountCall("DELETE","admin/dishes/"+encode(dish)+"/price-history/"+encode(entry)+"?expectedRevision="+revision,null);}
   @Override public void editEntity(String type,String id,String parent,String name,String description,String price,String image,boolean active) {
+    editEntity(type,id,parent,name,description,price,image,active,null);
+  }
+  @Override public void editEntity(String type,String id,String parent,String name,String description,String price,String image,boolean active,String unit) {
     String reference=image==null||image.isBlank()?null:image.startsWith("file:")?upload(image):image;
     String path="admin/catalog/"+table(type)+(id.isBlank()?"":"/"+id);
     call(id.isBlank()?"POST":"PUT",path,json("parentId",parent.isBlank()?null:parent,"name",name,"description",description,
-        "price",type.equals("dishes")?Validation.price(price):null,"coverImageUrl",reference,"status",active?"active":"inactive"));
+        "price",type.equals("dishes")?Validation.price(price):null,"priceUnit",unit,"coverImageUrl",reference,"status",active?"active":"inactive"));
   }
   @Override public void removeEntity(String type,String id) { call("DELETE","admin/catalog/"+table(type)+"/"+id,null); }
   @Override public long recordCommunityPostView(String postId,String requestId) {
