@@ -40,10 +40,11 @@ final class NumberedPagination extends LinearLayout {
       int value=items.get(i);TextView item=value==0?Ui.text(getContext(),"...",14,Design.MUTED):Ui.button(getContext(),String.valueOf(value),value==page,()->move(value));
       item.setTextSize(16);item.setPadding(0,0,0,0);item.setGravity(Gravity.CENTER);item.setSelected(value==page);
       if(value==0){item.setImportantForAccessibility(IMPORTANT_FOR_ACCESSIBILITY_NO);item.setTag("pagination:ellipsis");}
-      else {item.setContentDescription("第 "+value+" 页"+(value==page?"，当前页":""));item.setTag("pagination:page:"+value);item.setEnabled(ready);}
+      else {item.setContentDescription("第 "+value+" 页"+(value==page?"，当前页":""));item.setTag("pagination:page:"+value);enabled(item,ready);}
       int itemWidth=value==0?Ui.dp(getContext(),16):Math.max(minimum,(int)Math.ceil(sample.getPaint().measureText(String.valueOf(value)))+Ui.dp(getContext(),20));
       LayoutParams layout=new LayoutParams(itemWidth,Ui.dp(getContext(),48));if(i>0)layout.leftMargin=gap;numbers.addView(item,layout);
     }
-    actions.getChildAt(0).setEnabled(ready&&page>1);actions.getChildAt(1).setEnabled(ready&&page<total);
+    enabled(actions.getChildAt(0),ready&&page>1);enabled(actions.getChildAt(1),ready&&page<total);
   }
+  private static void enabled(android.view.View view,boolean value){view.setEnabled(value);view.setAlpha(value?1f:.4f);}
 }

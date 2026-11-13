@@ -36,7 +36,8 @@ public final class PaginationRunner extends Instrumentation {
     tap("pagination:page:3");page(3);jump(3,5);jump(5,3);tap("pagination:page:1");page(1);check(true,"Number jumps; compact width reduces neighbors without hiding endpoint pages");
     tap("pagination:page:100");page(100);check(!tagged("pagination:下一页").isEnabled(),"Last page boundary");tap("pagination:page:1");page(1);check(!tagged("pagination:上一页").isEnabled(),"First page boundary");
     tap("pagination:下一页");page(2);tap("pagination:上一页");page(1);measure();
-    ui(()->check(a.root.hasWindowFocus(),"Screenshot unobscured"));Bitmap bitmap=getUiAutomation().takeScreenshot();try(var output=new FileOutputStream(new File(getTargetContext().getFilesDir(),"android-pagination.png"))){bitmap.compress(Bitmap.CompressFormat.PNG,100,output);}finally{bitmap.recycle();}
+    ui(()->check(tagged("pagination:上一页").getAlpha()<.5f&&tagged("pagination:下一页").getAlpha()>.9f,"Disabled boundary is visibly distinct"));
+    SystemClock.sleep(600);ui(()->check(a.root.hasWindowFocus(),"Screenshot unobscured"));Bitmap bitmap=getUiAutomation().takeScreenshot();try(var output=new FileOutputStream(new File(getTargetContext().getFilesDir(),"android-pagination.png"))){bitmap.compress(Bitmap.CompressFormat.PNG,100,output);}finally{bitmap.recycle();}
     result.putString("stream","Pagination device PASS: "+checks+" assertions; actual search, retry, measured number row and system touches\n");finish(-1,result);
   }catch(Throwable t){result.putString("stream","Pagination device FAIL: "+android.util.Log.getStackTraceString(t));finish(1,result);}finally{if(a!=null)ui(a::finish);}}
 }
