@@ -35,6 +35,13 @@ final class AppealDraftStore {
   }
 
   void clear(String decision) {
-    preferences.edit().remove(key(decision)).remove(key(decision) + ":request").apply();
+    var edit=preferences.edit().remove(key(decision)).remove(key(decision) + ":request");
+    for(int i=0;i<3;i++)edit.remove(key(decision)+":evidence:"+i);edit.apply();
+  }
+  String evidence(String decision,int index){return preferences.getString(key(decision)+":evidence:"+index,"");}
+  void evidence(String decision,int index,String path){preferences.edit().putString(key(decision)+":evidence:"+index,path).apply();}
+  synchronized void uploaded(String decision,String previous,String uploaded){
+    var edit=preferences.edit();for(int i=0;i<3;i++)if(previous.equals(evidence(decision,i)))edit.putString(key(decision)+":evidence:"+i,uploaded);
+    edit.apply();
   }
 }

@@ -1,7 +1,6 @@
 package cn.edu.bjtu.foodtime.presentation;
 
 import android.app.AlertDialog;
-import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.TextView;
 import cn.edu.bjtu.foodtime.domain.model.Models.ModerationDecision;
@@ -52,8 +51,7 @@ final class ReportReceiptScreen {
   private TextView tab(String label, boolean wantDecisions) {
     return Ui.button(activity, label, decisions == wantDecisions, () -> {
       if (decisions == wantDecisions) return;
-      decisions = wantDecisions;
-      render();
+      activity.replaceRoute("report-receipts",wantDecisions?"decisions":"");
     });
   }
 
@@ -141,25 +139,7 @@ final class ReportReceiptScreen {
   }
 
   private void appealDialog(ModerationDecision item) {
-    EditText input = new EditText(activity);
-    input.setHint("申诉理由，最多2000字");
-    input.setSingleLine(false);
-    input.setMinLines(3);
-    new AlertDialog.Builder(activity).setTitle("提交申诉").setView(input)
-        .setNegativeButton("取消", null)
-        .setPositiveButton("提交", (dialog, which) -> {
-          String content = input.getText().toString().strip();
-          if (content.isEmpty()) {
-            activity.message("请填写申诉内容");
-            return;
-          }
-          activity.request(null, null,
-              () -> activity.repo.submitAppeal(item.decisionId(), content, UUID.randomUUID().toString()),
-              () -> {
-                activity.message("申诉已提交");
-                render();
-              });
-        }).show();
+    activity.go("appeal-compose",item.decisionId());
   }
 
   private static String appealStatusLabel(String status) {

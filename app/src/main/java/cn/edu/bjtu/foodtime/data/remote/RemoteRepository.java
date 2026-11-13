@@ -649,7 +649,8 @@ public final class RemoteRepository implements FoodtimeRepository {
     return upload(filePath);
   }
   @Override public List<ReportAction> decisionActions(String decisionId) {
-    return list("users/me/moderation-decisions/"+encode(decisionId)+"/actions",RemoteRepository::reportAction);
+    String owner=appealOwner();var result=list("users/me/moderation-decisions/"+encode(decisionId)+"/actions",RemoteRepository::reportAction);
+    requireAppealOwner(owner);return result;
   }
   private static ReportAction reportAction(JSONObject j) {
     return new ReportAction(text(j,"id"),text(j,"decisionId"),text(j,"actionType"),text(j,"targetType"),
@@ -660,7 +661,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   @Override public void submitAppeal(String decisionId,String content,String requestId,
       List<String> evidenceUrls) {
-    call("POST","users/me/moderation-decisions/"+encode(decisionId)+"/appeals",
+    appealCall("POST","users/me/moderation-decisions/"+encode(decisionId)+"/appeals",
         json("content",content,"evidenceUrls",array(evidenceUrls),"clientRequestId",requestId));
   }
   private static ReportFollowUp reportFollowUp(JSONObject j) {
@@ -677,12 +678,24 @@ public final class RemoteRepository implements FoodtimeRepository {
     return new MyReportPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",20));
   }
   @Override public ModerationDecisionPage myModerationDecisions(int page) {
-    JSONObject data=call("GET","users/me/moderation-decisions?page="+page+"&size=20",null);
+    JSONObject data=appealCall("GET","users/me/moderation-decisions?page="+page+"&size=20",null);
     JSONArray rows=data.optJSONArray("items");
     if(rows==null)throw new RepositoryException(0,"INVALID_RESPONSE","处理决定响应异常，请重试",0);
     List<ModerationDecision> items=new ArrayList<>();
     for(int i=0;i<rows.length();i++)items.add(moderationDecision(rows.optJSONObject(i)));
     return new ModerationDecisionPage(items,data.optLong("total"),data.optInt("page",page),data.optInt("size",20));
+  }
+  @Override public ModerationDecision myModerationDecision(String id){
+    var result=moderationDecision(appealCall("GET","users/me/moderation-decisions/"+encode(id),null));
+    if(!id.equals(result.decisionId()))throw new RepositoryException(502,"INVALID_RESPONSE","处理决定编号不匹配",0);return result;
+  }
+  private String appealOwner(){var actor=user;if(actor==null)throw new RepositoryException(401,"AUTH_REQUIRED","请先登录",0);return actor.id()+":"+sessionMode+":"+http.sessionKey();}
+  private void requireAppealOwner(String owner){if(!owner.equals(appealOwner()))throw new RepositoryException(409,"ACCOUNT_CHANGED","账号已变化，请重新打开申诉",0);}
+  private JSONObject appealCall(String method,String path,JSONObject body){
+    String owner=appealOwner();
+    var result=call(method,path,body);
+    requireAppealOwner(owner);
+    return result;
   }
   private static MyReport myReport(JSONObject j) {
     return new MyReport(text(j,"id"),text(j,"targetType"),text(j,"targetId"),text(j,"postId"),
