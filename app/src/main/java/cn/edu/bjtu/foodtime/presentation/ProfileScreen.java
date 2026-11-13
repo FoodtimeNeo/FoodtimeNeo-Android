@@ -46,10 +46,11 @@ final class ProfileScreen {
     TextView update=Ui.button(a,"检查更新",false,() -> a.checkAppRelease(true));
     update.setTextSize(13);update.setMinHeight(Ui.dp(a,38));
     update.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,19));update.setTextColor(Design.INK);
-    update.setContentDescription("检查应用更新，当前版本"+cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME);
+    update.setContentDescription("检查应用更新，当前版本"+cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.display(cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME));
     LinearLayout.LayoutParams updateLp=new LinearLayout.LayoutParams(-2,-2);updateLp.leftMargin=Ui.dp(a,8);
     identityFoot.addView(update,updateLp);
     identity.addView(identityFoot);
+    identity.addView(Ui.text(a,"当前版本 "+cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.display(cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME),12,Design.MUTED));
     page.addView(identity,new LinearLayout.LayoutParams(-1,-2));Ui.gap(page,20);
     if("visitor".equals(user.role())) {
       LinearLayout guest=Ui.col(a);guest.setPadding(Ui.dp(a,18),Ui.dp(a,16),Ui.dp(a,18),Ui.dp(a,18));

@@ -33,7 +33,7 @@ public final class AccountLifecycleRunner extends Instrumentation {
     try{if(connection.getResponseCode()!=200)throw new AssertionError("Owned SMTP did not capture code");java.io.ByteArrayOutputStream bytes=new java.io.ByteArrayOutputStream();byte[] buffer=new byte[128];try(var stream=connection.getInputStream()){int count;while((count=stream.read(buffer))!=-1)bytes.write(buffer,0,count);}String value=new String(bytes.toByteArray(),StandardCharsets.UTF_8);if(!value.matches("[0-9]{6}"))throw new AssertionError("Invalid local SMTP capture");return value;}finally{connection.disconnect();}
   }
   private void fillCode(boolean delete,String value){ui(()->((EditText)tag(delete?"deletion-verification-code":"unbind-verification-code")).setText(value));}
-  private void acknowledge(boolean delete){click(delete?"我已知晓注销不可撤销、新账号不继承旧数据及邮箱 1 小时冷却规则":"我已知晓解绑后恢复访客身份及学校邮箱 1 小时冷却规则");}
+  private void acknowledge(boolean delete){click(delete?"我已知晓注销不可撤销、新账号不继承旧数据及邮箱 1 小时冷却规则":"我已知晓解绑会移除学校邮箱认证及学校邮箱 1 小时冷却规则");}
   private void confirm(boolean yes){await("confirmation",()->a.accountActionConfirmation!=null&&a.accountActionConfirmation.isShowing());ui(()->a.accountActionConfirmation.getButton(yes?-1:-2).performClick());}
   private boolean contains(View root,String value){if(root instanceof TextView text&&text.getText().toString().contains(value))return true;if(root instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++)if(contains(group.getChildAt(i),value))return true;return false;}
   @Override public void onStart(){Bundle result=new Bundle();try{
