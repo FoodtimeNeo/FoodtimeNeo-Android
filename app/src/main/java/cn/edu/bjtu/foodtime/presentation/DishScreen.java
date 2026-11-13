@@ -60,22 +60,14 @@ final class DishScreen {
     hero.setPadding(0, 0, 0, Ui.dp(a, 4));
     FrameLayout photo = detailPhoto(a,d);
     hero.addView(photo);
-    TextView upload = Ui.button(a, "+", false, () -> a.go("upload-photo", d.id()));
-    upload.setTextSize(24);
-    upload.setPadding(0, 0, 0, 0);
+    LinearLayout photoActions=Ui.row(a);photoActions.setPadding(Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,12),0);
+    TextView upload = Ui.button(a, "上传图片", false, () -> a.go("upload-photo", d.id()));
     upload.setContentDescription("上传菜品图片");
-    FrameLayout.LayoutParams up =
-        new FrameLayout.LayoutParams(
-            Ui.dp(a, 48), Ui.dp(a, 48), android.view.Gravity.TOP | android.view.Gravity.END);
-    up.setMargins(0, Ui.dp(a, 8), Ui.dp(a, 8), 0);
-    photo.addView(upload, up);
-    TextView album = Ui.button(a, "图册", false, () -> a.go("gallery", d.id()));
+    photoActions.addView(upload,new LinearLayout.LayoutParams(0,-2,1));
+    TextView album = Ui.button(a, "查看图册", false, () -> a.go("gallery", d.id()));
     album.setContentDescription("查看菜品图册");
-    FrameLayout.LayoutParams al =
-        new FrameLayout.LayoutParams(
-            -2, Ui.dp(a, 48), android.view.Gravity.BOTTOM | android.view.Gravity.END);
-    al.setMargins(0, 0, Ui.dp(a, 8), Ui.dp(a, 8));
-    photo.addView(album, al);
+    LinearLayout.LayoutParams albumLayout=new LinearLayout.LayoutParams(0,-2,1);albumLayout.leftMargin=Ui.dp(a,8);
+    photoActions.addView(album,albumLayout);hero.addView(photoActions);
     LinearLayout heroText = Ui.row(a);
     heroText.setPadding(Ui.dp(a, 16), Ui.dp(a, 12), Ui.dp(a, 16), Ui.dp(a, 8));
     heroText.addView(
@@ -153,7 +145,8 @@ final class DishScreen {
     List<Photo> photos=a.repo.photos(dish.id());
     if(!photos.isEmpty()) {
       String full=photos.get(0).imageUrl();
-      FrameLayout preview=(FrameLayout)Ui.image(a,Ui.thumb(full),dish.name()+"图片",true);
+      FrameLayout preview=(FrameLayout)Ui.containedImage(a,Ui.thumb(full),dish.name()+"图片");
+      preview.setTag("dish-detail-photo");
       preview.setClickable(true);
       preview.setFocusable(true);
       preview.setContentDescription(dish.name()+"图片，点击查看大图");
@@ -181,7 +174,7 @@ final class DishScreen {
       LinearLayout c = Ui.card(page);
       c.setPadding(0, 0, 0, Ui.dp(a, 4));
       String full = p.imageUrl();
-      FrameLayout preview = (FrameLayout) Ui.image(a, Ui.thumb(full), "菜品图片", true);
+      FrameLayout preview = (FrameLayout) Ui.containedImage(a, Ui.thumb(full), "菜品图片");
       preview.setClickable(true);
       preview.setFocusable(true);
       preview.setContentDescription("菜品图片，点击查看大图");
