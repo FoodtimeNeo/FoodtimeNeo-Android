@@ -302,7 +302,14 @@ public final class Models {
   public record CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
       long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
       boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt,
-      String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage,LinkedDish linkedDish,long viewCount) {
+      String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage,LinkedDish linkedDish,long viewCount,long contentRevision,long editedAt) {
+    public CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
+        long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,
+        boolean likedByMe,boolean favoritedByMe,String status,String reviewReason,long createdAt,
+        String title,String userAvatarUrl,List<CommunityImage> images,long favoriteCount,String reviewStage,LinkedDish linkedDish,long viewCount) {
+      this(id,userId,userDisplayName,content,imageUrls,likeCount,commentCount,repostCount,repostOfId,repostAuthor,repostContent,
+          likedByMe,favoritedByMe,status,reviewReason,createdAt,title,userAvatarUrl,images,favoriteCount,reviewStage,linkedDish,viewCount,1,0);
+    }
     public CommunityPost {imageUrls=imageUrls==null?List.of():List.copyOf(imageUrls);images=images==null?List.of():List.copyOf(images);}
     public CommunityPost(String id,String userId,String userDisplayName,String content,List<String> imageUrls,
         long likeCount,long commentCount,int repostCount,String repostOfId,String repostAuthor,String repostContent,

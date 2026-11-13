@@ -1018,7 +1018,7 @@ public final class RemoteRepository implements FoodtimeRepository {
         text(j,"content"),images,j.optLong("likeCount"),j.optLong("commentCount"),j.optInt("repostCount"),
         text(j,"repostOfId"),text(repost,"userDisplayName"),text(repost,"content"),
         j.optBoolean("likedByMe"),j.optBoolean("favoritedByMe"),text(j,"status"),
-        text(j,"reviewReason"),time(j,"createdAt"),text(j,"title"),text(j,"userAvatarUrl"),details,j.optLong("favoriteCount"),text(j,"reviewStage"),dish,Math.max(0,j.optLong("viewCount")));
+        text(j,"reviewReason"),time(j,"createdAt"),text(j,"title"),text(j,"userAvatarUrl"),details,j.optLong("favoriteCount"),text(j,"reviewStage"),dish,Math.max(0,j.optLong("viewCount")),Math.max(1,j.optLong("contentRevision",1)),time(j,"editedAt"));
   }
 
   private CommunityComment communityComment(JSONObject j) {
@@ -1034,7 +1034,7 @@ public final class RemoteRepository implements FoodtimeRepository {
         current.content(),current.imageUrls(),likeCount==null?current.likeCount():likeCount,
         current.commentCount(),current.repostCount(),current.repostOfId(),current.repostAuthor(),
         current.repostContent(),liked==null?current.likedByMe():liked,
-        favorited==null?current.favoritedByMe():favorited,current.status(),current.reviewReason(),current.createdAt(),current.title(),current.userAvatarUrl(),current.images(),favoriteCount==null?current.favoriteCount():favoriteCount,current.reviewStage(),current.linkedDish(),current.viewCount());
+        favorited==null?current.favoritedByMe():favorited,current.status(),current.reviewReason(),current.createdAt(),current.title(),current.userAvatarUrl(),current.images(),favoriteCount==null?current.favoriteCount():favoriteCount,current.reviewStage(),current.linkedDish(),current.viewCount(),current.contentRevision(),current.editedAt());
     communityPostCache.put(id,updated);
     List<CommunityPost> feed=new ArrayList<>(communityFeed);
     for(int i=0;i<feed.size();i++) if(feed.get(i).id().equals(id)) feed.set(i,updated);
@@ -1143,6 +1143,30 @@ public final class RemoteRepository implements FoodtimeRepository {
     for(String image:selected)uploaded.put(communityUploads.computeIfAbsent(image,this::upload));
     call("POST","community/posts",json("title",heading,"content",body,"imageUrls",uploaded,
         "clientRequestId",requestId,"dishId",dishId.isBlank()?null:dishId));
+  }
+  @Override public void editCommunityPost(String id,cn.edu.bjtu.foodtime.domain.repository.PostEditRepository.Edit edit) {
+    final String owner; synchronized(dashboardLock){owner=capabilityOwner(user);}
+    if(owner.isEmpty())throw new RepositoryException(401,"AUTH_REQUIRED","请先登录",0);
+    JSONArray uploaded=new JSONArray();
+    for(String image:edit.images()) {
+      requireEditOwner(owner);
+      String key=owner+":"+image;
+      String reference=communityUploads.get(key);
+      if(reference==null){reference=upload(image);requireEditOwner(owner);communityUploads.put(key,reference);}
+      uploaded.put(reference);
+    }
+    requireEditOwner(owner);
+    accountCall("PUT","community/posts/"+encode(id),json("title",edit.title(),"content",edit.content(),
+        "imageUrls",uploaded,"dishId",edit.dishId().isBlank()?JSONObject.NULL:edit.dishId(),
+        "expectedRevision",edit.expectedRevision(),"clientRequestId",edit.clientRequestId()));
+    requireEditOwner(owner);
+    communityPostCache.remove(id);
+    var remaining=new ArrayList<CommunityPost>();for(var post:communityFeed)if(!post.id().equals(id))remaining.add(post);communityFeed=List.copyOf(remaining);
+    ownCommunityPosts=CommunityPostPage.empty();ownCommunityFavorites=CommunityPostPage.empty();
+  }
+  private void requireEditOwner(String owner){synchronized(dashboardLock){if(!owner.equals(capabilityOwner(user)))throw new RepositoryException(409,"ACCOUNT_CHANGED","账号已变化，请重新打开帖子",0);}}
+  @Override public void moderateCommunity(String type,String id,String action,String reason,long revision){
+    accountCall("POST","admin/community/"+type+"/"+id,json("action",action,"reason",reason,"contentRevision",type.equals("posts")?revision:JSONObject.NULL));
   }
   private CommunityCommentPage commentPage(String path,CommunityCommentPage prior){
     JSONObject data=call("GET",path,null);JSONArray values=data.optJSONArray("items");

@@ -38,8 +38,8 @@ final class CommunityAdminScreen {
   LinearLayout form=Ui.card(page);EditText reason=status.equals("pending")?Ui.field(form,"审核说明",false,true):null;if(reason!=null){reason.setHint("驳回时必填，最多500字");reason.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});}
   TextView error=Ui.text(a,"",13,Design.RED);form.addView(error);
   if(status.equals("pending")){
-   Ui.submit(form,"通过审核",error,()->{String explanation=reason.getText().toString().trim();return ()->a.repo.moderateCommunity(type,id,"approve",explanation);},()->{a.clearDraft(route);a.message("审核已通过");a.back();});
-   Ui.submit(form,"驳回内容",error,()->{String explanation=Validation.text(reason.getText().toString(),500,"驳回原因");return ()->a.repo.moderateCommunity(type,id,"reject",explanation);},()->{a.clearDraft(route);a.message("已驳回");a.back();});
+   Ui.submit(form,"通过审核",error,()->{String explanation=reason.getText().toString().trim();return ()->a.repo.moderateCommunity(type,id,"approve",explanation,post.contentRevision());},()->{a.clearDraft(route);a.message("审核已通过");a.back();});
+   Ui.submit(form,"驳回内容",error,()->{String explanation=Validation.text(reason.getText().toString(),500,"驳回原因");return ()->a.repo.moderateCommunity(type,id,"reject",explanation,post.contentRevision());},()->{a.clearDraft(route);a.message("已驳回");a.back();});
   }else Ui.action(form,"删除内容",false,()->CommunityRemoval.confirm(a,type,id,comment==null?post.userId():comment.userId(),comment==null?post.title():comment.content(),()->{a.clearDraft(route);a.back();}));
  }
  private static String content(CommunityComment comment){return comment.deleted()?"已删除":comment.content();}
