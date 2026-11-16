@@ -57,6 +57,11 @@ final class CommunityScreen {
     sketches.addView(Ui.foodDoodle(a, 6, Design.GREEN), new LinearLayout.LayoutParams(Ui.dp(a, 32), Ui.dp(a, 29)));
     page.addView(sketches);
     Ui.gap(page, 8);
+    if(section.equals("community-favorites")){
+      FavoritePostsScreen favorites=new FavoritePostsScreen(a,page);
+      if(!preview)page.post(()->{if(page.isAttachedToWindow())favorites.refresh();});
+      return favorites::refresh;
+    }
     LinearLayout body = Ui.col(a);
     page.addView(body);
     renderFeed(a, body, section, preview);
@@ -141,6 +146,7 @@ final class CommunityScreen {
     if (a.isCommunityHub()) { feed(a, page, route); return; }
     boolean favorites=route.kind().equals("community-favorites");var result=a.repo.communityCollection(favorites);
     a.heading(page,"02",favorites?"我的收藏":"我的食记",favorites?"收藏的公开食记都在这里。":"查看发布记录与审核进度；可在详情修改自己的食记。");
+    if(favorites){FavoritePostsScreen screen=new FavoritePostsScreen(a,page);page.post(()->{if(page.isAttachedToWindow())screen.refresh();});return;}
     if(result.items().isEmpty())Ui.empty(page,favorites?"还没有收藏食记":"还没有发布食记",favorites?"在食记详情点击收藏，方便下次再找。":"发布一篇校园美食记录吧。");
     else waterfall(a,page,result.items());
     if(result.hasMore()){
