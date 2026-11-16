@@ -34,14 +34,22 @@ final class CommunityGallery extends LinearLayout {
     if(images.isEmpty()){addView(Ui.text(activity,"这篇食记没有配图",14,Design.MUTED));strip=null;viewport=null;dots=null;return;}
     strip=Ui.row(activity);
     viewport=new HorizontalScrollView(activity){
-      @Override protected void onSizeChanged(int w,int h,int oldw,int oldh){
-        super.onSizeChanged(w,h,oldw,oldh);
-        // Image decoding can change height during a drag; only width changes require re-paging.
-        if(w==oldw)return;
-        width=w;
-        stopAnimation();
-        for(int i=0;i<strip.getChildCount();i++)strip.getChildAt(i).setLayoutParams(new LinearLayout.LayoutParams(w,-2));
-        post(()->scrollTo(index*width,0));
+      private boolean alignAfterLayout;
+      @Override protected void onMeasure(int widthSpec,int heightSpec){
+        int pageWidth=Math.max(0,MeasureSpec.getSize(widthSpec)-getPaddingLeft()-getPaddingRight());
+        if(pageWidth>0&&pageWidth!=width){
+          width=pageWidth;stopAnimation();alignAfterLayout=true;
+          // Child widths must be correct before measurement, not changed midway through layout.
+          for(int i=0;i<strip.getChildCount();i++){
+            var params=(LinearLayout.LayoutParams)strip.getChildAt(i).getLayoutParams();
+            params.width=pageWidth;strip.getChildAt(i).setLayoutParams(params);
+          }
+        }
+        super.onMeasure(widthSpec,heightSpec);
+      }
+      @Override protected void onLayout(boolean changed,int left,int top,int right,int bottom){
+        super.onLayout(changed,left,top,right,bottom);
+        if(alignAfterLayout){scrollTo(index*width,0);alignAfterLayout=false;}
       }
       @Override public boolean onInterceptTouchEvent(MotionEvent event){
         if(event.getActionMasked()==MotionEvent.ACTION_DOWN){
@@ -72,7 +80,6 @@ final class CommunityGallery extends LinearLayout {
     };
     viewport.setHorizontalScrollBarEnabled(false);viewport.setFillViewport(true);viewport.addView(strip,new HorizontalScrollView.LayoutParams(-2,-2));
     addView(viewport,new LinearLayout.LayoutParams(-1,-2));
-    int initial=activity.getResources().getDisplayMetrics().widthPixels-Ui.dp(activity,48);
     for(int i=0;i<images.size();i++){
       final int page=i;
       String label="食记图片 "+(i+1)+" / "+images.size()+"，点击放大";
@@ -81,7 +88,7 @@ final class CommunityGallery extends LinearLayout {
       frame.setTag("community-gallery-image:" + i);
       ((ImageView)frame.getChildAt(0)).setScaleType(ImageView.ScaleType.FIT_CENTER);
       frame.setClickable(true);frame.setFocusable(true);frame.setOnClickListener(v->open(page));
-      strip.addView(frame,new LinearLayout.LayoutParams(initial,-2));
+      strip.addView(frame,new LinearLayout.LayoutParams(1,-2));
     }
     LinearLayout controls=Ui.row(activity);
     dots=Ui.text(activity,"",12,Design.RED);dots.setGravity(Gravity.CENTER);dots.setSingleLine(true);
