@@ -27,6 +27,7 @@ final class FavoriteDishesScreen {
   private List<FavoriteGroup> groups = List.of();
   private String selectedGroupId;
   private boolean unfiled;
+  private int groupEpoch,loadEpoch;
 
   private FavoriteDishesScreen(MainActivity activity, LinearLayout page) {
     this.activity = activity;
@@ -42,6 +43,7 @@ final class FavoriteDishesScreen {
     page.addView(error);
     page.addView(reload);
     page.addView(rows);
+    paintGroups();
     page.post(() -> {
       if (page.isAttachedToWindow()) {
         loadGroups();
@@ -51,8 +53,10 @@ final class FavoriteDishesScreen {
   }
 
   private void loadGroups() {
+    int ticket=++groupEpoch;
     AtomicReference<List<FavoriteGroup>> result = new AtomicReference<>();
-    activity.read(requestKey + ":groups", null, error, () -> result.set(activity.repo.favoriteGroups("dish")), () -> {
+    activity.read(requestKey + ":groups:"+ticket, null, error, () -> result.set(activity.repo.favoriteGroups("dish")), () -> {
+      if(ticket!=groupEpoch)return;
       groups = result.get();
       if (selectedGroupId != null && groups.stream().noneMatch(group -> group.id().equals(selectedGroupId)))
         selectedGroupId = null;
@@ -65,29 +69,31 @@ final class FavoriteDishesScreen {
     LinearLayout chips = Ui.row(activity);
     chips.setTag("favorite-group-chips");
     chips.addView(Ui.button(activity, "全部", selectedGroupId == null && !unfiled, () -> selectGroup(null, false)));
-    chips.addView(Ui.button(activity, "未分组", unfiled, () -> selectGroup(null, true)));
+    chips.addView(Ui.button(activity, "默认分组", unfiled, () -> selectGroup(null, true)));
     for (FavoriteGroup group : groups) {
       chips.addView(Ui.button(activity, group.name() + " (" + group.itemCount() + ")",
           group.id().equals(selectedGroupId), () -> selectGroup(group.id(), false)));
     }
-    groupBar.addView(chips);
+    android.widget.HorizontalScrollView scroll=new android.widget.HorizontalScrollView(activity);
+    scroll.setHorizontalScrollBarEnabled(false);scroll.addView(chips);
+    groupBar.addView(scroll,new LinearLayout.LayoutParams(-1,-2));
     LinearLayout actions = Ui.row(activity);
     actions.addView(Ui.button(activity, "+ 新建分组", false, this::createGroup));
     if (selectedGroupId != null)
       actions.addView(Ui.button(activity, "管理当前分组", false, this::manageSelectedGroup));
     groupBar.addView(actions);
+    groupBar.addView(Ui.text(activity,"直接收藏即可存入默认分组，无需新建。",13,Design.MUTED));
   }
 
   private void selectGroup(String groupId, boolean onlyUnfiled) {
     selectedGroupId = groupId;
     unfiled = onlyUnfiled;
+    paintGroups();
     load(1);
   }
 
   private void createGroup() {
-    promptName("新建菜品分组", "", name -> activity.request(null, error,
-        () -> activity.repo.createFavoriteGroup("dish", name),
-        () -> { loadGroups(); load(1); }));
+    FavoriteGroupTools.create(activity,"dish",()->{loadGroups();load(1);});
   }
 
   private void manageSelectedGroup() {
@@ -123,11 +129,13 @@ final class FavoriteDishesScreen {
   }
 
   private void load(int page) {
+    int ticket=++loadEpoch;String groupId=selectedGroupId;boolean onlyUnfiled=unfiled;
     rows.removeAllViews();
     status.setText("正在加载想吃清单…");
     AtomicReference<DishSearchPage> data = new AtomicReference<>();
-    activity.read(requestKey + ":" + selectedGroupId + ":" + unfiled + ":" + page, reload, error,
-        () -> data.set(activity.repo.favoriteDishes(page, selectedGroupId, unfiled)), () -> {
+    activity.read(requestKey + ":page:"+ticket, reload, error,
+        () -> data.set(activity.repo.favoriteDishes(page, groupId, onlyUnfiled)), () -> {
+          if(ticket!=loadEpoch)return;
           DishSearchPage result = data.get();
           status.setText(result.items().isEmpty() ? (selectedGroupId == null && !unfiled
               ? "这页还没有想吃的菜。" : "这个分组还没有菜品。")
@@ -142,28 +150,6 @@ final class FavoriteDishesScreen {
   }
 
   private void chooseGroups(String dishId) {
-    AtomicReference<List<String>> joined = new AtomicReference<>();
-    activity.read(requestKey + ":membership:" + dishId, null, error,
-        () -> joined.set(activity.repo.favoriteGroupMembership("dish", dishId)), () -> {
-          if (groups.isEmpty()) { activity.message("还没有分组，请先新建"); return; }
-          String[] names = new String[groups.size()];
-          boolean[] checked = new boolean[groups.size()];
-          for (int index = 0; index < groups.size(); index++) {
-            names[index] = groups.get(index).name();
-            checked[index] = joined.get().contains(groups.get(index).id());
-          }
-          boolean[] desired = checked.clone();
-          new AlertDialog.Builder(activity).setTitle("设置分组")
-              .setMultiChoiceItems(names, checked, (dialog, which, value) -> desired[which] = value)
-              .setNegativeButton("取消", null)
-              .setPositiveButton("保存", (dialog, which) -> activity.request(null, error, () -> {
-                for (int index = 0; index < groups.size(); index++) {
-                  FavoriteGroup group = groups.get(index);
-                  if (desired[index] == checked[index]) continue;
-                  if (desired[index]) activity.repo.addFavoriteGroupMember(group.id(), dishId);
-                  else activity.repo.removeFavoriteGroupMember(group.id(), dishId);
-                }
-              }, () -> { loadGroups(); load(1); })).show();
-        }, () -> {});
+    FavoriteGroupTools.choose(activity,"dish",dishId,()->{loadGroups();load(1);});
   }
 }

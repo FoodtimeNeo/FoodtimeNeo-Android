@@ -78,6 +78,7 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default void reloadCommunityReplies(String postId,String rootId) {}
   default void deleteCommunityComment(String id){throw new UnsupportedOperationException();}
   default CommunityPostPage communityCollection(boolean favorites){return CommunityPostPage.empty();}
+  default CommunityPostPage favoritePosts(int page,String groupId,boolean unfiled){throw new UnsupportedOperationException();}
   default void loadMoreCommunityCollection(boolean favorites){throw new UnsupportedOperationException();}
   default void deleteCommunityPost(String id){throw new UnsupportedOperationException();}
   default CommunityAction setCommunityLike(String type,String id,boolean active){throw new UnsupportedOperationException();}
