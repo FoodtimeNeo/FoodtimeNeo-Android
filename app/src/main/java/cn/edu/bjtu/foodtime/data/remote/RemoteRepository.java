@@ -146,6 +146,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public void clearImageCache() {
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(false);}
   }
+  @Override public boolean hasSessionToRestore() { return user != null || http.hasSessionCookie(); }
   @Override public void restoreSession() {
     try {
       profile();
