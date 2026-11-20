@@ -42,18 +42,10 @@ final class DiningScreen {
     TextView callout=Ui.note(a,"循着香气走，\n总有一餐在等你");
     callout.setTextColor(Design.RED);callout.setTextSize(25);callout.setLineSpacing(Ui.dp(a,5),1);
     callout.setGravity(Gravity.CENTER_VERTICAL);
-    top.addView(callout,new LinearLayout.LayoutParams(0,Ui.dp(a,88),1));
-    TextView bowl=Ui.text(a,"♨",36,Design.GREEN);bowl.setGravity(Gravity.CENTER);
-    top.addView(bowl,new LinearLayout.LayoutParams(Ui.dp(a,58),Ui.dp(a,58)));
-    hero.addView(top);Ui.gap(hero,14);
-    LinearLayout sketches=Ui.row(a);sketches.setGravity(Gravity.CENTER_HORIZONTAL);
-    int[] sketchKinds={0,3,4};
-    for(int i=0;i<sketchKinds.length;i++) {
-      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,Ui.dp(a,42),1);
-      if(i>0) lp.leftMargin=Ui.dp(a,12);
-      sketches.addView(Ui.foodDoodle(a,sketchKinds[i],i==1?Design.GREEN:Design.RED),lp);
-    }
-    hero.addView(sketches);
+    top.addView(callout,new LinearLayout.LayoutParams(0,-2,1));
+    View bowl=Ui.foodDoodle(a,0,Design.INK);
+    top.addView(bowl,new LinearLayout.LayoutParams(Ui.dp(a,96),Ui.dp(a,90)));
+    hero.addView(top);
     page.addView(hero,new LinearLayout.LayoutParams(-1,-2));
     Ui.gap(page,20);
   }
