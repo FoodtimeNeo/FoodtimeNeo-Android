@@ -17,7 +17,7 @@ public final class NavigationUsabilityRunner extends Instrumentation {
   void await(BooleanSupplier test){long end=SystemClock.uptimeMillis()+18000;while(SystemClock.uptimeMillis()<end){boolean[] ready={false};ui(()->ready[0]=test.getAsBoolean());if(ready[0])return;SystemClock.sleep(60);}throw new AssertionError("Page did not settle");}
   View description(View parent,String text){if(parent.getContentDescription()!=null&&text.contentEquals(parent.getContentDescription()))return parent;if(parent instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++){View found=description(group.getChildAt(i),text);if(found!=null)return found;}return null;}
   @Override public void onStart(){Bundle result=new Bundle();try{
-    if(!BuildConfig.DEBUG||!BuildConfig.APPLICATION_ID.endsWith(".campusreview"))throw new AssertionError("Isolated test package required");
+    if(!BuildConfig.DEBUG||!BuildConfig.APPLICATION_ID.endsWith(".campusreview")||!BuildConfig.API_BASE_URL.equals("http://127.0.0.1:18120/api/v1/"))throw new AssertionError("Isolated test package required");
     a=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     a.repo.login("review@example.test", "local-fixture-password");ui(a::openApp);await(()->a.repo.currentUser()!=null&&!a.isPageLoading());
     ui(()->{View search=description(a.header,"搜索菜品");check(search instanceof ImageButton,"Catalog search uses community icon");check(description(a.header,"回到食堂首页") instanceof ImageButton,"Home is a proportional icon");a.selectTab("profile");});
