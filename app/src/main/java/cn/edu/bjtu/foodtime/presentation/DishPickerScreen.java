@@ -25,7 +25,11 @@ import java.util.function.Supplier;
 /** Inline optional association for the community composer. */
 final class DishPickerScreen {
   static void show(MainActivity activity, LinearLayout form) {
-    new DishPickerScreen(activity, form).render();
+    new DishPickerScreen(activity, form, true, () -> {}).render();
+  }
+
+  static void showRequired(MainActivity activity, LinearLayout form, Runnable selected) {
+    new DishPickerScreen(activity, form, false, selected).render();
   }
 
   private enum Level {
@@ -37,12 +41,16 @@ final class DishPickerScreen {
   private final MainActivity activity;
   private final LinearLayout panel;
   private final String draft;
+  private final boolean optional;
+  private final Runnable selected;
   private final String requestKey = "dish-picker:" + UUID.randomUUID();
   private Level open;
   private int request;
 
-  private DishPickerScreen(MainActivity activity, LinearLayout form) {
+  private DishPickerScreen(MainActivity activity, LinearLayout form, boolean optional, Runnable selected) {
     this.activity = activity;
+    this.optional = optional;
+    this.selected = selected;
     draft = activity.draftKey("");
     panel = Ui.col(activity);
     form.addView(panel);
@@ -50,11 +58,11 @@ final class DishPickerScreen {
 
   private void render() {
     panel.removeAllViews();
-    panel.addView(Ui.text(activity, "关联菜品（可选）", 13, Design.MUTED));
+    panel.addView(Ui.text(activity, optional ? "关联菜品（可选）" : "依次选择食堂、档口和菜品", 13, Design.MUTED));
     row(Level.HALL, value("HallName"), true);
     row(Level.STALL, value("StallName"), !value("HallId").isEmpty());
     row(Level.DISH, value("Name"), !value("StallId").isEmpty());
-    if (!value("Id").isEmpty()) {
+    if (optional && !value("Id").isEmpty()) {
       panel.addView(Ui.button(activity, "移除关联", false, () -> {
         store("Id", "");
         store("Name", "");
@@ -205,6 +213,7 @@ final class DishPickerScreen {
     store("Id", dish.id());
     store("Name", dish.name());
     close();
+    selected.run();
   }
 
   private void close() {
