@@ -20,6 +20,8 @@ final class DiningScreen {
     a.heading(page,"01","食堂手账","今天的好心情，从一顿热饭开始。");
     hero(a,page);
     Ui.action(page,"跨食堂搜菜",false,()->a.go("dish-search",""));
+    Ui.gap(page,10);
+    Ui.action(page,"食堂地图",false,()->a.go("campus-map",""));
     Ui.gap(page,12);
     RecommendationSection.show(a,page);
     if (a.repo.halls().isEmpty()) {
