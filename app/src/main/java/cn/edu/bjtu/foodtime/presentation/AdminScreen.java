@@ -17,10 +17,12 @@ final class AdminScreen {
     Ui.action(card,"审核投稿",true,() -> a.go("admin-audit",""));Ui.gap(card,12);
     Ui.action(card,"社区食记审核",false,()->a.go("admin-community","posts~pending~1"));Ui.gap(card,12);
     Ui.action(card,"社区评论与回复审核",false,()->a.go("admin-community","comments~pending~1"));Ui.gap(card,12);
+    card=Ui.card(page);card.addView(Ui.title(a,"内容与目录",21));Ui.gap(card,12);
     Ui.action(card,"食堂 · 档口 · 菜品",false,() -> a.go("admin-data","halls~"));Ui.gap(card,12);
     Ui.action(card,"评论管理",false,() -> a.go("admin-reviews",""));Ui.gap(card,12);
     Ui.action(card,"审核日志",false,() -> a.go("admin-logs",""));
     if(a.repo.currentUser().role().equals("superadmin")) {
+      card=Ui.card(page);card.addView(Ui.title(a,"运营与处理",21));
       Ui.gap(card,12);Ui.action(card,"公告管理",false,() -> a.go("admin-notices",""));
       Ui.gap(card,12);Ui.action(card,"纠错审核",false,() -> a.go("admin-corrections",""));
       Ui.gap(card,12);Ui.action(card,"建议与反馈管理",false,() -> a.go("admin-feedback",""));

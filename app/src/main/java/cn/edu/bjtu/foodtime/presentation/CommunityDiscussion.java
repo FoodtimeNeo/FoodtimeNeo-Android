@@ -115,33 +115,11 @@ final class CommunityDiscussion {
   }
 
   private void chooseGroups() {
-    java.util.concurrent.atomic.AtomicReference<java.util.List<FavoriteGroup>> all = new java.util.concurrent.atomic.AtomicReference<>();
-    java.util.concurrent.atomic.AtomicReference<java.util.List<String>> joined = new java.util.concurrent.atomic.AtomicReference<>();
-    activity.read("post-groups:" + post.id(), null, null,
-        () -> {
-          all.set(activity.repo.favoriteGroups("post"));
-          joined.set(activity.repo.favoriteGroupMembership("post", post.id()));
-        }, () -> {
-          if (all.get().isEmpty()) { activity.message("还没有收藏分组，请先在收藏页新建"); return; }
-          String[] names = new String[all.get().size()];
-          boolean[] checked = new boolean[all.get().size()];
-          for (int index = 0; index < all.get().size(); index++) {
-            names[index] = all.get().get(index).name();
-            checked[index] = joined.get().contains(all.get().get(index).id());
-          }
-          boolean[] desired = checked.clone();
-          new AlertDialog.Builder(activity).setTitle("收藏分组")
-              .setMultiChoiceItems(names, checked, (dialog, which, value) -> desired[which] = value)
-              .setNegativeButton("取消", null)
-              .setPositiveButton("保存", (dialog, which) -> activity.request(null, null, () -> {
-                for (int index = 0; index < all.get().size(); index++) {
-                  FavoriteGroup group = all.get().get(index);
-                  if (desired[index] == checked[index]) continue;
-                  if (desired[index]) activity.repo.addFavoriteGroupMember(group.id(), post.id());
-                  else activity.repo.removeFavoriteGroupMember(group.id(), post.id());
-                }
-              }, () -> activity.message("收藏分组已更新"))).show();
-        }, () -> {});
+    CommunityPost current=activity.repo.communityPost(post.id());
+    if(!(current==null?post:current).favoritedByMe()){
+      activity.message("请先点击 ☆ 收藏；未选择分组时会保存在默认分组。");return;
+    }
+    FavoriteGroupTools.choose(activity,"post",post.id(),()->activity.message("收藏分组已更新"));
   }
 
   private void paint() {

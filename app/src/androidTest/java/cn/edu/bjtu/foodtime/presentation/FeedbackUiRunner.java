@@ -56,11 +56,11 @@ public final class FeedbackUiRunner extends Instrumentation {
     var exportMonitor=addMonitor(documentFilter(Intent.ACTION_CREATE_DOCUMENT),new ActivityResult(Activity.RESULT_OK,new Intent().setData(Uri.fromFile(exported))),true);
     click("导出未完成反馈（CSV）");check(exportMonitor.getHits()>0,"Native export requests a CSV document through the system picker");await("CSV saved",()->exported.length()>0&&!a.operationInFlight());removeMonitor(exportMonitor);
     String saved=new String(java.nio.file.Files.readAllBytes(exported.toPath()),StandardCharsets.UTF_8);
-    check(saved.startsWith("\uFEFF反馈编号,反馈类型,反馈内容"),"Native document export writes a real UTF-8 CSV with BOM");
+    check(saved.startsWith("\uFEFF反馈编号,反馈类型,反馈内容,处理状态,处理建议\r\n"),"Native export includes the full status/advice template as UTF-8 CSV with BOM");
     check(saved.contains(csvFeedback.id()),"Export contains the intended unfinished feedback identifier");
     check(!saved.contains(id),"Completed feedback is excluded from the next native export");
     File imported=new File(getTargetContext().getCacheDir(),"feedback-reply.csv");
-    String csv="\uFEFF反馈编号,反馈类型,反馈内容,回复,处理状态\r\n"+quote(csvFeedback.id())+",功能反馈,原生 CSV 导入测试,"+quote("来自 CSV 的回复😊\n多行")+",已完成\r\n";
+    String csv="\uFEFF反馈编号,反馈类型,反馈内容,处理状态,处理建议\r\n"+quote(csvFeedback.id())+",功能反馈,原生 CSV 导入测试,已完成,"+quote("来自 CSV 的回复😊\n多行")+"\r\n";
     java.nio.file.Files.write(imported.toPath(),csv.getBytes(StandardCharsets.UTF_8));
     var importMonitor=addMonitor(documentFilter(Intent.ACTION_OPEN_DOCUMENT),new ActivityResult(Activity.RESULT_OK,new Intent().setData(Uri.fromFile(imported))),true);
     click("导入回复与状态");check(importMonitor.getHits()>0,"Native import requests an openable document");

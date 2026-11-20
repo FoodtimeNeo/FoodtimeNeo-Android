@@ -16,6 +16,20 @@ import org.junit.Test;
 import static org.junit.Assert.*;
 
 public class HttpTransportTest {
+  @Test public void startupUsesOnlyNonExpiredOriginSessionCookie() {
+    String base="http://127.0.0.1:18086/api/v1/";
+    var manager=new java.net.CookieManager(null,java.net.CookiePolicy.ACCEPT_ALL);
+    var transport=new HttpTransport(base,manager);var origin=java.net.URI.create(base);
+    assertFalse(transport.hasSessionCookie());
+    var device=new java.net.HttpCookie("foodtime_device","quota");device.setPath("/");manager.getCookieStore().add(origin,device);
+    assertFalse(transport.hasSessionCookie());
+    var other=new java.net.HttpCookie("FOODTIME_SESSION","other");other.setDomain("example.test");other.setPath("/");manager.getCookieStore().add(java.net.URI.create("https://example.test/"),other);
+    assertFalse(transport.hasSessionCookie());
+    var session=new java.net.HttpCookie("FOODTIME_SESSION","saved");session.setPath("/");manager.getCookieStore().add(origin,session);
+    assertTrue(transport.hasSessionCookie());
+    transport.clearSession();assertFalse(transport.hasSessionCookie());
+  }
+
   @org.junit.Test public void logoutPreservesOnlyDeviceQuotaIdentityAndDeviceChangesDoNotChangeTheSessionKey()throws Exception {
     String base="http://127.0.0.1:18086/api/v1/";
     var manager=new java.net.CookieManager(null,java.net.CookiePolicy.ACCEPT_ALL);

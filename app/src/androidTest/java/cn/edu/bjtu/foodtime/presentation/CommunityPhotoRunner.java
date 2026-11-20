@@ -306,7 +306,8 @@ public final class CommunityPhotoRunner extends Instrumentation {
     try {
       boolean isolated = (BuildConfig.APPLICATION_ID.endsWith(".photocheck") && BuildConfig.API_BASE_URL.equals("http://127.0.0.1:18081/api/v1/")) ||
           (BuildConfig.APPLICATION_ID.endsWith(".smoothswipecheck") && BuildConfig.API_BASE_URL.equals("http://127.0.0.1:18084/api/v1/")) ||
-          (BuildConfig.APPLICATION_ID.endsWith(".interactionreview") && BuildConfig.API_BASE_URL.equals("http://127.0.0.1:18094/api/v1/"));
+          (BuildConfig.APPLICATION_ID.endsWith(".interactionreview") && BuildConfig.API_BASE_URL.equals("http://127.0.0.1:18094/api/v1/")) ||
+          (BuildConfig.APPLICATION_ID.endsWith(".favoritesreview") && BuildConfig.API_BASE_URL.equals("http://127.0.0.1:18114/api/v1/"));
       if (!BuildConfig.DEBUG || !isolated) {
         throw new AssertionError("Only the isolated loopback photo build is allowed");
       }

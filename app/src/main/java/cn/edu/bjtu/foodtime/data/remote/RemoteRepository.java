@@ -146,6 +146,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public void clearImageCache() {
     synchronized(imageEpoch){imageEpoch.incrementAndGet();if(imageCache!=null)imageCache.clear(false);}
   }
+  @Override public boolean hasSessionToRestore() { return user != null || http.hasSessionCookie(); }
   @Override public void restoreSession() {
     try {
       profile();
@@ -1287,6 +1288,15 @@ public final class RemoteRepository implements FoodtimeRepository {
     if(favorites)ownCommunityFavorites=page;else ownCommunityPosts=page;
   }
   @Override public CommunityPostPage communityCollection(boolean favorites){return favorites?ownCommunityFavorites:ownCommunityPosts;}
+  @Override public CommunityPostPage favoritePosts(int page,String groupId,boolean unfiled){
+    String path="users/me/community-favorites?page="+page+"&size=20";
+    if(groupId!=null&&!groupId.isBlank())path+="&groupId="+encode(groupId);
+    else if(unfiled)path+="&unfiled=true";
+    JSONObject data=call("GET",path,null);List<CommunityPost> items=new ArrayList<>();
+    JSONArray rows=data.optJSONArray("items");
+    if(rows!=null)for(int i=0;i<rows.length();i++)items.add(cacheCommunityPost(rows.optJSONObject(i)));
+    long total=data.optLong("total");return new CommunityPostPage(items,total,page,page*20L<total);
+  }
   @Override public void loadMoreCommunityCollection(boolean favorites){if(communityCollection(favorites).hasMore())loadCommunityCollection(favorites,true);}
   @Override public void deleteCommunityPost(String id){call("DELETE","community/posts/"+id,null);}
   @Override public CommunityAction toggleCommunityLike(String type,String id){

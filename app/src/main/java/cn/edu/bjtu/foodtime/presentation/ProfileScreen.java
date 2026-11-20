@@ -40,14 +40,14 @@ final class ProfileScreen {
     identity.addView(stats);Ui.gap(identity,12);
     LinearLayout identityFoot=Ui.row(a);
     TextView motto=Ui.note(a,"认真吃饭，也认真生活");motto.setTextSize(17);
-    identityFoot.addView(motto,new LinearLayout.LayoutParams(0,-2,1));
-    TextView edit=Ui.button(a,"编辑资料",false,() -> a.go("profile-edit",""));edit.setTextSize(13);edit.setMinHeight(Ui.dp(a,38));
-    edit.setBackground(Ui.ripple(a,Design.PAPER,Design.RED,19));edit.setTextColor(Design.RED);identityFoot.addView(edit);
+    identity.addView(motto);Ui.gap(identity,10);
+    TextView edit=Ui.button(a,"编辑资料",false,() -> a.go("profile-edit",""));edit.setTextSize(13);edit.setMinHeight(Ui.dp(a,44));
+    edit.setBackground(Ui.ripple(a,Design.PAPER,Design.RED,19));edit.setTextColor(Design.RED);identityFoot.addView(edit,new LinearLayout.LayoutParams(0,-2,1));
     TextView update=Ui.button(a,"检查更新",false,() -> a.checkAppRelease(true));
-    update.setTextSize(13);update.setMinHeight(Ui.dp(a,38));
+    update.setTextSize(13);update.setMinHeight(Ui.dp(a,44));
     update.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,19));update.setTextColor(Design.INK);
     update.setContentDescription("检查应用更新，当前版本"+cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.display(cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME));
-    LinearLayout.LayoutParams updateLp=new LinearLayout.LayoutParams(-2,-2);updateLp.leftMargin=Ui.dp(a,8);
+    LinearLayout.LayoutParams updateLp=new LinearLayout.LayoutParams(0,-2,1);updateLp.leftMargin=Ui.dp(a,8);
     identityFoot.addView(update,updateLp);
     identity.addView(identityFoot);
     identity.addView(Ui.text(a,"当前版本 "+cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.display(cn.edu.bjtu.foodtime.BuildConfig.VERSION_NAME),12,Design.MUTED));
@@ -55,8 +55,8 @@ final class ProfileScreen {
     if("visitor".equals(user.role())) {
       LinearLayout guest=Ui.col(a);guest.setPadding(Ui.dp(a,18),Ui.dp(a,16),Ui.dp(a,18),Ui.dp(a,18));
       guest.setBackground(Ui.shape(a,Design.KRAFT_SOFT,Design.RED,22));
-      guest.addView(Ui.title(a,"访客模式",20));Ui.gap(guest,6);
-      guest.addView(Ui.text(a,"当前只能浏览。绑定学校邮箱后可发帖、评论、点赞与投稿。",14,Design.INK));
+      guest.addView(Ui.title(a,"学校邮箱认证",20));Ui.gap(guest,6);
+      guest.addView(Ui.text(a,"学校邮箱绑定为可选认证；当前可用功能以账号权限为准。",14,Design.INK));
       Ui.gap(guest,12);
       TextView unlock=Ui.button(a,"去绑定学校邮箱",true,() -> a.go("bind-school-email",""));
       unlock.setBackground(Ui.ripple(a,Design.RED,0,18));
@@ -64,27 +64,33 @@ final class ProfileScreen {
       page.addView(guest,new LinearLayout.LayoutParams(-1,-2));Ui.gap(page,20);
     }
 
-    TextView section=Ui.note(a,"翻一翻我的校园味道");section.setTextSize(22);section.setTextColor(Design.RED);page.addView(section);Ui.gap(page,12);
-    LinearLayout tabs=Ui.row(a);tabs.setPadding(Ui.dp(a,4),Ui.dp(a,4),Ui.dp(a,4),Ui.dp(a,4));
-    tabs.setBackground(Ui.shape(a,Design.KRAFT_SOFT,0,24));
-    LinearLayout panel=Ui.col(a);panel.setPadding(Ui.dp(a,18),Ui.dp(a,20),Ui.dp(a,18),Ui.dp(a,20));
-    panel.setBackground(Ui.shape(a,Design.PAPER,Design.BORDER,22));
-    String[] labels={"评论","社区","提交","账号","退出"};TextView[] tabViews=new TextView[labels.length];int[] selected={0};
-    Runnable[] refresh=new Runnable[1];
-    refresh[0]=() -> {
-      for(int i=0;i<tabViews.length;i++) {
-        boolean active=i==selected[0];tabViews[i].setTextColor(active?Design.ON_RED:Design.INK);
-        tabViews[i].setBackground(Ui.ripple(a,active?Design.RED:Color.TRANSPARENT,0,20));
-      }
-      renderPanel(a,panel,user,selected[0]);
-    };
-    for(int i=0;i<labels.length;i++) {
-      int index=i;TextView tab=Ui.text(a,labels[i],14,Design.INK);tab.setGravity(Gravity.CENTER);tab.setMinHeight(Ui.dp(a,42));
-      tab.setClickable(true);tab.setFocusable(true);tab.setOnClickListener(v -> {selected[0]=index;refresh[0].run();});
-      tabViews[i]=tab;tabs.addView(tab,new LinearLayout.LayoutParams(0,-2,1));
-    }
-    page.addView(tabs,new LinearLayout.LayoutParams(-1,-2));Ui.gap(page,12);page.addView(panel,new LinearLayout.LayoutParams(-1,-2));
-    refresh[0].run();Ui.gap(page,24);
+    LinearLayout saved=section(a,page,"收藏与回访");
+    entry(a,saved,"想吃清单","favorite-dishes","");
+    entry(a,saved,"帖子收藏","community-favorites","");
+    entry(a,saved,"浏览历史","history","");
+    LinearLayout records=section(a,page,"我的记录");
+    entry(a,records,"我的食记","community-mine","");
+    entry(a,records,"发帖草稿","community-create","");
+    entry(a,records,"菜品点评","mine-reviews","");
+    entry(a,records,"餐厅与档口点评","venue-mine","");
+    entry(a,records,"我的回复","mine-review-replies","1");
+    entry(a,records,"我的提交","mine-submissions","");
+    LinearLayout messages=section(a,page,"消息与处理");
+    entry(a,messages,"消息信箱","inbox","");
+    entry(a,messages,"建议与反馈","feedback","");
+    entry(a,messages,"目录纠错","my-corrections","");
+    entry(a,messages,"举报与处理决定","report-receipts","");
+    LinearLayout account=section(a,page,"账号与隐私");
+    entry(a,account,"修改密码","password","");
+    entry(a,account,"黑名单","blocked-users","");
+    entry(a,account,"提醒设置","notification-settings","");
+    if(!user.isAdmin())entry(a,account,"账号安全与注销","account-lifecycle","");
+    TextView cache=Ui.text(a,"图片缓存",14,Design.MUTED);account.addView(cache);
+    TextView cacheError=Ui.text(a,"",12,Design.RED);account.addView(cacheError);
+    long[] usage={0};
+    a.read("image-cache-size",null,cacheError,()->usage[0]=a.repo.imageCacheBytes(),()->cache.setText(String.format(java.util.Locale.CHINA,"图片缓存 %.1f MiB",usage[0]/1048576.0)),()->{});
+    roundedAction(a,account,"清理图片缓存",false,()->a.request(null,cacheError,a.repo::clearImageCache,()->{Ui.clearImages();Ui.resumeImages();cache.setText("图片缓存 0 MiB");a.message("图片缓存已清理");}));
+    Ui.gap(page,12);roundedAction(a,page,"退出登录",false,()->Ui.confirm(a,"退出登录？","",a::logout));Ui.gap(page,24);
     LinearLayout doodles=Ui.row(a);doodles.setGravity(Gravity.CENTER);
     doodles.addView(Ui.foodDoodle(a,7,0x554f7250),new LinearLayout.LayoutParams(Ui.dp(a,74),Ui.dp(a,58)));
     doodles.addView(Ui.foodDoodle(a,8,0x55c9341e),new LinearLayout.LayoutParams(Ui.dp(a,74),Ui.dp(a,58)));page.addView(doodles);
@@ -122,48 +128,14 @@ final class ProfileScreen {
     badge.setText(unread > 99 ? "99+" : String.valueOf(unread));
   }
 
-  private static void renderPanel(MainActivity a,LinearLayout panel,User user,int selected) {
-    panel.removeAllViews();String title;String action;
-    if(selected==0) {title="评论与回复";action="查看我的评论";}
-    else if(selected==1) {title="我的社区";action="我的食记";}
-    else if(selected==2) {title="我的投稿";action="查看审核记录";}
-    else if(selected==3) {title="账号管理";action="编辑头像与名称";}
-    else {title="退出账号";action="退出登录";}
-    panel.addView(Ui.title(a,title,22));Ui.gap(panel,16);
-    if(selected==0) {
-      roundedAction(a,panel,action,false,() -> a.go("mine-reviews",""));Ui.gap(panel,10);
-      roundedAction(a,panel,"查看我的回复",false,() -> a.go("mine-review-replies","1"));
-    }
-    else if(selected==1) {
-      roundedAction(a,panel,action,false,()->a.go("community-mine",""));Ui.gap(panel,10);
-      roundedAction(a,panel,"我的收藏",false,()->a.go("community-favorites",""));
-      Ui.gap(panel,10);
-      roundedAction(a,panel,"想吃清单",false,()->a.go("favorite-dishes",""));
-      Ui.gap(panel,10);
-      roundedAction(a,panel,"我的纠错",false,()->a.go("my-corrections",""));
-      Ui.gap(panel,10);
-      roundedAction(a,panel,"浏览历史",false,()->a.go("history",""));
-      Ui.gap(panel,10);
-      roundedAction(a,panel,"举报与处理决定",false,()->a.go("report-receipts",""));
-    }
-    else if(selected==2) roundedAction(a,panel,action,false,() -> a.go("mine-submissions",""));
-    else if(selected==3) {
-      roundedAction(a,panel,action,false,() -> a.go("profile-edit",""));Ui.gap(panel,10);
-      roundedAction(a,panel,"修改密码",false,() -> a.go("password",""));
-      Ui.gap(panel,10);
-      roundedAction(a,panel,"黑名单",false,() -> a.go("blocked-users",""));
-      Ui.gap(panel,10);
-      roundedAction(a,panel,"建议与反馈",false,() -> a.go("feedback",""));
-      if(!user.isAdmin()){Ui.gap(panel,10);roundedAction(a,panel,"账号安全与注销",false,()->a.go("account-lifecycle",""));}
-      Ui.gap(panel,10);
-      roundedAction(a,panel,"提醒设置",false,()->a.go("notification-settings",""));
-      Ui.gap(panel,10);
-      TextView cache=Ui.text(a,"图片缓存",14,Design.MUTED);panel.addView(cache);
-      TextView cacheError=Ui.text(a,"",12,Design.RED);panel.addView(cacheError);
-      long[] usage={0};
-      a.read("image-cache-size",null,cacheError,()->usage[0]=a.repo.imageCacheBytes(),()->cache.setText(String.format(java.util.Locale.CHINA,"图片缓存 %.1f MiB",usage[0]/1048576.0)),()->{});
-      roundedAction(a,panel,"清理图片缓存",false,()->a.request(null,cacheError,a.repo::clearImageCache,()->{Ui.clearImages();Ui.resumeImages();cache.setText("图片缓存 0 MiB");a.message("图片缓存已清理");}));
-    } else roundedAction(a,panel,action,true,() -> Ui.confirm(a,"退出登录？","",a::logout));
+  private static LinearLayout section(MainActivity a,LinearLayout page,String title) {
+    LinearLayout group=Ui.card(page);group.setTag("profile-group:"+title);
+    TextView heading=Ui.title(a,title,21);group.addView(heading);Ui.gap(group,14);return group;
+  }
+  private static void entry(MainActivity a,LinearLayout group,String label,String kind,String id) {
+    TextView button=Ui.button(a,label,false,()->a.go(kind,id));button.setTag("profile-entry:"+kind);
+    button.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,16));
+    group.addView(button,new LinearLayout.LayoutParams(-1,-2));Ui.gap(group,10);
   }
 
   private static void roundedAction(MainActivity a,LinearLayout panel,String label,boolean primary,Runnable run) {

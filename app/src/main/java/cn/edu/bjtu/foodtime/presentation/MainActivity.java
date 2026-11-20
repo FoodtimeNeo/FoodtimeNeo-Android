@@ -212,14 +212,28 @@ public class MainActivity extends Activity {
   }
 
   public void restore() {
+    if (repo.currentUser() != null) {
+      if (pendingOperation != 0) recoverOperation(); else openApp();
+      return;
+    }
+    if (!repo.hasSessionToRestore()) {
+      showAuth(authRegistration); checkAppRelease(false); return;
+    }
     int ticket=++generation;
-    shell(false);content.addView(Ui.text(this,"正在连接…",16,Design.MUTED));
+    shell(false);
+    LinearLayout startupStatus = StartupScreen.show(this);
+    Runnable slowSessionHint = () -> {
+      if (!isDestroyed() && ticket == generation && startupStatus.isAttachedToWindow())
+        startupStatus.addView(Ui.text(this,"登录状态恢复较慢，请稍候…",13,Design.MUTED));
+    };
+    startupStatus.postDelayed(slowSessionHint,3000);
     worker.execute(() -> {
       RuntimeException error=null;try {repo.restoreSession();}catch(RuntimeException e){error=e;}
       RuntimeException failure=error;
       runOnUiThread(() -> {
+        startupStatus.removeCallbacks(slowSessionHint);
         if(isDestroyed()||ticket!=generation) return;
-        if(failure!=null) {content.removeAllViews();Ui.empty(content,"连接失败",safeMessage(failure));Ui.action(content,"重试",true,this::restore);}
+        if(failure!=null) {StartupScreen.failed(this,startupStatus,safeMessage(failure));}
         else if(pendingOperation!=0) recoverOperation();
         else if(repo.currentUser()==null) {showAuth(authRegistration);checkAppRelease(false);}else openApp();
       });
@@ -231,6 +245,7 @@ public class MainActivity extends Activity {
     screens.put("venue-write",VenueScreen::write);
     screens.put("venue-mine",VenueScreen::mine);
     screens.put("dining", DiningScreen::halls);
+    screens.put("campus-map", CampusMapScreen::show);
     screens.put("dish-search", DishSearchScreen::show);
     screens.put("price-history", PriceHistoryScreen::show);
     screens.put("favorite-dishes", FavoriteDishesScreen::show);
@@ -742,7 +757,7 @@ public class MainActivity extends Activity {
     ContentRequest.Query q=switch(route.kind()) {
       case "venue-reviews","venue-write" -> ContentRequest.Query.VENUE_REVIEWS;
       case "venue-mine" -> ContentRequest.Query.VENUE_PERSONAL;
-      case "dining" -> ContentRequest.Query.HALLS;
+      case "dining", "campus-map" -> ContentRequest.Query.HALLS;
       case "stalls" -> ContentRequest.Query.STALLS;
       case "submit-stall" -> ContentRequest.Query.HALL_TARGET;
       case "dishes" -> ContentRequest.Query.DISHES;
@@ -916,6 +931,7 @@ public class MainActivity extends Activity {
       case "price-history" -> "价格变化";
       case "dish-search" -> "跨食堂搜菜";
       case "favorite-dishes" -> "想吃清单";
+      case "campus-map" -> "食堂地图";
       case "admin-audit" -> "审核投稿";
       case "admin-data" -> "目录管理";
       case "admin-edit" -> "编辑目录";
@@ -966,9 +982,12 @@ public class MainActivity extends Activity {
           "回到食堂首页", this::home), new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
       communityPager.bindTabs(header);
     } else {
-      TextView home = Ui.button(this, "⌂", false, this::home);
-      home.setContentDescription("回到食堂首页");
-      bar.addView(home, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
+      if (Set.of("dining", "stalls", "dishes").contains(route().kind())) {
+        bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_search,
+            "搜索菜品", () -> go("dish-search", "")), new LinearLayout.LayoutParams(Ui.dp(this,44),Ui.dp(this,44)));
+      }
+      bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_home,
+          "回到食堂首页", this::home), new LinearLayout.LayoutParams(Ui.dp(this,44),Ui.dp(this,44)));
     }
   }
 
