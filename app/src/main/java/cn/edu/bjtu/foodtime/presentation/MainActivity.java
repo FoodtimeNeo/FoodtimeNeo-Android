@@ -212,14 +212,26 @@ public class MainActivity extends Activity {
   }
 
   public void restore() {
+    if (repo.currentUser() != null) {
+      if (pendingOperation != 0) recoverOperation(); else openApp();
+      return;
+    }
+    if (!repo.hasSessionToRestore()) {
+      showAuth(authRegistration); checkAppRelease(false); return;
+    }
     int ticket=++generation;
-    shell(false);content.addView(Ui.text(this,"正在连接…",16,Design.MUTED));
+    shell(false);
+    LinearLayout startupStatus = StartupScreen.show(this);
+    startupStatus.postDelayed(() -> {
+      if (!isDestroyed() && ticket == generation && startupStatus.isAttachedToWindow())
+        startupStatus.addView(Ui.text(this,"登录状态恢复较慢，请稍候…",13,Design.MUTED));
+    },3000);
     worker.execute(() -> {
       RuntimeException error=null;try {repo.restoreSession();}catch(RuntimeException e){error=e;}
       RuntimeException failure=error;
       runOnUiThread(() -> {
         if(isDestroyed()||ticket!=generation) return;
-        if(failure!=null) {content.removeAllViews();Ui.empty(content,"连接失败",safeMessage(failure));Ui.action(content,"重试",true,this::restore);}
+        if(failure!=null) {StartupScreen.failed(this,startupStatus,safeMessage(failure));}
         else if(pendingOperation!=0) recoverOperation();
         else if(repo.currentUser()==null) {showAuth(authRegistration);checkAppRelease(false);}else openApp();
       });
