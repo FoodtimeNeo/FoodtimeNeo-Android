@@ -18,12 +18,20 @@ public final class CampusMapRunner extends Instrumentation {
   private void ui(Runnable action){var error=new AtomicReference<Throwable>();runOnMainSync(()->{try{action.run();}catch(Throwable t){error.set(t);}});if(error.get()!=null)throw new AssertionError(error.get());}
   private void check(boolean ok,String label){if(!ok)throw new AssertionError(label);checks++;}
   private void await(String label,BooleanSupplier test){long end=SystemClock.uptimeMillis()+18000;while(SystemClock.uptimeMillis()<end){boolean[] ok={false};ui(()->ok[0]=test.getAsBoolean());if(ok[0])return;SystemClock.sleep(50);}throw new AssertionError(label);}
+  private boolean renderedMap() {
+    var map=(CampusMapScreen.MapView)a.root.findViewWithTag("campus-map-canvas");
+    Bitmap bitmap=Bitmap.createBitmap(map.getWidth(),map.getHeight(),Bitmap.Config.ARGB_8888);
+    map.draw(new android.graphics.Canvas(bitmap));var colors=new java.util.HashSet<Integer>();
+    for(int x=1;x<20;x++)for(int y=1;y<20;y++)colors.add(bitmap.getPixel(x*bitmap.getWidth()/20,y*bitmap.getHeight()/20));
+    bitmap.recycle();return colors.size()>40;
+  }
   @Override public void onStart(){var result=new Bundle();try{
     if(!BuildConfig.DEBUG||!BuildConfig.APPLICATION_ID.endsWith(".campusreview")||!BuildConfig.API_BASE_URL.equals("http://127.0.0.1:18120/api/v1/"))throw new AssertionError("Isolated local build required");
     a=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     a.repo.login("review@example.test", "local-fixture-password");ui(a::openApp);
     await("session",()->a.repo.currentUser()!=null&&!a.isPageLoading());ui(()->a.go("campus-map",""));
     await("map",()->!a.isPageLoading()&&a.root.findViewWithTag("campus-map-canvas")!=null);
+    await("Map bitmap must actually render",this::renderedMap);check(true,"Decoded map has detailed rendered pixels");
     ui(()->{
       var map=(CampusMapScreen.MapView)a.root.findViewWithTag("campus-map-canvas");
       check(map.getWidth()>0&&map.getHeight()>0,"Measured map viewport");
