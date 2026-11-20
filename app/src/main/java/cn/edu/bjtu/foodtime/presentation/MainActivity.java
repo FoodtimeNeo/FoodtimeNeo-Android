@@ -231,6 +231,7 @@ public class MainActivity extends Activity {
     screens.put("venue-write",VenueScreen::write);
     screens.put("venue-mine",VenueScreen::mine);
     screens.put("dining", DiningScreen::halls);
+    screens.put("campus-map", CampusMapScreen::show);
     screens.put("dish-search", DishSearchScreen::show);
     screens.put("price-history", PriceHistoryScreen::show);
     screens.put("favorite-dishes", FavoriteDishesScreen::show);
@@ -742,7 +743,7 @@ public class MainActivity extends Activity {
     ContentRequest.Query q=switch(route.kind()) {
       case "venue-reviews","venue-write" -> ContentRequest.Query.VENUE_REVIEWS;
       case "venue-mine" -> ContentRequest.Query.VENUE_PERSONAL;
-      case "dining" -> ContentRequest.Query.HALLS;
+      case "dining", "campus-map" -> ContentRequest.Query.HALLS;
       case "stalls" -> ContentRequest.Query.STALLS;
       case "submit-stall" -> ContentRequest.Query.HALL_TARGET;
       case "dishes" -> ContentRequest.Query.DISHES;
@@ -916,6 +917,7 @@ public class MainActivity extends Activity {
       case "price-history" -> "价格变化";
       case "dish-search" -> "跨食堂搜菜";
       case "favorite-dishes" -> "想吃清单";
+      case "campus-map" -> "食堂地图";
       case "admin-audit" -> "审核投稿";
       case "admin-data" -> "目录管理";
       case "admin-edit" -> "编辑目录";
