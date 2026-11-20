@@ -9,6 +9,7 @@ import java.util.List;
 /** Screen-facing contract. Network implementations should load/cache off the main thread. */
 public interface FoodtimeRepository extends AuthRepository, CatalogRepository, VenueRepository, ReportManagementRepository, NotificationRepository, AppealRepository, PriceHistoryRepository, CommunityPinRepository, PostEditRepository {
   /** Run on a worker. Read methods below return immutable cached snapshots. */
+  default boolean hasSessionToRestore() { return true; }
   default void restoreSession() {}
   default void refresh(ContentRequest request) {}
   default RatingSummary rating(String dishId) { return new RatingSummary(null,0); }

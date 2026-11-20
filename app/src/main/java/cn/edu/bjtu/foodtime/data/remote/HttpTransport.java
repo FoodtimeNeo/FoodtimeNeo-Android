@@ -178,6 +178,13 @@ public final class HttpTransport {
         if(!cookie.getName().equals("foodtime_device"))store.remove(base,cookie);
     }
   }
+  /** Only the session cookie for this origin can justify a cold-start identity lookup. */
+  public boolean hasSessionCookie() {
+    synchronized (cookies) {
+      return cookies.getCookieStore().get(base).stream().anyMatch(cookie ->
+          "FOODTIME_SESSION".equals(cookie.getName()) && !cookie.hasExpired() && !cookie.getValue().isEmpty());
+    }
+  }
   public String sessionKey() {
     synchronized(cookies) {
       StringBuilder value=new StringBuilder();
