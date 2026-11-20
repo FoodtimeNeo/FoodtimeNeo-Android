@@ -966,9 +966,12 @@ public class MainActivity extends Activity {
           "回到食堂首页", this::home), new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
       communityPager.bindTabs(header);
     } else {
-      TextView home = Ui.button(this, "⌂", false, this::home);
-      home.setContentDescription("回到食堂首页");
-      bar.addView(home, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
+      if (Set.of("dining", "stalls", "dishes").contains(route().kind())) {
+        bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_search,
+            "搜索菜品", () -> go("dish-search", "")), new LinearLayout.LayoutParams(Ui.dp(this,44),Ui.dp(this,44)));
+      }
+      bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_home,
+          "回到食堂首页", this::home), new LinearLayout.LayoutParams(Ui.dp(this,44),Ui.dp(this,44)));
     }
   }
 
