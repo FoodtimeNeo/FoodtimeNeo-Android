@@ -222,14 +222,16 @@ public class MainActivity extends Activity {
     int ticket=++generation;
     shell(false);
     LinearLayout startupStatus = StartupScreen.show(this);
-    startupStatus.postDelayed(() -> {
+    Runnable slowSessionHint = () -> {
       if (!isDestroyed() && ticket == generation && startupStatus.isAttachedToWindow())
         startupStatus.addView(Ui.text(this,"登录状态恢复较慢，请稍候…",13,Design.MUTED));
-    },3000);
+    };
+    startupStatus.postDelayed(slowSessionHint,3000);
     worker.execute(() -> {
       RuntimeException error=null;try {repo.restoreSession();}catch(RuntimeException e){error=e;}
       RuntimeException failure=error;
       runOnUiThread(() -> {
+        startupStatus.removeCallbacks(slowSessionHint);
         if(isDestroyed()||ticket!=generation) return;
         if(failure!=null) {StartupScreen.failed(this,startupStatus,safeMessage(failure));}
         else if(pendingOperation!=0) recoverOperation();
