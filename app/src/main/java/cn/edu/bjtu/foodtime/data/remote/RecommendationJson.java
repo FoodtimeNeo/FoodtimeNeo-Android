@@ -16,18 +16,18 @@ final class RecommendationJson {
       String version=text(data,"algorithmVersion");
       var rows=data.getJSONArray("items");
       if(count(data,"total")!=rows.length())throw new IllegalArgumentException();
-      var items=new ArrayList<RecommendedDish>();var seen=new HashSet<String>();
+      var items=new ArrayList<RecommendedStall>();var seen=new HashSet<String>();
       for(int i=0;i<rows.length();i++) {
-        var row=rows.getJSONObject(i);String id=id(row,"dishId");
+        var row=rows.getJSONObject(i);String id=id(row,"stallId");
         if(!seen.add(id))throw new IllegalArgumentException();
         Object raw=row.get("averageRating");BigDecimal rating=null;
         if(raw!=JSONObject.NULL) {double value=number(raw);if(value<1||value>5)throw new IllegalArgumentException();rating=BigDecimal.valueOf(value);}
-        Object image=row.get("imageUrl");if(image!=JSONObject.NULL&&!(image instanceof String))throw new IllegalArgumentException();
+        Object image=row.get("imageUrl");if(!(image instanceof String path)||path.isBlank())throw new IllegalArgumentException();
         String type=text(row,"recommendationType"),reason=text(row,"reasonCode");
         if(!Set.of("QUALITY","EXPLORE").contains(type)||!Set.of("GOOD_REPUTATION","RECENTLY_POPULAR","DAILY_DISCOVERY","LESS_EXPOSED").contains(reason))throw new IllegalArgumentException();
         double score=number(row.get("recommendationScore"));if(score<0||score>1)throw new IllegalArgumentException();
-        items.add(new RecommendedDish(id,text(row,"dishName"),id(row,"diningHallId"),text(row,"diningHallName"),
-            id(row,"stallId"),text(row,"stallName"),rating,count(row,"reviewCount"),image==JSONObject.NULL?null:(String)image,
+        items.add(new RecommendedStall(id,text(row,"stallName"),id(row,"diningHallId"),text(row,"diningHallName"),
+            rating,count(row,"reviewCount"),(String)image,
             type,score,reason,text(row,"reason")));
       }
       return new DailyRecommendations(day,version,items);

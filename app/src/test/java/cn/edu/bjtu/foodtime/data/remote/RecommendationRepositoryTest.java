@@ -49,21 +49,20 @@ public class RecommendationRepositoryTest {
   private void refresh(){repo.refresh(new ContentRequest(ContentRequest.Query.DAILY_RECOMMENDATIONS,""));}
   static JSONObject valid() throws JSONException {
     return new JSONObject("""
-      {"date":"2026-11-04","algorithmVersion":"FT-HybridRec-v2","total":1,"items":[{
-      "dishId":"00000000-0000-0000-0000-000000000001","dishName":"真实推荐",
-      "diningHallId":"00000000-0000-0000-0000-000000000002","diningHallName":"真实食堂",
+      {"date":"2026-11-04","algorithmVersion":"FT-HybridRec-v3-stall","total":1,"items":[{
       "stallId":"00000000-0000-0000-0000-000000000003","stallName":"真实档口",
-      "averageRating":null,"reviewCount":0,"imageUrl":null,"recommendationType":"EXPLORE",
+      "diningHallId":"00000000-0000-0000-0000-000000000002","diningHallName":"真实食堂",
+      "averageRating":null,"reviewCount":0,"imageUrl":"/api/v1/media/stall-cover","recommendationType":"EXPLORE",
       "recommendationScore":0.83,"reasonCode":"DAILY_DISCOVERY","reason":"今日探索"}]}
       """);
   }
   @Test public void realEndpointAndNullableFields() {
     assertNull(repo.dailyRecommendations());refresh();assertEquals(1,requests.get());
     var data=repo.dailyRecommendations();assertEquals(LocalDate.parse("2026-11-04"),data.date());
-    var dish=data.items().get(0);assertNull(dish.averageRating());assertNull(dish.imageUrl());
-    assertEquals("真实食堂",dish.diningHallName());assertEquals("真实档口",dish.stallName());
-    assertEquals("00000000-0000-0000-0000-000000000001",dish.dishId());
-    assertEquals(.83,dish.recommendationScore(),.0001);assertEquals("今日探索",dish.reason());
+    var stall=data.items().get(0);assertNull(stall.averageRating());assertEquals("/api/v1/media/stall-cover",stall.imageUrl());
+    assertEquals("真实食堂",stall.diningHallName());assertEquals("真实档口",stall.stallName());
+    assertEquals("00000000-0000-0000-0000-000000000003",stall.stallId());
+    assertEquals(.83,stall.recommendationScore(),.0001);assertEquals("今日探索",stall.reason());
     assertThrows(UnsupportedOperationException.class,()->data.items().clear());
   }
   @Test public void visitorCanReadAndEmptyIsReal() throws Exception {
@@ -76,7 +75,8 @@ public class RecommendationRepositoryTest {
   @Test public void malformedCannotBecomeFakeData() throws Exception {
     var cases=new ArrayList<JSONObject>();cases.add(valid().put("date","2026-02-30"));cases.add(valid().put("total",2));
     var duplicate=valid();duplicate.getJSONArray("items").put(duplicate.getJSONArray("items").get(0));duplicate.put("total",2);cases.add(duplicate);
-    for(String key:new String[]{"dishId","diningHallId","stallId","averageRating","imageUrl","reason"}){var data=valid();data.getJSONArray("items").getJSONObject(0).remove(key);cases.add(data);}
+    for(String key:new String[]{"stallId","diningHallId","averageRating","imageUrl","reason"}){var data=valid();data.getJSONArray("items").getJSONObject(0).remove(key);cases.add(data);}
+    var missingImage=valid();missingImage.getJSONArray("items").getJSONObject(0).put("imageUrl",JSONObject.NULL);cases.add(missingImage);
     for(String key:new String[]{"averageRating","reviewCount","recommendationScore"}){var data=valid();data.getJSONArray("items").getJSONObject(0).put(key,-1);cases.add(data);}
     var stringRating=valid();stringRating.getJSONArray("items").getJSONObject(0).put("averageRating","4.5");cases.add(stringRating);
     for(var data:cases)assertEquals("RECOMMENDATION_INVALID_RESPONSE",assertThrows(RepositoryException.class,()->RecommendationJson.parse(data)).code());
@@ -89,7 +89,7 @@ public class RecommendationRepositoryTest {
   @Test public void olderRequestCannotReplaceNewer() throws Exception {late(false);}
   private void late(boolean switchAccount) throws Exception {
     slowStarted=new CountDownLatch(1);releaseSlow=new CountDownLatch(1);var old=workers.submit(this::refresh);assertTrue(slowStarted.await(5,TimeUnit.SECONDS));
-    if(switchAccount)actor.set("two");var next=valid();next.getJSONArray("items").getJSONObject(0).put("dishName","最新推荐");response.set(next.toString());refresh();releaseSlow.countDown();
-    assertThrows(ExecutionException.class,()->old.get(5,TimeUnit.SECONDS));assertEquals("最新推荐",repo.dailyRecommendations().items().get(0).dishName());
+    if(switchAccount)actor.set("two");var next=valid();next.getJSONArray("items").getJSONObject(0).put("stallName","最新推荐");response.set(next.toString());refresh();releaseSlow.countDown();
+    assertThrows(ExecutionException.class,()->old.get(5,TimeUnit.SECONDS));assertEquals("最新推荐",repo.dailyRecommendations().items().get(0).stallName());
   }
 }
