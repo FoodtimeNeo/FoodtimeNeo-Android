@@ -98,8 +98,8 @@ final class RecommendationSection {
     TextView open=Ui.note(a,"查看详情");open.setTextSize(16);open.setTextColor(Design.BLUE);open.setGravity(Gravity.END);
     text.addView(open);card.addView(text,new LinearLayout.LayoutParams(-1,0,1));
     card.setFocusable(true);card.setClickable(true);
-    card.setContentDescription(dish.diningHallName()+"，"+dish.stallName()+"，查看档口");
-    card.setOnClickListener(v->a.go("stalls",dish.diningHallId()));
+    card.setContentDescription(dish.diningHallName()+"，"+dish.stallName()+"，查看档口菜品");
+    card.setOnClickListener(v->a.go("dishes",dish.stallId()));
     int width=Ui.dp(a,Math.min(250,Math.max(224,a.getResources().getConfiguration().screenWidthDp-70)));
     LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(width,Ui.dp(a,CARD_HEIGHT_DP));
     lp.rightMargin=Ui.dp(a,12);cards.addView(card,lp);
