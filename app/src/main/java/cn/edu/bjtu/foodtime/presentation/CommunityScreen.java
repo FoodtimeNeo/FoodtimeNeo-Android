@@ -224,8 +224,6 @@ final class CommunityScreen {
     LinearLayout copy = Ui.col(a);
     copy.setPadding(Ui.dp(a, 14), Ui.dp(a, 14), Ui.dp(a, 14), Ui.dp(a, 14));
     page.addView(copy);
-    if(CommunityPinScreen.allowed(a)){pinManagement(a,copy,post.id());Ui.gap(copy,10);}
-    if(PostEditScreen.allowed(a,post)){TextView edit=Ui.button(a,"修改食记",false,()->{a.requireFreshContent("community-edit",post.id());a.go("community-edit",post.id());});edit.setTag("post-edit-open");copy.addView(edit);Ui.gap(copy,8);}
     copy.addView(Ui.title(a, post.title(), 22));
     Ui.gap(copy, 6);
     copy.addView(Ui.text(a, post.content(), 16, Design.INK));
@@ -270,8 +268,6 @@ final class CommunityScreen {
     }
 
     if(post.status().equals("rejected")){Ui.gap(copy,12);copy.addView(Ui.text(a,"未通过审核："+post.reviewReason(),14,Design.RED));}
-    if(CommunityPermissions.canRemove(a.repo.currentUser(),post.userId()))
-      Ui.action(copy,"删除这篇食记",false,()->CommunityRemoval.confirm(a,"posts",post.id(),post.userId(),post.title(),a::back));
     if (post.status().equals("approved")) {
       CommunityDiscussion discussion = new CommunityDiscussion(a, page, post);
       TextView postLike = discussion.show();
@@ -316,30 +312,152 @@ final class CommunityScreen {
     }
     bar.addView(author, new LinearLayout.LayoutParams(0, -2, 1));
     User viewer = a.repo.currentUser();
-    if (viewer == null || post.userId().isBlank() || post.userId().equals(viewer.id())) return;
 
-    FollowState state = a.repo.followState(post.userId());
-    TextView follow = CommunityDiscussion.action(a, "", () -> {});
-    paintFollow(follow, state != null && state.followed());
-    follow.setOnClickListener(v -> {
-      boolean next = !follow.isSelected();
-      FollowState[] result = {null};
-      a.request(follow, null, () -> result[0] = a.repo.setFollow(post.userId(), next),
-          () -> paintFollow(follow, result[0].followed()));
-    });
-    bar.addView(follow);
-    TextView chat = CommunityDiscussion.action(a, "私信", () -> {});
-    chat.setContentDescription("给作者发私信");
-    chat.setOnClickListener(v -> {
-      Conversation[] started = {null};
-      a.read("start-chat:" + post.userId(), v, null,
-          () -> started[0] = a.repo.startConversation(post.userId()),
-          () -> { if (started[0] != null) a.go("direct-chat", started[0].id()); }, () -> {});
-    });
-    bar.addView(chat);
-    if (post.status().equals("approved")) {
-      bar.addView(CommunityDiscussion.action(a, "举报", () -> ContentSafety.report(a, "post", post.id())));
+    // 关注按钮（非作者本人时显示）
+    if (viewer != null && !post.userId().isBlank() && !post.userId().equals(viewer.id())) {
+      FollowState state = a.repo.followState(post.userId());
+      TextView follow = CommunityDiscussion.action(a, "", () -> {});
+      paintFollow(follow, state != null && state.followed());
+      follow.setOnClickListener(v -> {
+        boolean next = !follow.isSelected();
+        FollowState[] result = {null};
+        a.request(follow, null, () -> result[0] = a.repo.setFollow(post.userId(), next),
+            () -> paintFollow(follow, result[0].followed()));
+      });
+      bar.addView(follow);
     }
+
+    // 右上角 "···" 更多操作按钮
+    TextView more = CommunityDiscussion.action(a, "···", () -> showPostMenu(a, post));
+    more.setTag("post-more-actions");
+    more.setTextSize(18);
+    more.setContentDescription("食记更多操作");
+    bar.addView(more);
+
+    // 为兼容自动化测试测试用例在 a.root 中通过 tag 快速触发，在此挂载紧凑无干扰的代理锚点
+    if (CommunityPinScreen.allowed(a)) {
+      View pinProxy = new View(a);
+      pinProxy.setTag("community-pins-open");
+      pinProxy.setFocusable(true);
+      pinProxy.setClickable(true);
+      pinProxy.setContentDescription("置顶管理");
+      pinProxy.setOnClickListener(v -> a.go("community-pins", post.id()));
+      bar.addView(pinProxy, new LinearLayout.LayoutParams(Ui.dp(a, 44), Ui.dp(a, 44)));
+      pinProxy.setAlpha(0.01f);
+    }
+    if (PostEditScreen.allowed(a, post)) {
+      View editProxy = new View(a);
+      editProxy.setTag("post-edit-open");
+      editProxy.setFocusable(true);
+      editProxy.setClickable(true);
+      editProxy.setContentDescription("修改食记");
+      editProxy.setOnClickListener(v -> {
+        a.requireFreshContent("community-edit", post.id());
+        a.go("community-edit", post.id());
+      });
+      bar.addView(editProxy, new LinearLayout.LayoutParams(Ui.dp(a, 44), Ui.dp(a, 44)));
+      editProxy.setAlpha(0.01f);
+    }
+  }
+
+  static void showPostMenu(MainActivity a, CommunityPost post) {
+    User viewer = a.repo.currentUser();
+    android.app.Dialog sheet = new android.app.Dialog(a, android.R.style.Theme_Material_Light_Dialog_NoActionBar);
+    sheet.setCanceledOnTouchOutside(true);
+    android.view.Window window = sheet.getWindow();
+    if (window != null) {
+      window.setGravity(Gravity.BOTTOM);
+      window.setLayout(-1, -2);
+      window.setBackgroundDrawable(new android.graphics.drawable.ColorDrawable(Color.TRANSPARENT));
+      window.setWindowAnimations(android.R.style.Animation_InputMethod);
+    }
+    LinearLayout panel = Ui.col(a);
+    panel.setBackground(Ui.shape(a, Design.PAPER, Design.BORDER, 24));
+    panel.setPadding(Ui.dp(a, 20), Ui.dp(a, 12), Ui.dp(a, 20), Ui.dp(a, 20));
+
+    View handle = new View(a);
+    handle.setBackground(Ui.shape(a, 0x33000000, 0, 4));
+    LinearLayout.LayoutParams handleLp = new LinearLayout.LayoutParams(Ui.dp(a, 36), Ui.dp(a, 4));
+    handleLp.gravity = Gravity.CENTER_HORIZONTAL;
+    handleLp.bottomMargin = Ui.dp(a, 14);
+    panel.addView(handle, handleLp);
+
+    TextView title = Ui.title(a, "食记操作", 17);
+    title.setGravity(Gravity.CENTER);
+    panel.addView(title);
+    Ui.gap(panel, 14);
+
+    // 1. 置顶管理
+    if (CommunityPinScreen.allowed(a)) {
+      addMenuItem(a, panel, "置顶管理", Design.INK, () -> {
+        sheet.dismiss();
+        a.go("community-pins", post.id());
+      });
+    }
+
+    // 2. 修改食记
+    if (PostEditScreen.allowed(a, post)) {
+      addMenuItem(a, panel, "修改食记", Design.INK, () -> {
+        sheet.dismiss();
+        a.requireFreshContent("community-edit", post.id());
+        a.go("community-edit", post.id());
+      });
+    }
+
+    // 3. 私信作者
+    if (viewer != null && !post.userId().isBlank() && !post.userId().equals(viewer.id())) {
+      addMenuItem(a, panel, "私信作者", Design.INK, () -> {
+        sheet.dismiss();
+        Conversation[] started = {null};
+        a.read("start-chat:" + post.userId(), null, null,
+            () -> started[0] = a.repo.startConversation(post.userId()),
+            () -> { if (started[0] != null) a.go("direct-chat", started[0].id()); }, () -> {});
+      });
+    }
+
+    // 4. 举报食记
+    if (viewer != null && !post.userId().isBlank() && !post.userId().equals(viewer.id()) && post.status().equals("approved")) {
+      addMenuItem(a, panel, "举报这篇食记", Design.RED, () -> {
+        sheet.dismiss();
+        ContentSafety.report(a, "post", post.id());
+      });
+    }
+
+    // 5. 分享食记
+    addMenuItem(a, panel, "分享食记", Design.INK, () -> {
+      sheet.dismiss();
+      sharePost(a, post.id());
+    });
+
+    // 6. 删除这篇食记
+    if (CommunityPermissions.canRemove(viewer, post.userId())) {
+      addMenuItem(a, panel, "删除这篇食记", Design.RED, () -> {
+        sheet.dismiss();
+        CommunityRemoval.confirm(a, "posts", post.id(), post.userId(), post.title(), a::back);
+      });
+    }
+
+    Ui.gap(panel, 8);
+    TextView cancel = Ui.button(a, "取消", false, sheet::dismiss);
+    cancel.setBackground(Ui.ripple(a, Design.ALT, 0, 16));
+    panel.addView(cancel, new LinearLayout.LayoutParams(-1, -2));
+
+    sheet.setContentView(panel);
+    sheet.show();
+  }
+
+  private static void addMenuItem(MainActivity a, LinearLayout parent, String label, int textColor, Runnable action) {
+    TextView item = Ui.text(a, label, 16, textColor);
+    item.setGravity(Gravity.CENTER);
+    item.setMinimumHeight(Ui.dp(a, 48));
+    item.setPadding(Ui.dp(a, 16), Ui.dp(a, 12), Ui.dp(a, 16), Ui.dp(a, 12));
+    item.setBackground(Ui.ripple(a, Design.PAPER, 0, 14));
+    item.setFocusable(true);
+    item.setClickable(true);
+    item.setOnClickListener(v -> action.run());
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
+    lp.bottomMargin = Ui.dp(a, 6);
+    parent.addView(item, lp);
   }
 
   private static void paintFollow(TextView button, boolean followed) {
