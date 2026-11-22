@@ -25,7 +25,7 @@ public final class DailyRecommendationIntegrationRunner extends Instrumentation 
     if(v instanceof ViewGroup g)for(int i=0;i<g.getChildCount();i++)layout(g.getChildAt(i));
   }
   private void screenshot(MainActivity a,String mode)throws Exception {
-    ui(()->{View s=section(a);var config=a.getResources().getConfiguration();var data=a.repo.dailyRecommendations();if(config.screenWidthDp>config.screenHeightDp&&data!=null&&!data.items().isEmpty()){ViewGroup card=a.content.findViewWithTag("daily-recommendation-card:"+data.items().get(0).dishId());s=card.getChildAt(1);}int[] point=new int[2],origin=new int[2];s.getLocationInWindow(point);a.scroll.getLocationInWindow(origin);a.scroll.scrollBy(0,point[1]-origin[1]-Ui.dp(a,12));});
+    ui(()->{View s=section(a);var config=a.getResources().getConfiguration();var data=a.repo.dailyRecommendations();if(config.screenWidthDp>config.screenHeightDp&&data!=null&&!data.items().isEmpty()){ViewGroup card=a.content.findViewWithTag("daily-recommendation-card:"+data.items().get(0).stallId());s=card.getChildAt(1);}int[] point=new int[2],origin=new int[2];s.getLocationInWindow(point);a.scroll.getLocationInWindow(origin);a.scroll.scrollBy(0,point[1]-origin[1]-Ui.dp(a,12));});
     waitForIdleSync();SystemClock.sleep(3500);
     var window=getUiAutomation().getRootInActiveWindow();long end=SystemClock.uptimeMillis()+5000;
     while((window==null||!BuildConfig.APPLICATION_ID.contentEquals(window.getPackageName()))&&SystemClock.uptimeMillis()<end){SystemClock.sleep(100);window=getUiAutomation().getRootInActiveWindow();}
@@ -51,19 +51,19 @@ public final class DailyRecommendationIntegrationRunner extends Instrumentation 
         check(a.repo.dailyRecommendations()!=null&&a.repo.dailyRecommendations().items().isEmpty(),"Empty state is not from Backend");
         screenshot(a,mode);
       } else {
-        until(()->a.repo.dailyRecommendations()!=null&&!a.repo.dailyRecommendations().items().isEmpty()&&section(a)!=null&&text(section(a)).contains(a.repo.dailyRecommendations().items().get(0).dishName()),"Real recommendation cards missing");
+        until(()->a.repo.dailyRecommendations()!=null&&!a.repo.dailyRecommendations().items().isEmpty()&&section(a)!=null&&text(section(a)).contains(a.repo.dailyRecommendations().items().get(0).stallName()),"Real recommendation cards missing");
         var data=a.repo.dailyRecommendations();check(data.items().size()==10,"Expected ten real recommendations");
         var first=data.items().get(0);
         ui(()->{
-          String content=text(section(a));for(var dish:data.items()) {check(content.contains(dish.dishName()),"Dish missing");check(content.contains(dish.reason()),"Reason missing");check(a.content.findViewWithTag("daily-recommendation-card:"+dish.dishId())!=null,"Missing real dish target");}
+          String content=text(section(a));for(var stall:data.items()) {check(content.contains(stall.stallName()),"Stall missing");check(content.contains(stall.reason()),"Reason missing");check(!stall.imageUrl().isBlank(),"Stall cover image is required");check(a.content.findViewWithTag("daily-recommendation-card:"+stall.stallId())!=null,"Missing real stall target");}
           check(!content.contains("¥"),"Invented recommendation price");
           if(data.items().stream().anyMatch(d->d.averageRating()==null))check(content.contains("暂无评分"),"Null rating must remain unrated");
           layout(section(a));
         });
         screenshot(a,mode);
-        ui(()->a.content.findViewWithTag("daily-recommendation-card:"+first.dishId()).performClick());
-        until(()->!a.isPageLoading()&&text(a.content).contains(first.dishName()),"Real dish detail failed");
-        ui(()->check(a.route().kind().equals("detail")&&a.route().id().equals(first.dishId()),"Wrong detail route"));
+        ui(()->a.content.findViewWithTag("daily-recommendation-card:"+first.stallId()).performClick());
+        until(()->!a.isPageLoading()&&text(a.content).contains(first.stallName()),"Real stall detail failed");
+        ui(()->check(a.route().kind().equals("dishes")&&a.route().id().equals(first.stallId()),"Wrong stall route"));
       }
       a.repo.logout();check(a.repo.dailyRecommendations()==null,"Logout retained recommendations");
       result.putString("stream","Daily recommendation native PASS: "+checks+" checks, mode="+mode+"\n");finish(-1,result);

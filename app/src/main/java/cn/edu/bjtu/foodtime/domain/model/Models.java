@@ -17,11 +17,11 @@ public final class Models {
   }
   /** One-time login challenge image; the answer is never part of this payload. */
   public record CaptchaChallenge(String challengeId, String imageBase64, String expiresAt) {}
-  public record DailyRecommendations(java.time.LocalDate date, String algorithmVersion, List<RecommendedDish> items) {
+  public record DailyRecommendations(java.time.LocalDate date, String algorithmVersion, List<RecommendedStall> items) {
     public DailyRecommendations { items=List.copyOf(items); }
   }
-  public record RecommendedDish(String dishId,String dishName,String diningHallId,String diningHallName,
-      String stallId,String stallName,BigDecimal averageRating,long reviewCount,String imageUrl,
+  public record RecommendedStall(String stallId,String stallName,String diningHallId,String diningHallName,
+      BigDecimal averageRating,long reviewCount,String imageUrl,
       String recommendationType,double recommendationScore,String reasonCode,String reason) {}
 
   public record Hall(String id, String name, String coverImageUrl, boolean active, BigDecimal averageScore, long reviewCount) {

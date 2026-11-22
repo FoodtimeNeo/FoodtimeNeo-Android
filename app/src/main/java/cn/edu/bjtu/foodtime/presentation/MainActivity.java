@@ -292,6 +292,7 @@ public class MainActivity extends Activity {
     screens.put("password", PasswordScreen::show);
     screens.put("detail", DishScreen::detail);
     screens.put("review", ReviewScreen::create);
+    screens.put("quick-review", ReviewScreen::quick);
     screens.put("review-replies", ReviewReplyScreen::thread);
     screens.put("reply-create", ReviewReplyScreen::create);
     screens.put("mine-review-replies", ReviewReplyScreen::mine);
@@ -923,6 +924,7 @@ public class MainActivity extends Activity {
       case "avatar-crop" -> "裁剪头像";
       case "password" -> "修改密码";
       case "review" -> "写点评";
+      case "quick-review" -> "一键点评";
       case "review-replies" -> "点评回复";
       case "reply-create" -> "回复点评";
       case "mine-reviews" -> "我的评论";
@@ -1082,7 +1084,17 @@ public class MainActivity extends Activity {
       if (chat || post) content.setPadding(0, 0, 0, 0);
       else content.setPadding(Ui.dp(this, 14), Ui.dp(this, 24), Ui.dp(this, 14), Ui.dp(this, 24));
       scroll.addView(content);
-      root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
+      boolean quickEntry=navigation&&tab.equals("dining")&&route().kind().equals("dining")
+          &&stacks.get("dining").size()==1;
+      if(quickEntry){
+        FrameLayout pageFrame=new FrameLayout(this);
+        pageFrame.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
+        View quickReview=ReviewScreen.createButton(this);
+        FrameLayout.LayoutParams quickSize=new FrameLayout.LayoutParams(Ui.dp(this,54),Ui.dp(this,54),Gravity.BOTTOM|Gravity.END);
+        quickSize.setMargins(0,0,Ui.dp(this,18),Ui.dp(this,15));
+        pageFrame.addView(quickReview,quickSize);
+        root.addView(pageFrame,new LinearLayout.LayoutParams(-1,0,1));
+      }else root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
     }
     if (chat || post) {
       chatBar = Ui.col(this);
