@@ -46,7 +46,15 @@ final class CanteenMenu {
     });
   }
   private static ScrollView viewport(MainActivity a){
-    ScrollView scroll=new ScrollView(a){@Override public boolean onTouchEvent(MotionEvent e){if(e.getActionMasked()==MotionEvent.ACTION_DOWN)getParent().requestDisallowInterceptTouchEvent(true);if(e.getActionMasked()==MotionEvent.ACTION_UP||e.getActionMasked()==MotionEvent.ACTION_CANCEL)getParent().requestDisallowInterceptTouchEvent(false);return super.onTouchEvent(e);}};
+    ScrollView scroll=new ScrollView(a){
+      @Override public boolean onInterceptTouchEvent(MotionEvent event){
+        boolean intercepted=super.onInterceptTouchEvent(event);
+        // Down can belong to a clickable dish row, so onTouchEvent alone is too late.
+        if(event.getActionMasked()==MotionEvent.ACTION_DOWN)getParent().requestDisallowInterceptTouchEvent(true);
+        return intercepted;
+      }
+      @Override public boolean onTouchEvent(MotionEvent e){if(e.getActionMasked()==MotionEvent.ACTION_DOWN)getParent().requestDisallowInterceptTouchEvent(true);if(e.getActionMasked()==MotionEvent.ACTION_UP||e.getActionMasked()==MotionEvent.ACTION_CANCEL)getParent().requestDisallowInterceptTouchEvent(false);return super.onTouchEvent(e);}
+    };
     scroll.setFillViewport(false);scroll.setOverScrollMode(View.OVER_SCROLL_NEVER);return scroll;
   }
   private void header(LinearLayout group,Stall stall){

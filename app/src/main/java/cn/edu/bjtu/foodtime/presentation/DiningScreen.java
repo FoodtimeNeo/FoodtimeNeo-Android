@@ -17,7 +17,8 @@ final class DiningScreen {
   static void halls(MainActivity a, LinearLayout page, MainActivity.Route route) {
     page.setBackground(new FoodDoodleDrawable(a));
     a.heading(page,"01","食堂手账","今天的好心情，从一顿热饭开始。");
-    TextView search=Ui.button(a,"⌕  搜索菜品",false,()->a.go("dish-search",""));
+    TextView search=Ui.button(a,"搜索菜品，如牛肉面",false,()->a.go("dish-search",""));
+    android.graphics.drawable.Drawable searchIcon=a.getDrawable(cn.edu.bjtu.foodtime.R.drawable.ic_hub_search);searchIcon.setTint(Design.MUTED);searchIcon.setBounds(0,0,Ui.dp(a,20),Ui.dp(a,20));search.setCompoundDrawables(searchIcon,null,null,null);search.setCompoundDrawablePadding(Ui.dp(a,10));search.setContentDescription("搜索菜品");
     search.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);search.setTextSize(16);search.setTextColor(Design.MUTED);search.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,26));search.setTag("home-dish-search");page.addView(search);Ui.gap(page,14);
     hero(a,page);
     Ui.action(page,"食堂地图",false,()->a.go("campus-map",""));
