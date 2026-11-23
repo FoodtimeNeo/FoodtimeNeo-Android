@@ -4,4 +4,8 @@
         <item name="android:navigationBarColor">#f2efe6</item>
         <item name="android:forceDarkAllowed">false</item>
     </style>
+    <style name="Theme.Foodtime.Dark" parent="Theme.Foodtime.Dark.Base">
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:forceDarkAllowed">false</item>
+    </style>
 </resources>

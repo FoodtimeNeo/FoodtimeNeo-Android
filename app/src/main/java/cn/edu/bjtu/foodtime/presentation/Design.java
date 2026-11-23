@@ -5,7 +5,7 @@ import android.graphics.Typeface;
 
 /** Mirrors the actual Web tokens.scss. All application colours live here. */
 public final class Design {
-  public static final int INK = 0xff3a2418,
+  public static int INK = 0xff3a2418,
       MUTED = 0xff6e5547,
       RED = 0xffc9341e,
       RED_PRESSED = 0xffab1f0b,
@@ -25,6 +25,20 @@ public final class Design {
   private static Typeface title, body, note;
 
   public static void init(Context c) {
+    boolean dark = AppTheme.dark(c);
+    INK = dark ? 0xfff5f2ed : 0xff3a2418;
+    MUTED = dark ? 0xffc3bcb3 : 0xff6e5547;
+    PAPER = dark ? 0xff141414 : 0xfffffaf0;
+    ALT = dark ? 0xff242424 : 0xfff7efd9;
+    KRAFT = dark ? 0xff181818 : 0xffd8c08b;
+    KRAFT_SOFT = dark ? 0xff222222 : 0xffeadbbb;
+    BAR = dark ? 0xff191919 : 0xfff2efe6;
+    BORDER = dark ? 0xff605c56 : 0xffd5ccbc;
+    PRESSED = dark ? 0xff323232 : 0xfff1ece2;
+    GREEN = dark ? 0xffa0bd7e : 0xff5b7a3a;
+    BLUE = dark ? 0xff8cbdda : 0xff3f7291;
+    GOLD = dark ? 0xffd4b560 : 0xffb88924;
+    SHADOW = dark ? 0x66000000 : 0x1a3a2418;
     title = load(c, "fonts/title.ttf", Typeface.create("serif", Typeface.BOLD));
     body = load(c, "fonts/body.ttf", Typeface.create("sans-serif", Typeface.NORMAL));
     note = load(c, "fonts/note.ttf", Typeface.create("serif", Typeface.NORMAL));

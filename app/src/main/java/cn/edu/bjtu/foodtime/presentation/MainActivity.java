@@ -23,6 +23,8 @@ import java.util.function.*;
 public class MainActivity extends Activity {
   public FoodtimeRepository repo;
   FeedbackDocuments feedbackDocuments;
+  private final PostDraftExit postDraftExit = new PostDraftExit();
+  private ColdStartSplash coldStartSplash;
   AlertDialog accountActionConfirmation;
   private boolean releaseChecked, releaseChecking, updateCheckPending;
   private AlertDialog updatePrompt, updateProgress;
@@ -83,6 +85,7 @@ public class MainActivity extends Activity {
   private boolean incomingInbox;
   private String actor(){var user=repo==null?null:repo.currentUser();return user==null?"":user.id()+":"+user.role();}
   private void drainNotices() {
+    if(coldStartSplash!=null&&coldStartSplash.showing())return;
     if(loginNotices==null||updateCheckPending)return;
     if(loginNotices.pending==null) {
       if(loginNoticeDialog!=null){loginNoticeDialog.dialog.dismiss();loginNoticeDialog=null;}
@@ -105,8 +108,10 @@ public class MainActivity extends Activity {
 
   @Override
   public void onCreate(Bundle state) {
+    setTheme(AppTheme.dark(this) ? cn.edu.bjtu.foodtime.R.style.Theme_Foodtime_Dark : cn.edu.bjtu.foodtime.R.style.Theme_Foodtime);
     super.onCreate(state);
     Design.init(this);
+    coldStartSplash = new ColdStartSplash(this, this::startupTimedOut, this::drainNotices);
     repo = ((RepositoryProvider) getApplication()).repository();
     feedbackDocuments = new FeedbackDocuments(this,state);
     worker = ((RepositoryProvider) getApplication()).workExecutor();
@@ -233,7 +238,7 @@ public class MainActivity extends Activity {
       runOnUiThread(() -> {
         startupStatus.removeCallbacks(slowSessionHint);
         if(isDestroyed()||ticket!=generation) return;
-        if(failure!=null) {StartupScreen.failed(this,startupStatus,safeMessage(failure));}
+        if(failure!=null) {StartupScreen.failed(this,startupStatus,safeMessage(failure));startupReady();}
         else if(pendingOperation!=0) recoverOperation();
         else if(repo.currentUser()==null) {showAuth(authRegistration);checkAppRelease(false);}else openApp();
       });
@@ -330,6 +335,7 @@ public class MainActivity extends Activity {
     ++generation;
     shell(false);
     AuthScreen.show(this, content, register);
+    startupReady();
   }
 
   public void openApp() {
@@ -360,6 +366,7 @@ public class MainActivity extends Activity {
     header.removeAllViews();
     content.removeAllViews();
     AppealOnlyScreen.show(this, content);
+    startupReady();
   }
 
   /** 应用内更新检查：开屏自动一次，个人页可手动再次触发。 */
@@ -390,7 +397,7 @@ public class MainActivity extends Activity {
             if (!manual) maybeReleaseUpdateGate();
             return;
           }
-          showUpdateDialog(info);
+          coldStartSplash.afterReady(() -> showUpdateDialog(info));
             };
             if(stateSaved)deferredReads.add(complete);else complete.run();
           });
@@ -490,6 +497,7 @@ public class MainActivity extends Activity {
   }
 
   public void go(String kind, String id) {
+    if(!writeInFlight&&postDraftExit.intercept(this,()->go(kind,id)))return;
     if(writeInFlight) {message("正在提交，请稍候");return;}
     rememberScroll();
     if(kind.equals("direct-chat")) chatOriginTab=tab;
@@ -502,6 +510,7 @@ public class MainActivity extends Activity {
   }
 
   void replaceRoute(String kind,String id){
+    if(!writeInFlight&&postDraftExit.intercept(this,()->replaceRoute(kind,id)))return;
     if(writeInFlight){message("正在提交，请稍候");return;}
     rememberScroll();ArrayList<Route> stack=stacks.get(tab);stack.set(stack.size()-1,new Route(kind,id));render();
   }
@@ -540,6 +549,7 @@ public class MainActivity extends Activity {
   }
 
   public void home() {
+    if(!writeInFlight&&postDraftExit.intercept(this,()->home()))return;
     if(writeInFlight) {message("正在提交，请稍候");return;}
     rememberScroll();
     tab = "dining";
@@ -550,6 +560,7 @@ public class MainActivity extends Activity {
   }
 
   public void selectTab(String next) {
+    if(!writeInFlight&&!tab.equals(next)&&postDraftExit.intercept(this,()->selectTab(next)))return;
     if(writeInFlight) {message("正在提交，请稍候");return;}
     if (tab.equals(next)) return;
     rememberScroll();
@@ -558,6 +569,7 @@ public class MainActivity extends Activity {
   }
 
   public void back() {
+    if(!writeInFlight&&postDraftExit.intercept(this,()->back()))return;
     if(writeInFlight) {message("正在提交，请稍候");return;}
     if(passwordRecovery!=null){passwordRecovery.back();return;}
     if(route().kind().equals("community-edit")&&PostEditScreen.confirmExit(this))return;
@@ -587,6 +599,12 @@ public class MainActivity extends Activity {
   // OnBackInvokedDispatcher above.
   public void onBackPressed() {
     back();
+  }
+
+  @Override public void finish() {
+    // onDestroy can follow a new Activity's onCreate; end the process cover before that race.
+    if (coldStartSplash != null) coldStartSplash.finish();
+    super.finish();
   }
 
   @Override
@@ -672,7 +690,7 @@ public class MainActivity extends Activity {
       if(dashboard)AdminDashboardScreen.refreshing(content,true);
       navigationHandler.postDelayed(()->{
         if(ticket!=generation||epoch!=navigationEpoch||!navigationLoading)return;
-        cancelNavigation();pageFailed=true;refreshPage();message("加载超时，已保留当前页面");
+        cancelNavigation();pageFailed=true;refreshPage();startupReady();message("加载超时，已保留当前页面");
       },15000);
     } else {
       if(dashboard&&retain)AdminDashboardScreen.refreshing(content,true);
@@ -693,6 +711,7 @@ public class MainActivity extends Activity {
         if(retain){refreshBanner=slowBody;content.addView(slowBody,0);LoadingScreen.failure(this,slowBody,dashboard?"刷新失败，显示上次数据":"加载失败");}
         else if(catalog)LoadingScreen.failure(this,slowBody);
         else LoadingScreen.failure(this,slowBody);
+        startupReady();
       },15000);
     }
     CommunityPost paintedPost=target.kind().equals("community-detail")?repo.communityPost(target.id()):null;
@@ -708,7 +727,7 @@ public class MainActivity extends Activity {
         if(tab.equals("dashboard")&&!repo.currentUser().role().equals("superadmin")) {tab="dining";render();return;}
         if(failure!=null) {
           if(immediate) {pageFailed=true;refreshPage();message(safeMessage(failure));return;}
-          contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=bodyHolder[0];content.addView(bodyHolder[0],0);LoadingScreen.failure(this,bodyHolder[0],dashboard?"刷新失败，显示上次数据":"加载失败");}else if(retain){content.removeAllViews();LoadingScreen.failure(this,catalog?LoadingScreen.begin(this,content,target):LoadingScreen.general(this,content,target),dashboard?failure.getMessage():"加载失败");}else LoadingScreen.failure(this,bodyHolder[0],dashboard&&failure instanceof RepositoryException?failure.getMessage():"加载失败");return;
+          contentReady=false;pageFailed=true;if(retain&&(!(failure instanceof RepositoryException r)||r.status()==0||r.status()>=500)){contentReady=true;refreshBanner=bodyHolder[0];content.addView(bodyHolder[0],0);LoadingScreen.failure(this,bodyHolder[0],dashboard?"刷新失败，显示上次数据":"加载失败");}else if(retain){content.removeAllViews();LoadingScreen.failure(this,catalog?LoadingScreen.begin(this,content,target):LoadingScreen.general(this,content,target),dashboard?failure.getMessage():"加载失败");}else LoadingScreen.failure(this,bodyHolder[0],dashboard&&failure instanceof RepositoryException?failure.getMessage():"加载失败");startupReady();return;
         }
         freshContentRequired.remove(target);
         if(community) {
@@ -816,6 +835,7 @@ public class MainActivity extends Activity {
     if(isChatRoute() || isCommunityDetailRoute()) buildHeader();
     if(displayedActor.equals(actor())&&contentRefresh!=null) {
       contentRefresh.run();
+      startupReady();
       noticeUi.post(this::drainNotices);
       return;
     }
@@ -873,6 +893,16 @@ public class MainActivity extends Activity {
     ScrollView displayedScroll = scroll;
     displayedScroll.post(() -> displayedScroll.scrollTo(0, offset));
     noticeUi.post(this::drainNotices);
+    if(!navigationLoading)startupReady();
+  }
+
+  private void startupReady() { if(coldStartSplash!=null)coldStartSplash.contentReady(); }
+  private void startupTimedOut() {
+    ++generation;cancelNavigation();contentReady=false;
+    shell(false);
+    LinearLayout status=StartupScreen.show(this);
+    StartupScreen.failed(this,status,"启动加载超时");
+    startupReady();
   }
 
   /** Instant shell for pages whose first data read has not returned yet. */
@@ -1058,7 +1088,7 @@ public class MainActivity extends Activity {
           .getDecorView()
           .getWindowInsetsController()
           .setSystemBarsAppearance(
-              WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+              AppTheme.dark(this) ? 0 : WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
                   | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
               WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
                   | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
@@ -1110,7 +1140,7 @@ public class MainActivity extends Activity {
       addTab(nav, "我的", "profile");
       root.addView(nav, new LinearLayout.LayoutParams(-1, -2));
     }
-    setContentView(root);
+    coldStartSplash.install(root);
     root.requestApplyInsets();
   }
 
@@ -1399,6 +1429,7 @@ public class MainActivity extends Activity {
   }
   public void signedOut() {clearNavigation();showAuth(false);}
   private void clearNavigation() {
+    postDraftExit.close();
     if(accountActionConfirmation!=null){accountActionConfirmation.dismiss();accountActionConfirmation=null;}
     feedbackDocuments.reset();
     notificationPermission.clear();
@@ -1460,5 +1491,5 @@ public class MainActivity extends Activity {
   }
   @Override protected void onPause() { super.onPause();foreground=false;if(communityPager!=null)communityPager.cancelSwipe();resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW||level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL||level>=android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND)Ui.trimImages();}
-  @Override protected void onDestroy() {notificationPermission.clear();if(accountActionConfirmation!=null)accountActionConfirmation.dismiss();if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();if(feedbackDocuments!=null)feedbackDocuments.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override protected void onDestroy() {if(coldStartSplash!=null)coldStartSplash.close();postDraftExit.close();notificationPermission.clear();if(accountActionConfirmation!=null)accountActionConfirmation.dismiss();if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();if(feedbackDocuments!=null)feedbackDocuments.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }

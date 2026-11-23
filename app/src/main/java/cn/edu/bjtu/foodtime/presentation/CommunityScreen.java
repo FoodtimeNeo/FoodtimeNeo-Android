@@ -483,23 +483,14 @@ final class CommunityScreen {
   static List<String> selectedPhotos(MainActivity a){
     List<String> images=new ArrayList<>();for(int i=0;i<9;i++){String path=a.drafts.getString(photoKey(a,i),"");if(!path.isBlank())images.add(path);}return images;
   }
-  static void savePhotos(MainActivity a,List<String> images){for(int i=0;i<9;i++)a.drafts.putString(photoKey(a,i),i<images.size()?images.get(i):"");persistDraft(a);a.redraw();}
-  static void persistDraft(MainActivity a){
-    if(a.repo.currentUser()==null||!a.route().kind().equals("community-create"))return;
-    PostDraftStore.save(a,a.repo.currentUser().id(),
-        a.drafts.getString(a.draftKey("食记标题"),""),
-        a.drafts.getString(a.draftKey("动态正文"),""),
-        a.drafts.getString(a.draftKey("linkedDishId"),""),
-        selectedPhotos(a));
-  }
+  static void savePhotos(MainActivity a,List<String> images){for(int i=0;i<9;i++)a.drafts.putString(photoKey(a,i),i<images.size()?images.get(i):"");a.redraw();}
   static void create(MainActivity a,LinearLayout page,MainActivity.Route route) {
     a.heading(page,"02.2","写一页美食手账","分享真实的校园美食体验，审核通过后公开。");
     String ownerId=a.repo.currentUser()==null?"":a.repo.currentUser().id();
-    boolean empty=a.drafts.getString(a.draftKey("食记标题"),"").isBlank()
-        &&a.drafts.getString(a.draftKey("动态正文"),"").isBlank()
-        &&a.drafts.getString(a.draftKey("linkedDishId"),"").isBlank()
-        &&selectedPhotos(a).isEmpty();
-    PostDraftStore.Draft restored=ownerId.isBlank()||!empty?null:PostDraftStore.load(a,ownerId);
+    String sessionKey=a.draftKey("draft-session");
+    PostDraftStore.Draft restored=a.drafts.getBoolean(sessionKey,false)||ownerId.isBlank()
+        ?null:PostDraftStore.load(a,ownerId);
+    a.drafts.putBoolean(sessionKey,true);
     if(restored!=null){
       a.drafts.putString(a.draftKey("食记标题"),restored.title());
       a.drafts.putString(a.draftKey("动态正文"),restored.content());
@@ -510,7 +501,6 @@ final class CommunityScreen {
       LinearLayout notice=Ui.card(page);
       notice.addView(Ui.text(a,"已恢复草稿",14,Design.MUTED));
       Ui.link(notice,"删除本机草稿",()->{PostDraftStore.delete(a,ownerId);a.clearDraft(a.route());a.redraw();});
-      page.addView(notice);
     }
     photoEditor(a,page,false);
     LinearLayout form=Ui.card(page);form.addView(Ui.title(a,"02 · 标题与心得",18));Ui.gap(form,12);
@@ -518,10 +508,6 @@ final class CommunityScreen {
     EditText content=Ui.field(form,"动态正文",false,true);content.setHint("正文，最多2000字");content.setMinLines(5);content.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(2000)});
     DishPickerScreen.show(a, form);
     TextView error=Ui.text(a,"",13,Design.RED);form.addView(error);MainActivity.Route origin=a.route();
-    android.os.Handler draftHandler=new android.os.Handler(android.os.Looper.getMainLooper());
-    Runnable persist=()->{if(!ownerId.isBlank())PostDraftStore.save(a,ownerId,title.getText().toString(),content.getText().toString(),a.drafts.getString(a.draftKey("linkedDishId"),""),selectedPhotos(a));};
-    Runnable scheduleSave=()->{draftHandler.removeCallbacks(persist);draftHandler.postDelayed(persist,500);};
-    Ui.observe(title,scheduleSave);Ui.observe(content,scheduleSave);
     Ui.submit(form,"盖章发布",error,()->{
       String dishId = a.drafts.getString(a.draftKey("linkedDishId"), "");
       String heading=Validation.text(title.getText().toString(),50,"标题"),body=Validation.text(content.getText().toString(),2000,"正文");

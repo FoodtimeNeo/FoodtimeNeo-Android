@@ -28,7 +28,7 @@ final class StartupScreen {
     return status;
   }
   static void failed(MainActivity a,LinearLayout status,String message) {
-    status.removeAllViews();status.addView(Ui.text(a,"无法恢复登录状态，检查网络后重试。",14,Design.MUTED));
+    status.removeAllViews();status.addView(Ui.text(a,"无法完成启动，请检查网络后重试。",14,Design.MUTED));
     if(!message.isBlank())status.addView(Ui.text(a,message,13,Design.RED));
     Ui.gap(status,10);Ui.action(status,"重试",true,a::restore);
   }
