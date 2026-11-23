@@ -58,7 +58,7 @@ final class VenueScreen {
             card.addView(
                 Ui.text(
                     a,
-                    t.reviewCount() + " 条评价 · " + (type.equals("hall") ? "餐厅" : "档口") + "整体体验",
+                    t.reviewCount() + " 条评价",
                     14,
                     Design.MUTED));
           Ui.gap(card, 12);
