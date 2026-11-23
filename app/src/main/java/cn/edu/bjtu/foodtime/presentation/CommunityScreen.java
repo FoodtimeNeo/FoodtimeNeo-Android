@@ -382,7 +382,7 @@ final class CommunityScreen {
     }
     if(restored!=null){
       LinearLayout notice=Ui.card(page);
-      notice.addView(Ui.text(a,"已恢复本机草稿；关闭页面后修改会自动保存。",14,Design.MUTED));
+      notice.addView(Ui.text(a,"已恢复草稿",14,Design.MUTED));
       Ui.link(notice,"删除本机草稿",()->{PostDraftStore.delete(a,ownerId);a.clearDraft(a.route());a.redraw();});
       page.addView(notice);
     }
@@ -396,7 +396,6 @@ final class CommunityScreen {
     Runnable persist=()->{if(!ownerId.isBlank())PostDraftStore.save(a,ownerId,title.getText().toString(),content.getText().toString(),a.drafts.getString(a.draftKey("linkedDishId"),""),selectedPhotos(a));};
     Runnable scheduleSave=()->{draftHandler.removeCallbacks(persist);draftHandler.postDelayed(persist,500);};
     Ui.observe(title,scheduleSave);Ui.observe(content,scheduleSave);
-    form.addView(Ui.text(a,"关闭或返回后，本机自动保存一份草稿；只有确认发布成功后才会删除。",12,Design.MUTED));
     Ui.submit(form,"盖章发布",error,()->{
       String dishId = a.drafts.getString(a.draftKey("linkedDishId"), "");
       String heading=Validation.text(title.getText().toString(),50,"标题"),body=Validation.text(content.getText().toString(),2000,"正文");

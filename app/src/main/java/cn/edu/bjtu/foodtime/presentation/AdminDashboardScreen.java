@@ -63,7 +63,7 @@ final class AdminDashboardScreen {
     LinearLayout online=card(a,Design.ALT,16);
     online.addView(Ui.text(a,"当前在线",14,Design.INK));Ui.gap(online,6);
     TextView onlineValue=Ui.title(a,"—",38);onlineValue.setTextColor(Design.GREEN);online.addView(onlineValue);Ui.gap(online,6);
-    online.addView(Ui.text(a,"数据就绪后自动更新，无需停留在加载页",12,Design.MUTED));page.addView(online);
+    page.addView(online);
   }
 
   private static LinearLayout card(MainActivity a,int color,int padding) {

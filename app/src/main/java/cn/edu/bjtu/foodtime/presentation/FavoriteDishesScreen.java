@@ -82,7 +82,6 @@ final class FavoriteDishesScreen {
     if (selectedGroupId != null)
       actions.addView(Ui.button(activity, "管理当前分组", false, this::manageSelectedGroup));
     groupBar.addView(actions);
-    groupBar.addView(Ui.text(activity,"直接收藏即可存入默认分组，无需新建。",13,Design.MUTED));
   }
 
   private void selectGroup(String groupId, boolean onlyUnfiled) {
