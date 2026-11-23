@@ -39,7 +39,7 @@ final class CampusMapScreen {
   }
 
   static void show(MainActivity a, LinearLayout page, MainActivity.Route route) {
-    a.heading(page, "", "食堂地图", "双指缩放、拖动地图，点选食堂查看详情。");
+    a.heading(page, "", "食堂地图", "双指缩放 · 点选食堂");
     List<Region> regions = regions(a);
     String key = a.draftKey("selected");
     LinearLayout details = Ui.col(a);
@@ -55,7 +55,7 @@ final class CampusMapScreen {
       controls.addView(Ui.button(a, labels[i], false, actions[i]), lp);
     }
     Ui.gap(page, 10); page.addView(controls); Ui.gap(page, 14);
-    TextView choose = Ui.text(a, "选择食堂，也可点击地图中的轮廓", 14, Design.MUTED);
+    TextView choose = Ui.text(a, "选择区域", 14, Design.MUTED);
     page.addView(choose);
     Map<String,TextView> buttons = new HashMap<>();
     Consumer<Region> selected = region -> {
@@ -81,7 +81,7 @@ final class CampusMapScreen {
     Ui.gap(page, 16); details.setTag("campus-map-selection"); details.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE); page.addView(details);
     for (Region region : regions) if (region.id().equals(a.drafts.getString(key, ""))) selected.accept(region);
     Ui.gap(page, 18);
-    page.addView(Ui.text(a, "校园手绘示意图（2023 年更新）。暂未标注教工、学苑及东区清真；暂不提供定位和路线导航。", 12, Design.MUTED));
+    page.addView(Ui.text(a, "校园示意图 · 2023 年版", 12, Design.MUTED));
   }
 
   static final class MapView extends View {

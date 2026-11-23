@@ -73,7 +73,7 @@ final class AccountLifecycleScreen {
         String ownerId=a.repo.currentUser()==null?"":a.repo.currentUser().id();
         a.request(submit,error,()->reusable.set(deletion?a.repo.deleteAccount(verification):a.repo.unbindSchoolEmail(verification)),()->{
           code.setText("");a.clearDraft(route);
-          if(deletion){if(!ownerId.isBlank())PostDraftStore.purge(a,ownerId);a.signedOut();a.message("账号已注销，邮箱可在 "+NoticeTimes.display(reusable.get())+" 后重新使用；新注册账号不继承旧数据。");}
+          if(deletion){if(!ownerId.isBlank()){PostDraftStore.purge(a,ownerId);SearchHistoryStore.purge(a,ownerId);}a.signedOut();a.message("账号已注销，邮箱可在 "+NoticeTimes.display(reusable.get())+" 后重新使用；新注册账号不继承旧数据。");}
           else{a.back();a.message("学校邮箱已解绑，可在 "+NoticeTimes.display(reusable.get())+" 后重新绑定。");}
         });
       }));dialog.show();

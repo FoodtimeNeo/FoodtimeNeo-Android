@@ -880,7 +880,6 @@ public class MainActivity extends Activity {
     content.removeAllViews();
     content.addView(Ui.title(this, routeTitle(route()), 30));
     Ui.gap(content, 8);
-    content.addView(Ui.note(this, "页面已打开，内容正在后台加载。"));
     Ui.gap(content, 24);
     LinearLayout card=Ui.card(content);
     card.addView(Ui.text(this, "正在读取内容…", 14, Design.MUTED));
@@ -931,7 +930,7 @@ public class MainActivity extends Activity {
       case "mine-review-replies" -> "我的回复";
       case "detail" -> "菜品详情";
       case "price-history" -> "价格变化";
-      case "dish-search" -> "跨食堂搜菜";
+      case "dish-search" -> "搜索";
       case "favorite-dishes" -> "想吃清单";
       case "campus-map" -> "食堂地图";
       case "admin-audit" -> "审核投稿";

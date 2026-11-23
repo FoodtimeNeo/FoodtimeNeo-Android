@@ -30,7 +30,7 @@ final class HistoryScreen {
   }
 
   static void show(MainActivity activity, LinearLayout page, MainActivity.Route route) {
-    activity.heading(page, "01.6", "浏览历史", "帖子与菜品分别保留最近 50 条");
+    activity.heading(page, "01.6", "浏览历史", "");
     HistoryScreen screen = new HistoryScreen(activity, page);
     screen.loadSettings();
   }
@@ -80,7 +80,7 @@ final class HistoryScreen {
           });
     });
     body.addView(toggle);
-    body.addView(Ui.text(activity, "关闭只停止新增，已有记录保留。", 12, Design.MUTED));
+    body.addView(Ui.text(activity, "各保留最近 50 条", 12, Design.MUTED));
 
     LinearLayout tabs = Ui.row(activity);
     tabs.addView(tab("菜品", "dish"));
@@ -115,7 +115,6 @@ final class HistoryScreen {
       card.setOnClickListener(view -> activity.go(item.kind().equals("post") ? "community-detail" : "detail",
           item.targetId()));
     } else {
-      card.addView(Ui.text(activity, "可删除这条记录", 13, Design.MUTED));
     }
     card.addView(Ui.text(activity, SubmissionScreen.date(item.visitedAt()), 12, Design.MUTED));
     Ui.link(card, "删除这条记录", () -> confirmDelete(item));

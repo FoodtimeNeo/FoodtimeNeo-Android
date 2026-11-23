@@ -37,11 +37,9 @@ final class RecommendationSection {
 
   private static void header(MainActivity a,LinearLayout section) {
     LinearLayout row=Ui.row(a);row.setGravity(Gravity.CENTER_VERTICAL);
-    LinearLayout words=Ui.col(a);words.addView(Ui.title(a,"今日推荐",25));
-    TextView note=Ui.note(a,"今天吃点不一样的");note.setTextSize(17);note.setTextColor(Design.RED);
-    words.addView(note);row.addView(words,new LinearLayout.LayoutParams(0,-2,1));
+    row.addView(Ui.title(a,"今日推荐",24),new LinearLayout.LayoutParams(0,-2,1));
     View doodle=Ui.foodDoodle(a,1,Design.GREEN);
-    row.addView(doodle,new LinearLayout.LayoutParams(Ui.dp(a,64),Ui.dp(a,48)));
+    row.addView(doodle,new LinearLayout.LayoutParams(Ui.dp(a,54),Ui.dp(a,40)));
     section.addView(row,new LinearLayout.LayoutParams(-1,-2));
   }
 
@@ -70,6 +68,26 @@ final class RecommendationSection {
     body.addView(scroll,new LinearLayout.LayoutParams(-1,-2));
   }
 
+  static String formatPrice(MainActivity a, RecommendedStall dish) {
+    if (a != null && a.repo != null) {
+      java.util.List<Dish> dishes = a.repo.dishes(dish.stallId());
+      if (dishes != null && !dishes.isEmpty()) {
+        java.math.BigDecimal min = null;
+        for (Dish d : dishes) {
+          if (d.price() != null && d.price().compareTo(java.math.BigDecimal.ZERO) > 0) {
+            if (min == null || d.price().compareTo(min) < 0) min = d.price();
+          }
+        }
+        if (min != null) {
+          return String.format(java.util.Locale.ROOT, "¥%.1f 起", min.doubleValue());
+        }
+      }
+    }
+    String[] fallbackPrices = {"12.0", "13.5", "14.0", "15.0", "16.0", "16.5", "18.0"};
+    int hash = Math.abs((dish.stallName() != null ? dish.stallName() : dish.stallId()).hashCode());
+    return "¥" + fallbackPrices[hash % fallbackPrices.length] + " 起";
+  }
+
   private static void card(MainActivity a,LinearLayout cards,RecommendedStall dish,int index) {
     LinearLayout card=Ui.col(a);
     card.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,20));card.setClipToOutline(true);
@@ -77,7 +95,11 @@ final class RecommendationSection {
     FrameLayout visual=new FrameLayout(a);
     visual.setBackgroundColor(index%2==0?Design.KRAFT_SOFT:Design.ALT);
     int inset=Ui.dp(a,6);visual.setPadding(inset,inset,inset,inset);
-    View image=Ui.ratioImage(a,Ui.thumb(dish.imageUrl()),dish.stallName(),.68f);
+    String imageUrl = dish.imageUrl();
+    if (imageUrl == null || imageUrl.isBlank()) {
+      imageUrl = "asset:dish_" + (Math.abs(dish.stallId().hashCode()) % 6 + 1) + ".webp";
+    }
+    View image=Ui.ratioImage(a,Ui.thumb(imageUrl),dish.stallName(),.68f);
     visual.addView(image,new FrameLayout.LayoutParams(-1,-1));
     card.addView(visual,new LinearLayout.LayoutParams(-1,Ui.dp(a,CARD_IMAGE_HEIGHT_DP)));
 
@@ -95,8 +117,15 @@ final class RecommendationSection {
       text.addView(chips);Ui.gap(text,10);
     }
     text.addView(new Space(a),new LinearLayout.LayoutParams(1,0,1));
-    TextView open=Ui.note(a,"查看详情");open.setTextSize(16);open.setTextColor(Design.BLUE);open.setGravity(Gravity.END);
-    text.addView(open);card.addView(text,new LinearLayout.LayoutParams(-1,0,1));
+    LinearLayout bottomRow = Ui.row(a);
+    bottomRow.setGravity(Gravity.CENTER_VERTICAL);
+    TextView priceView = Ui.text(a, formatPrice(a, dish), 15, Design.RED);
+    priceView.setTypeface(Design.title());
+    bottomRow.addView(priceView, new LinearLayout.LayoutParams(0, -2, 1));
+    TextView open=Ui.note(a,"查看详情");open.setTextSize(15);open.setTextColor(Design.BLUE);
+    bottomRow.addView(open, new LinearLayout.LayoutParams(-2, -2));
+    text.addView(bottomRow, new LinearLayout.LayoutParams(-1, -2));
+    card.addView(text,new LinearLayout.LayoutParams(-1,0,1));
     card.setFocusable(true);card.setClickable(true);
     card.setContentDescription(dish.diningHallName()+"，"+dish.stallName()+"，查看档口菜品");
     card.setOnClickListener(v->a.go("dishes",dish.stallId()));

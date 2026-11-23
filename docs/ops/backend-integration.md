@@ -28,6 +28,10 @@ Cookie名为FOODTIME_SESSION。登录后重新获取CSRF；写请求带Cookie与
 
 菜品/档口投稿通过后才创建正式实体；菜品投稿价格可空，通过前必须补齐。图片直接进入dish_images的pending，通过后才进图册；2026-10-14经用户确认的V4补充审核人、时间、原因及日志图片外键，日志四类外键只能填一个。历史名称来自真实关联，不在手机端伪造失效父级。
 
+## 食堂菜单双栏（2026-11-23）
+
+食堂详情读取 `GET /stalls/{id}/dishes` 的列表字段 `priceUnit`、`description`、`coverImageUrl`、`averageScore` 和 `reviewCount`。`coverImageUrl` 仅包含最新一张审核通过的菜品图片，无图为 null；旧后端缺少这些字段时，名称和价格仍可正常显示。页面最多保持2个档口列表请求在途，失败档口单独重试，离开页面后取消排队并丢弃迟到响应。
+
 Backend完整字段与错误契约见同级仓库docs/api/README.md。本文只描述Android映射，不另行定义数据库或接口；社区数据、审核状态、点赞与收藏均以服务端为准。当前开发还包含图文社区与楼中楼，社区字段和迁移以Backend的docs/community-schema.md及docs/community-api.md为准。
 
 ## 社区接口对齐（2026-10-23）

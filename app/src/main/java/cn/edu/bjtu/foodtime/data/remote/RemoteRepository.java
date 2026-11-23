@@ -502,7 +502,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     if(!stalls.containsKey(id)) throw missing("档口不存在或已停用");
   }
   private void fetchDishes(String id) {
-    var items=list("stalls/"+id+"/dishes",j -> new Dish(text(j,"id"),id,text(j,"name"),decimal(j,"price"),"",true,j.optLong("revision",0),text(j,"priceUnit")));
+    var items=list("stalls/"+id+"/dishes",j -> new Dish(text(j,"id"),id,text(j,"name"),decimal(j,"price"),text(j,"description"),true,j.optLong("revision",0),text(j,"priceUnit"),text(j,"coverImageUrl"),decimal(j,"averageScore"),j.optLong("reviewCount",0)));
     dishes.entrySet().removeIf(e -> e.getValue().stallId().equals(id));
     // The stall page only needs the catalog rows. Loading every dish gallery here turns one
     // navigation into an N+1 request burst, so media stays lazy until DISH_DETAIL is opened.

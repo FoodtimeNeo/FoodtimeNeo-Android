@@ -7,7 +7,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 final class AvatarCropScreen {
   static void show(MainActivity a,LinearLayout page,MainActivity.Route route){
-    a.heading(page,"03.1","裁剪头像","固定1:1方形选框，拖动或双指缩放图片。");
+    a.heading(page,"03.1","裁剪头像","");
     TextView loading=Ui.text(a,"正在读取图片…",14,Design.MUTED);page.addView(loading);
     TextView error=Ui.text(a,"",14,Design.RED);error.setAccessibilityLiveRegion(android.view.View.ACCESSIBILITY_LIVE_REGION_POLITE);page.addView(error);
     AtomicReference<Bitmap> image=new AtomicReference<>();
@@ -27,7 +27,7 @@ final class AvatarCropScreen {
       });
       zoom.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener(){public void onProgressChanged(SeekBar b,int p,boolean user){if(user)crop.setZoom(1+p/100f);}public void onStartTrackingTouch(SeekBar b){}public void onStopTrackingTouch(SeekBar b){}});
       LinearLayout tools=Ui.row(a);tools.addView(Ui.button(a,"旋转90°",false,crop::rotate),new LinearLayout.LayoutParams(0,-2,1));tools.addView(Ui.button(a,"重置",false,crop::reset),new LinearLayout.LayoutParams(0,-2,1));page.addView(tools);Ui.gap(page,12);
-      page.addView(Ui.text(a,"导出512×512方形头像，最终文件不超过10MB。保存资料后才会更新头像。",14,Design.MUTED));Ui.gap(page,14);
+      page.addView(Ui.text(a,"拖动或缩放照片，完成后保存资料。",14,Design.MUTED));Ui.gap(page,14);
       TextView accept=Ui.button(a,"使用此头像",true,()->{});page.addView(accept);
       accept.setOnClickListener(v->{
         if(a.operationInFlight())return;
