@@ -38,7 +38,9 @@ final class DishSearchScreen {
   private final Spinner rating, sort;
   private final TextView search, error, status, hallStatus, filterApply, filterReset;
   private final NumberedPagination pagination;
-  private boolean loading;
+  private boolean loading, editingHistory;
+  private LinearLayout history;
+  private String owner;
   private final String requestKey = "dish-search:" + UUID.randomUUID();
   private final String draftKey;
   private final List<String> selectedHalls = new ArrayList<>();
@@ -50,16 +52,18 @@ final class DishSearchScreen {
     this.activity = activity;
     this.page = page;
     draftKey = activity.draftKey("dishSearch");
-    activity.heading(page, "", "跨食堂搜菜",
-        "按菜名、价格、食堂和评分筛选菜品。");
-    input = Ui.field(page, "菜名", false, false);
+    owner=activity.repo.currentUser().id();
+    activity.heading(page,"","搜索","");
+    LinearLayout searchBar=Ui.row(activity);searchBar.setPadding(Ui.dp(activity,10),Ui.dp(activity,4),Ui.dp(activity,4),Ui.dp(activity,4));searchBar.setBackground(Ui.shape(activity,Design.PAPER,Design.RED,28));
+    input=new EditText(activity);input.setSingleLine(true);input.setTextSize(16);input.setTextColor(Design.INK);input.setHintTextColor(Design.MUTED);input.setBackgroundColor(android.graphics.Color.TRANSPARENT);input.setTypeface(Design.body());input.setContentDescription("搜索菜品");searchBar.addView(input,new LinearLayout.LayoutParams(0,Ui.dp(activity,44),1));
     input.setTag("dish-search-keyword");
-    input.setHint("可留空浏览全部菜品");
+    input.setHint("搜索菜品，如牛肉面");
     input.setFilters(new InputFilter[] { new InputFilter.LengthFilter(50) });
     input.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
     input.setText(activity.drafts.getString(draftKey, ""));
     search = Ui.button(activity, "搜索", true, this::submit);
-    page.addView(search);
+    search.setBackground(Ui.ripple(activity,Design.RED,0,24));searchBar.addView(search,new LinearLayout.LayoutParams(-2,Ui.dp(activity,44)));page.addView(searchBar);
+    history=Ui.col(activity);history.setTag("dish-search-history");page.addView(history);paintHistory();
     input.setOnEditorActionListener((view, action, event) -> {
       if (action != EditorInfo.IME_ACTION_SEARCH) return false;
       if (search.isEnabled()) submit();
@@ -85,7 +89,7 @@ final class DishSearchScreen {
     rating.setTag("dish-search-rating");
     sort = spinner(filterBox, "排序", SORT_LABELS);
     sort.setTag("dish-search-sort");
-    filterBox.addView(Ui.text(activity, "食堂（可多选）", 14, Design.MUTED));
+    filterBox.addView(Ui.text(activity, "食堂", 14, Design.MUTED));
     hallStatus = Ui.text(activity, "正在加载食堂…", 13, Design.MUTED);
     filterBox.addView(hallStatus);
     hallList = Ui.col(activity);
@@ -116,6 +120,19 @@ final class DishSearchScreen {
     page.post(this::submit);
   }
 
+  private void paintHistory(){
+    history.removeAllViews();List<String> terms=SearchHistoryStore.read(activity,owner);history.setVisibility(terms.isEmpty()?View.GONE:View.VISIBLE);if(terms.isEmpty())return;
+    Ui.gap(history,12);LinearLayout heading=Ui.row(activity);heading.addView(Ui.text(activity,"历史搜索",16,Design.INK),new LinearLayout.LayoutParams(0,-2,1));
+    TextView edit=Ui.button(activity,editingHistory?"完成":"编辑",false,()->{editingHistory=!editingHistory;paintHistory();});edit.setTextSize(13);edit.setBackground(Ui.ripple(activity,Design.PAPER,0,12));heading.addView(edit);
+    if(editingHistory){TextView clear=Ui.button(activity,"清空",false,()->Ui.confirm(activity,"清空搜索历史？","",()->{SearchHistoryStore.purge(activity,owner);editingHistory=false;paintHistory();}));clear.setTextSize(13);clear.setBackground(Ui.ripple(activity,Design.PAPER,0,12));heading.addView(clear);}history.addView(heading);
+    int maxWidth=Ui.dp(activity,activity.getResources().getConfiguration().screenWidthDp-28),used=0;LinearLayout row=Ui.row(activity);history.addView(row);
+    for(String term:terms){TextView chip=Ui.button(activity,term+(editingHistory?" ×":""),false,()->{if(editingHistory){SearchHistoryStore.remove(activity,owner,term);paintHistory();}else{input.setText(term);submit();}});chip.setTextSize(14);chip.setMaxWidth(Math.max(Ui.dp(activity,120),maxWidth));chip.setBackground(Ui.ripple(activity,Design.ALT,0,18));chip.setContentDescription(editingHistory?"删除搜索历史："+term:term);
+      chip.measure(View.MeasureSpec.makeMeasureSpec(maxWidth,View.MeasureSpec.AT_MOST),View.MeasureSpec.makeMeasureSpec(0,View.MeasureSpec.UNSPECIFIED));int width=chip.getMeasuredWidth()+Ui.dp(activity,8);
+      if(used>0&&used+width>maxWidth){Ui.gap(history,6);row=Ui.row(activity);history.addView(row);used=0;}
+      LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-2,-2);lp.rightMargin=Ui.dp(activity,8);row.addView(chip,lp);used+=width;
+    }
+  }
+
   private Spinner spinner(LinearLayout parent, String label, String[] values) {
     parent.addView(Ui.text(activity, label, 14, Design.MUTED));
     Spinner spinner = new Spinner(activity);
@@ -129,7 +146,7 @@ final class DishSearchScreen {
     hallList.removeAllViews();
     List<Hall> halls = activity.repo.halls();
     if (halls.isEmpty()) {
-      hallStatus.setText("暂无可选食堂；仍可按菜名和价格搜索。");
+      hallStatus.setText("暂无食堂");
       return;
     }
     hallStatus.setText("");
@@ -161,6 +178,7 @@ final class DishSearchScreen {
     DishSearchFilters next = new DishSearchFilters(new ArrayList<>(selectedHalls), min, max,
         RATING_VALUES[rating.getSelectedItemPosition()], SORT_VALUES[sort.getSelectedItemPosition()]);
     activity.drafts.putString(draftKey, query);
+    SearchHistoryStore.remember(activity,owner,query);paintHistory();
     if (!query.equals(submitted) || !next.equals(filters) || data == null) {
       load(query, next, 1);
     }
@@ -256,7 +274,7 @@ final class DishSearchScreen {
 
   private void updateStatus() {
     pagination.state(data==null?1:data.page(),totalPages(),!loading&&data!=null);
-    status.setText(data == null ? "可留空关键词浏览全部菜品。" : data.items().isEmpty()
+    status.setText(data == null ? "" : data.items().isEmpty()
         ? "没有匹配的菜品。" : "找到 " + data.total() + " 道菜 · 第 " + data.page() + " / "+totalPages()+" 页");
   }
   private int totalPages(){return data==null?1:(int)Math.min(Integer.MAX_VALUE,Math.max(1,(data.total()-1)/Math.max(1,data.size())+1));}

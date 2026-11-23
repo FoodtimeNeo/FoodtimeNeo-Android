@@ -9,7 +9,6 @@ final class SchoolEmailScreen {
     a.heading(page,"03.2","绑定学校邮箱","验证并绑定本人的学校邮箱");
     LinearLayout card=Ui.col(a);card.setPadding(Ui.dp(a,18),Ui.dp(a,20),Ui.dp(a,18),Ui.dp(a,20));
     card.setBackground(Ui.shape(a,Design.ALT,0,24));
-    card.addView(Ui.text(a,"visitor".equals(a.repo.currentUser().role())?"当前为只读访客，绑定学校邮箱后可参与互动。":"当前账号已可参与互动，学校邮箱绑定为可选认证。",14,Design.MUTED));
     Ui.gap(card,16);
     EditText email=Ui.field(card,"学校邮箱",false,false);
     email.setHint("20260001@bjtu.edu.cn");

@@ -49,7 +49,6 @@ final class FavoritePostsScreen {
     for(var group:groups)addChip(chips,group.name()+" ("+group.itemCount()+")",group.id().equals(selected),()->select(group.id(),false));
     HorizontalScrollView scroll=new HorizontalScrollView(a);scroll.setHorizontalScrollBarEnabled(false);
     scroll.addView(chips);controls.addView(scroll,new LinearLayout.LayoutParams(-1,-2));
-    controls.addView(Ui.text(a,"直接收藏即可存入默认分组，无需新建。帖子和菜品分别管理。",13,Design.MUTED));
     Ui.gap(controls,8);
   }
   private void addChip(LinearLayout row,String title,boolean checked,Runnable action){

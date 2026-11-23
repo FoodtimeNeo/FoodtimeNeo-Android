@@ -18,7 +18,7 @@ final class AuthScreen {
     EditText email=Ui.field(card,"邮箱",false,false);
     email.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
     email.setHint("QQ/163/Gmail/Outlook 或学校邮箱");
-    if(register) card.addView(Ui.text(a,"支持 QQ、163、126、Gmail、Outlook 等主流邮箱；注册后的可用功能由平台当前权限策略决定。",13,Design.MUTED));
+    if(register) card.addView(Ui.text(a,"QQ、163、Gmail 等常用邮箱均可注册",13,Design.MUTED));
     LinearLayout invitationBox=new LinearLayout(a);
     invitationBox.setOrientation(LinearLayout.VERTICAL);
     invitationBox.setVisibility(View.GONE);
