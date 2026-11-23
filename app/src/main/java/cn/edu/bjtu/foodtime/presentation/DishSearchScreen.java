@@ -61,7 +61,7 @@ final class DishSearchScreen {
     input.setGravity(android.view.Gravity.CENTER_VERTICAL);input.setIncludeFontPadding(true);input.setMinHeight(Ui.dp(activity,48));
     searchBar.addView(input,new LinearLayout.LayoutParams(0,-2,1));
     input.setTag("dish-search-keyword");
-    input.setHint("搜索菜品，如牛肉面");
+    input.setHint("牛肉面");
     input.setFilters(new InputFilter[] { new InputFilter.LengthFilter(50) });
     input.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
     input.setText(activity.drafts.getString(draftKey, ""));
