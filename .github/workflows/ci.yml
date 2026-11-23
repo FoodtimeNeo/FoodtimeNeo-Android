@@ -54,3 +54,44 @@ jobs:
 
       - name: Verify project
         run: ./gradlew verifyArchitecture testDebugUnitTest lintDebug assembleDebug assembleDebugAndroidTest --no-configuration-cache
+
+  ui-smoke:
+    name: Android UI smoke
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v6
+        with:
+          cache-provider: basic
+      - name: Build isolated UI verification app
+        run: >-
+          ./gradlew assembleDebug assembleDebugAndroidTest
+          -PFOODTIME_DEBUG_SUFFIX=.layoutreview
+          -PFOODTIME_API_BASE_URL=http://127.0.0.1:18530/api/v1/
+          -PFOODTIME_TEST_RUNNER=cn.edu.bjtu.foodtime.presentation.CompactLayoutRunner
+          --no-configuration-cache
+      - name: Enable runner KVM access
+        run: sudo chmod 666 /dev/kvm
+      - name: Verify real home entry, profile grids and menu gestures
+        uses: ReactiveCircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2
+        with:
+          api-level: 35
+          target: google_apis
+          arch: x86_64
+          profile: pixel_7_pro
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -no-snapshot
+          script: bash scripts/verify-compact-layout.sh
+      - name: Upload isolated UI results
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: compact-layout-${{ github.run_id }}-${{ github.run_attempt }}
+          path: app/build/reports/compact-layout/
+          retention-days: 7
+          if-no-files-found: warn
