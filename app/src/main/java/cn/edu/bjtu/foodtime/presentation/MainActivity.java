@@ -23,6 +23,7 @@ import java.util.function.*;
 public class MainActivity extends Activity {
   public FoodtimeRepository repo;
   FeedbackDocuments feedbackDocuments;
+  private final PostDraftExit postDraftExit = new PostDraftExit();
   AlertDialog accountActionConfirmation;
   private boolean releaseChecked, releaseChecking, updateCheckPending;
   private AlertDialog updatePrompt, updateProgress;
@@ -490,6 +491,7 @@ public class MainActivity extends Activity {
   }
 
   public void go(String kind, String id) {
+    if(!writeInFlight&&postDraftExit.intercept(this,()->go(kind,id)))return;
     if(writeInFlight) {message("正在提交，请稍候");return;}
     rememberScroll();
     if(kind.equals("direct-chat")) chatOriginTab=tab;
@@ -502,6 +504,7 @@ public class MainActivity extends Activity {
   }
 
   void replaceRoute(String kind,String id){
+    if(!writeInFlight&&postDraftExit.intercept(this,()->replaceRoute(kind,id)))return;
     if(writeInFlight){message("正在提交，请稍候");return;}
     rememberScroll();ArrayList<Route> stack=stacks.get(tab);stack.set(stack.size()-1,new Route(kind,id));render();
   }
@@ -540,6 +543,7 @@ public class MainActivity extends Activity {
   }
 
   public void home() {
+    if(!writeInFlight&&postDraftExit.intercept(this,()->home()))return;
     if(writeInFlight) {message("正在提交，请稍候");return;}
     rememberScroll();
     tab = "dining";
@@ -550,6 +554,7 @@ public class MainActivity extends Activity {
   }
 
   public void selectTab(String next) {
+    if(!writeInFlight&&!tab.equals(next)&&postDraftExit.intercept(this,()->selectTab(next)))return;
     if(writeInFlight) {message("正在提交，请稍候");return;}
     if (tab.equals(next)) return;
     rememberScroll();
@@ -558,6 +563,7 @@ public class MainActivity extends Activity {
   }
 
   public void back() {
+    if(!writeInFlight&&postDraftExit.intercept(this,()->back()))return;
     if(writeInFlight) {message("正在提交，请稍候");return;}
     if(passwordRecovery!=null){passwordRecovery.back();return;}
     if(route().kind().equals("community-edit")&&PostEditScreen.confirmExit(this))return;
@@ -1399,6 +1405,7 @@ public class MainActivity extends Activity {
   }
   public void signedOut() {clearNavigation();showAuth(false);}
   private void clearNavigation() {
+    postDraftExit.close();
     if(accountActionConfirmation!=null){accountActionConfirmation.dismiss();accountActionConfirmation=null;}
     feedbackDocuments.reset();
     notificationPermission.clear();
@@ -1460,5 +1467,5 @@ public class MainActivity extends Activity {
   }
   @Override protected void onPause() { super.onPause();foreground=false;if(communityPager!=null)communityPager.cancelSwipe();resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW||level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL||level>=android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND)Ui.trimImages();}
-  @Override protected void onDestroy() {notificationPermission.clear();if(accountActionConfirmation!=null)accountActionConfirmation.dismiss();if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();if(feedbackDocuments!=null)feedbackDocuments.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override protected void onDestroy() {postDraftExit.close();notificationPermission.clear();if(accountActionConfirmation!=null)accountActionConfirmation.dismiss();if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();if(feedbackDocuments!=null)feedbackDocuments.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }
