@@ -53,7 +53,7 @@ final class UserSearchScreen {
           a.drafts.putString(draftKey,value.toString());handler.removeCallbacks(delayed);version++;loading=false;loaded=false;
           rows.removeAllViews();people.clear();more.setVisibility(View.GONE);error.setText("");
           if(value.toString().isBlank()){submitted="";displayed=UserSearchPage.empty();status.setText("输入昵称，找到后可以关注或发私信。");}
-          else {status.setText("输入完成后自动搜索");handler.postDelayed(delayed,300);}
+          else handler.postDelayed(delayed,300);
           controls();
         }
         public void afterTextChanged(Editable value){}
