@@ -48,8 +48,13 @@ final class PostDraftExit {
   private void leave(MainActivity activity, MainActivity.Route origin, Runnable navigation) {
     close();
     activity.clearDraft(origin);
+    java.util.List<MainActivity.Route> stack = activity.stacks.get(activity.tab);
     leaving = true;
-    try { navigation.run(); } finally { leaving = false; }
+    try {
+      navigation.run();
+      // Leaving through a tab/home must not leave a stale composer in that tab's stack.
+      if (stack.size() > 1) stack.removeIf(item -> item == origin);
+    } finally { leaving = false; }
   }
 
   void close() {
