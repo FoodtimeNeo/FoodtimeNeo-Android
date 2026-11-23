@@ -220,6 +220,11 @@ public final class CompactLayoutRunner extends Instrumentation {
     long started=SystemClock.elapsedRealtime();
     activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     ui(()->check(splash()!=null,"Cold process starts with branded cover"));
+    if(startupScenario.equals("abort")){
+      ui(activity::finish);
+      activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+      ui(()->check(splash()==null,"Aborted cold start does not replay in a surviving process"));return;
+    }
     if(startupScenario.equals("slow")){
       Thread.sleep(1700);ui(()->check(splash()!=null,"Slow content stays covered after the minimum"));
       screenshot("startup-slow-android");

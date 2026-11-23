@@ -18,7 +18,7 @@ adb reverse tcp:18530 tcp:18530
 adb shell am instrument -w cn.edu.bjtu.foodtime.layoutreview.test/cn.edu.bjtu.foodtime.presentation.CompactLayoutRunner | tee "$output/instrumentation.txt"
 failed=0
 grep -Eq 'Compact layout PASS [0-9]+ checks' "$output/instrumentation.txt" || failed=1
-for scenario in seed fast slow fail timeout; do
+for scenario in seed fast slow fail timeout abort; do
   case "$scenario" in
     slow) settings='{"sessionDelay":2.5,"hallDelay":1,"sessionFailure":false}' ;;
     fail) settings='{"sessionDelay":0,"hallDelay":0,"sessionFailure":true}' ;;
