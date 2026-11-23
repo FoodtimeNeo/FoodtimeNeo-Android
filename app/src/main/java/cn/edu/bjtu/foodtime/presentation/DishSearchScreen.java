@@ -33,12 +33,12 @@ final class DishSearchScreen {
   }
 
   private final MainActivity activity;
-  private final LinearLayout page, results, hallList;
+  private final LinearLayout page, results, hallList, discovery, resultArea;
   private final EditText input, minPrice, maxPrice;
   private final Spinner rating, sort;
   private final TextView search, error, status, hallStatus, filterApply, filterReset;
   private final NumberedPagination pagination;
-  private boolean loading, editingHistory;
+  private boolean loading, editingHistory, discoveryLoaded;
   private LinearLayout history;
   private String owner;
   private final String requestKey = "dish-search:" + UUID.randomUUID();
@@ -53,16 +53,21 @@ final class DishSearchScreen {
     this.page = page;
     draftKey = activity.draftKey("dishSearch");
     owner=activity.repo.currentUser().id();
-    activity.heading(page,"","搜索","");
+
     LinearLayout searchBar=Ui.row(activity);searchBar.setPadding(Ui.dp(activity,10),Ui.dp(activity,4),Ui.dp(activity,4),Ui.dp(activity,4));searchBar.setBackground(Ui.shape(activity,Design.PAPER,Design.RED,28));
-    input=new EditText(activity);input.setSingleLine(true);input.setTextSize(16);input.setTextColor(Design.INK);input.setHintTextColor(Design.MUTED);input.setBackgroundColor(android.graphics.Color.TRANSPARENT);input.setTypeface(Design.body());input.setContentDescription("搜索菜品");searchBar.addView(input,new LinearLayout.LayoutParams(0,Ui.dp(activity,44),1));
+    searchBar.setGravity(android.view.Gravity.CENTER_VERTICAL);
+    input=new EditText(activity);input.setSingleLine(true);input.setTextSize(16);input.setTextColor(Design.INK);input.setHintTextColor(Design.MUTED);input.setBackgroundColor(android.graphics.Color.TRANSPARENT);input.setTypeface(Design.body());input.setContentDescription("搜索菜品");
+    input.setPadding(Ui.dp(activity,8),Ui.dp(activity,8),Ui.dp(activity,8),Ui.dp(activity,8));
+    input.setGravity(android.view.Gravity.CENTER_VERTICAL);input.setIncludeFontPadding(true);input.setMinHeight(Ui.dp(activity,48));
+    searchBar.addView(input,new LinearLayout.LayoutParams(0,-2,1));
     input.setTag("dish-search-keyword");
     input.setHint("搜索菜品，如牛肉面");
     input.setFilters(new InputFilter[] { new InputFilter.LengthFilter(50) });
     input.setImeOptions(EditorInfo.IME_ACTION_SEARCH);
     input.setText(activity.drafts.getString(draftKey, ""));
     search = Ui.button(activity, "搜索", true, this::submit);
-    search.setBackground(Ui.ripple(activity,Design.RED,0,24));searchBar.addView(search,new LinearLayout.LayoutParams(-2,Ui.dp(activity,44)));page.addView(searchBar);
+    search.setBackground(Ui.ripple(activity,Design.RED,0,24));searchBar.addView(search,new LinearLayout.LayoutParams(-2,-2));page.addView(searchBar);
+    search.setTag("dish-search-submit");
     history=Ui.col(activity);history.setTag("dish-search-history");page.addView(history);paintHistory();
     input.setOnEditorActionListener((view, action, event) -> {
       if (action != EditorInfo.IME_ACTION_SEARCH) return false;
@@ -71,12 +76,17 @@ final class DishSearchScreen {
     });
     Ui.gap(page, 12);
 
+    discovery=Ui.col(activity);discovery.setTag("dish-search-discovery");page.addView(discovery);
+    resultArea=Ui.col(activity);resultArea.setTag("dish-search-results");page.addView(resultArea);
+    LinearLayout resultActions=Ui.row(activity);
+    TextView backToSearch=Ui.button(activity,"搜索发现",false,this::showDiscovery);backToSearch.setTextSize(13);backToSearch.setBackground(Ui.ripple(activity,Design.PAPER,0,8));backToSearch.setTag("dish-search-discovery-link");resultActions.addView(backToSearch);
+    resultArea.addView(resultActions);
     LinearLayout filterBox = Ui.col(activity);
     filterBox.setTag("dish-search-filters");filterBox.setVisibility(View.GONE);
     TextView filterToggle=Ui.button(activity,"筛选与排序 ▾",false,()->{});
     filterToggle.setTag("dish-search-filter-toggle");
     filterToggle.setOnClickListener(v->{boolean open=filterBox.getVisibility()!=View.VISIBLE;filterBox.setVisibility(open?View.VISIBLE:View.GONE);filterToggle.setText(open?"收起筛选 ▴":"筛选与排序 ▾");filterToggle.setContentDescription(open?"筛选与排序，已展开":"筛选与排序，已收起");});
-    page.addView(filterToggle);page.addView(filterBox);
+    resultActions.addView(filterToggle,new LinearLayout.LayoutParams(0,-2,1));resultArea.addView(filterBox);
     minPrice = Ui.field(filterBox, "最低价", false, false);
     minPrice.setTag("dish-search-min-price");
     minPrice.setInputType(InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
@@ -106,18 +116,31 @@ final class DishSearchScreen {
     Ui.gap(page, 12);
     error = Ui.text(activity, "", 14, Design.RED);
     Ui.observeError(error);
-    page.addView(error);
+    resultArea.addView(error);
     status = Ui.text(activity, "", 14, Design.MUTED);
     status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-    page.addView(status);
+    resultArea.addView(status);
     results = Ui.col(activity);
-    page.addView(results);
-    pagination=new NumberedPagination(activity,number->load(submitted,filters,number));page.addView(pagination);
+    resultArea.addView(results);
+    pagination=new NumberedPagination(activity,number->load(submitted,filters,number));resultArea.addView(pagination);
     paint();
     activity.read(requestKey + ":halls", null, error,
         () -> activity.repo.refresh(new ContentRequest(ContentRequest.Query.HALLS, "")),
         this::paintHalls, () -> {});
-    page.post(this::submit);
+    if(activity.drafts.getBoolean(draftKey+":searched",false)) {
+      minPrice.setText(activity.drafts.getString(draftKey+":min",""));maxPrice.setText(activity.drafts.getString(draftKey+":max",""));
+      selectedHalls.addAll(activity.drafts.getStringArrayList(draftKey+":halls")==null?List.of():activity.drafts.getStringArrayList(draftKey+":halls"));
+      rating.setSelection(Math.max(0,Math.min(RATING_VALUES.length-1,activity.drafts.getInt(draftKey+":rating",0))));sort.setSelection(Math.max(0,Math.min(SORT_VALUES.length-1,activity.drafts.getInt(draftKey+":sort",0))));
+      page.post(()->load(activity.drafts.getString(draftKey+":query",""),new DishSearchFilters(new ArrayList<>(selectedHalls),price(minPrice,"最低价格"),price(maxPrice,"最高价格"),RATING_VALUES[rating.getSelectedItemPosition()],SORT_VALUES[sort.getSelectedItemPosition()]),Math.max(1,activity.drafts.getInt(draftKey+":page",1))));
+      discovery.setVisibility(View.GONE);history.setVisibility(View.GONE);
+    } else showDiscovery();
+  }
+
+  private void showDiscovery(){
+    if(loading)return;
+    activity.drafts.putBoolean(draftKey+":searched",false);
+    resultArea.setVisibility(View.GONE);discovery.setVisibility(View.VISIBLE);paintHistory();
+    if(!discoveryLoaded){discoveryLoaded=true;new SearchDiscovery(activity,discovery);}
   }
 
   private void paintHistory(){
@@ -179,9 +202,7 @@ final class DishSearchScreen {
         RATING_VALUES[rating.getSelectedItemPosition()], SORT_VALUES[sort.getSelectedItemPosition()]);
     activity.drafts.putString(draftKey, query);
     SearchHistoryStore.remember(activity,owner,query);paintHistory();
-    if (!query.equals(submitted) || !next.equals(filters) || data == null) {
-      load(query, next, 1);
-    }
+    load(query, next, 1);
   }
 
   private BigDecimal price(EditText field, String label) {
@@ -219,6 +240,8 @@ final class DishSearchScreen {
 
   private void load(String query, DishSearchFilters activeFilters, int number) {
     if (number < 1 || loading) return;
+    activity.drafts.putBoolean(draftKey+":searched",true);
+    discovery.setVisibility(View.GONE);history.setVisibility(View.GONE);resultArea.setVisibility(View.VISIBLE);
     loading=true;
     filterApply.setEnabled(false);filterReset.setEnabled(false);filterApply.setAlpha(.4f);filterReset.setAlpha(.4f);
     input.setEnabled(false);
@@ -240,6 +263,9 @@ final class DishSearchScreen {
           submitted = query;
           filters = activeFilters;
           data = response.get();
+          activity.drafts.putString(draftKey+":query",query);activity.drafts.putInt(draftKey+":page",data.page());
+          activity.drafts.putString(draftKey+":min",minPrice.getText().toString());activity.drafts.putString(draftKey+":max",maxPrice.getText().toString());
+          activity.drafts.putStringArrayList(draftKey+":halls",new ArrayList<>(selectedHalls));activity.drafts.putInt(draftKey+":rating",rating.getSelectedItemPosition());activity.drafts.putInt(draftKey+":sort",sort.getSelectedItemPosition());
           paint();
         },
         () -> {

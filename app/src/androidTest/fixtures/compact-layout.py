@@ -1,7 +1,7 @@
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from urllib.parse import urlsplit,parse_qs
 from pathlib import Path
-import json,time,os
+import json,time,os,datetime
 repo=Path(__file__).resolve().parents[4]
 root=Path(os.environ.get('ANDROID_UI_OUTPUT',str(repo/'app/build/reports/compact-layout')))
 root.mkdir(parents=True,exist_ok=True)
@@ -30,9 +30,11 @@ class Handler(BaseHTTPRequestHandler):
   if p=='/api/v1/auth/csrf':return self.send({'token':'fixture','headerName':'X-CSRF-TOKEN'})
   if p.endswith('/capabilities'):return self.send({'revision':'fixture','capabilities':[]})
   if p=='/api/v1/dining-halls':return self.send([hall])
+  if p=='/api/v1/dining-halls/'+hall['id']:return self.send(hall)
   if p.endswith('/stalls'):return self.send(stalls)
   if p.startswith('/api/v1/stalls/') and p.endswith('/dishes'):
    time.sleep(.1);return self.send(dishes.get(p.split('/')[-2],[]))
+  if p.startswith('/api/v1/stalls/'):return self.send(next((s for s in stalls if s['id']==p.split('/')[-1]),{}))
   if p=='/api/v1/dishes/search':
    rows=[{**d,'diningHallId':hall['id'],'diningHallName':hall['name'],'stallName':s['name']} for s in stalls for d in dishes[s['id']] if q.get('q',[''])[0] in d['name']]
    page=int(q.get('page',['1'])[0]);return self.send({**empty,'items':rows[(page-1)*20:page*20],'total':len(rows),'page':page})
@@ -50,7 +52,10 @@ class Handler(BaseHTTPRequestHandler):
   if p.endswith('/notices/current'):return self.send(None)
   if p.endswith('/notices/current-set') or p.endswith('/favorite-groups'):return self.send([])
   if p.endswith('/community/pins'):return self.send({'revision':0,'items':[],'canManage':False})
-  if p.endswith('/recommendations/daily'):return self.send({'date':'2026-11-23','algorithmVersion':'fixture','items':[]})
+  if p.endswith('/recommendations/daily'):
+   items=[{'stallId':s['id'],'stallName':s['name'],'diningHallId':hall['id'],'diningHallName':hall['name'],'averageRating':4.2,'reviewCount':3,'imageUrl':'/api/v1/media/'+uid(999),'recommendationType':'QUALITY','recommendationScore':.9,'reasonCode':'GOOD_REPUTATION','reason':'同学好评推荐'} for s in stalls[:2]]
+   today=datetime.datetime.now(datetime.timezone(datetime.timedelta(hours=8))).date().isoformat()
+   return self.send({'date':today,'algorithmVersion':'fixture','total':len(items),'items':items})
   return self.send(empty)
  def do_POST(self):
   self.rfile.read(int(self.headers.get('Content-Length',0)))
