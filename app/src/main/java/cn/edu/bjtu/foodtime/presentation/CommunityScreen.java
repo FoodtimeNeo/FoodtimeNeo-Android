@@ -290,7 +290,7 @@ final class CommunityScreen {
   static void detailHeader(MainActivity a, LinearLayout header, CommunityPost post) {
     LinearLayout bar = Ui.row(a);
     bar.setGravity(Gravity.CENTER_VERTICAL);
-    header.addView(bar);
+    header.addView(bar, new LinearLayout.LayoutParams(-1, -2));
     TextView back = CommunityDiscussion.action(a, "‹", a::back);
     back.setTextSize(27);
     back.setContentDescription("返回上一级");
@@ -334,7 +334,7 @@ final class CommunityScreen {
     more.setContentDescription("食记更多操作");
     bar.addView(more);
 
-    // 为兼容自动化测试测试用例在 a.root 中通过 tag 快速触发，在此挂载紧凑无干扰的代理锚点
+    // 代理锚点放在标题栏之外，避免占用标题栏空间把“···”挤离最右侧。
     if (CommunityPinScreen.allowed(a)) {
       View pinProxy = new View(a);
       pinProxy.setTag("community-pins-open");
@@ -342,7 +342,7 @@ final class CommunityScreen {
       pinProxy.setClickable(true);
       pinProxy.setContentDescription("置顶管理");
       pinProxy.setOnClickListener(v -> a.go("community-pins", post.id()));
-      bar.addView(pinProxy, new LinearLayout.LayoutParams(Ui.dp(a, 44), Ui.dp(a, 44)));
+      header.addView(pinProxy, new LinearLayout.LayoutParams(0, 0));
       pinProxy.setAlpha(0.01f);
     }
     if (PostEditScreen.allowed(a, post)) {
@@ -355,7 +355,7 @@ final class CommunityScreen {
         a.requireFreshContent("community-edit", post.id());
         a.go("community-edit", post.id());
       });
-      bar.addView(editProxy, new LinearLayout.LayoutParams(Ui.dp(a, 44), Ui.dp(a, 44)));
+      header.addView(editProxy, new LinearLayout.LayoutParams(0, 0));
       editProxy.setAlpha(0.01f);
     }
   }
@@ -444,6 +444,14 @@ final class CommunityScreen {
 
     sheet.setContentView(panel);
     sheet.show();
+    // Dialog windows apply their theme dimensions during show(). Set the
+    // width afterwards so the action sheet fills the available screen width
+    // instead of being measured to the longest child.
+    android.view.Window shownWindow = sheet.getWindow();
+    if (shownWindow != null) {
+      shownWindow.setGravity(Gravity.BOTTOM);
+      shownWindow.setLayout(-1, -2);
+    }
   }
 
   private static void addMenuItem(MainActivity a, LinearLayout parent, String label, int textColor, Runnable action) {

@@ -202,7 +202,7 @@ final class CommunityDiscussion {
       moreBtn.setTag("community-comment-more:" + item.id());
       nameRow.addView(moreBtn);
     }
-    body.addView(nameRow);
+    body.addView(nameRow, new LinearLayout.LayoutParams(-1, -2));
     Ui.gap(body, 3);
 
     String prefix = reply ? "回复 " + item.replyToDisplayName() + "：" : "";
@@ -322,6 +322,13 @@ final class CommunityDiscussion {
 
     dialog.setContentView(panel);
     dialog.show();
+    // The dialog theme measures to its content during show(); apply the
+    // full-width bottom-sheet size after that measurement.
+    android.view.Window shownWindow = dialog.getWindow();
+    if (shownWindow != null) {
+      shownWindow.setGravity(Gravity.BOTTOM);
+      shownWindow.setLayout(-1, -2);
+    }
   }
 
   private TextView toggle(String tag, boolean active, long total, String off, String on, String label,
