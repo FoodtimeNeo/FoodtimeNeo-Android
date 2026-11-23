@@ -74,6 +74,32 @@ public final class CompactLayoutRunner extends Instrumentation {
     EditText input=(EditText)tag("dish-search-keyword");
     check(input.getLayout()!=null&&input.getLayout().getLineBottom(0)-input.getLayout().getLineTop(0)<=input.getHeight()-input.getCompoundPaddingTop()-input.getCompoundPaddingBottom(),"Search glyph line fits within actual input content height");
   }
+  private EditText draftField(View view,String label){
+    if(view instanceof EditText input&&label.contentEquals(input.getContentDescription()))return input;
+    if(view instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++){EditText input=draftField(group.getChildAt(i),label);if(input!=null)return input;}
+    return null;
+  }
+  private void draftFirstOpen()throws Exception{
+    String owner=activity.repo.currentUser().id();
+    ui(()->{
+      activity.selectTab("profile");
+      activity.clearDraft(new MainActivity.Route("community-create",""));
+      PostDraftStore.save(activity,owner,"本机草稿标题","首次进入应恢复完整正文","",java.util.List.of("asset:hall_1.webp"));
+    });
+    await("draft profile entry",()->tag("profile-entry:community-create")!=null);
+    click("profile-entry:community-create");
+    await("first draft open",()->!activity.isPageLoading());
+    ui(()->{
+      check(!activity.pageFailed(),"First draft entry does not add an attached card twice");
+      check(draftField(activity.root,"食记标题")!=null,"Composer exists on first entry without retry");
+      check(draftField(activity.root,"食记标题").getText().toString().equals("本机草稿标题"),"Draft title restored on first entry");
+      check(draftField(activity.root,"动态正文").getText().toString().equals("首次进入应恢复完整正文"),"Draft text restored on first entry");
+      check(CommunityScreen.selectedPhotos(activity).equals(java.util.List.of("asset:hall_1.webp")),"Draft image remains associated");
+    });screenshot("draft-first-open-android");
+    ui(activity::redraw);
+    ui(()->check(!activity.pageFailed()&&draftField(activity.root,"食记标题")!=null,"Draft redraw remains valid"));
+    ui(()->{activity.back();activity.clearDraft(new MainActivity.Route("community-create",""));PostDraftStore.delete(activity,owner);});
+  }
   private void menu()throws Exception{
     ui(()->{activity.selectTab("dining");activity.go("dining","");});
     await("home hall card",()->tag("dining-hall:"+id(10))!=null&&!activity.isPageLoading());
@@ -104,6 +130,6 @@ public final class CompactLayoutRunner extends Instrumentation {
     activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     activity.repo.restoreSession();ui(activity::restore);
     await("fixture session",()->activity.repo.currentUser()!=null&&!activity.isPageLoading());
-    profile();search();menu();result.putString("stream","Compact layout PASS "+checks+" checks\n");finish(-1,result);
+    profile();draftFirstOpen();search();menu();result.putString("stream","Compact layout PASS "+checks+" checks\n");finish(-1,result);
   }catch(Throwable error){result.putString("stream","Compact layout FAIL "+android.util.Log.getStackTraceString(error));finish(1,result);}finally{if(activity!=null)ui(activity::finish);}}
 }
