@@ -601,6 +601,12 @@ public class MainActivity extends Activity {
     back();
   }
 
+  @Override public void finish() {
+    // onDestroy can follow a new Activity's onCreate; end the process cover before that race.
+    if (coldStartSplash != null) coldStartSplash.finish();
+    super.finish();
+  }
+
   @Override
   protected void onSaveInstanceState(Bundle state) {
     super.onSaveInstanceState(state);

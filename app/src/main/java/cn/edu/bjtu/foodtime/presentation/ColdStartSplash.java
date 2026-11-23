@@ -101,6 +101,7 @@ final class ColdStartSplash {
   }
 
   void afterReady(Runnable task) { if (showing()) pending.add(task); else task.run(); }
+  void finish() { gate.dismiss(); close(); }
   void close() {
     closed = true;
     handler.removeCallbacksAndMessages(null);
