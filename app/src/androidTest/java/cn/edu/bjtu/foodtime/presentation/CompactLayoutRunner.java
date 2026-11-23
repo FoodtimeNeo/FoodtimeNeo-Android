@@ -83,6 +83,10 @@ public final class CompactLayoutRunner extends Instrumentation {
     long end=System.currentTimeMillis()+5000;
     while(System.currentTimeMillis()<end){
       var root=getUiAutomation().getRootInActiveWindow();
+      if(root!=null&&!root.findAccessibilityNodeInfosByText("Pixel Launcher isn't responding").isEmpty()){
+        for(var node:root.findAccessibilityNodeInfosByText("Close app"))if(node.isClickable())node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
+        Thread.sleep(100);continue;
+      }
       if(root!=null)for(var node:root.findAccessibilityNodeInfosByText(label))
         if(node.isClickable()&&label.contentEquals(node.getText())&&node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)){waitForIdleSync();return;}
       Thread.sleep(80);
