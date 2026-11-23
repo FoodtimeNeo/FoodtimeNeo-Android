@@ -45,6 +45,7 @@ public final class CompactLayoutRunner extends Instrumentation {
     screenshot("profile-android");click("profile-entry:favorite-dishes");await("favorite destination",()->activity.route().kind().equals("favorite-dishes"));check(true,"Dish favorites entry navigates");
   }
   private void search()throws Exception{
+    ui(()->activity.clearDraft(new MainActivity.Route("dish-search","")));
     String owner=activity.repo.currentUser().id();SearchHistoryStore.purge(getTargetContext(),owner);
     for(int i=0;i<12;i++)SearchHistoryStore.remember(getTargetContext(),owner,"测试"+i);
     check(SearchHistoryStore.read(getTargetContext(),owner).size()==10,"History limit is ten");
