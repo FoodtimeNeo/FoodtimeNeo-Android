@@ -83,6 +83,7 @@ public final class CompactLayoutRunner extends Instrumentation {
     String owner=activity.repo.currentUser().id();
     ui(()->{
       activity.selectTab("profile");
+      activity.go("profile","");
       activity.clearDraft(new MainActivity.Route("community-create",""));
       PostDraftStore.save(activity,owner,"本机草稿标题","首次进入应恢复完整正文","",java.util.List.of("asset:hall_1.webp"));
     });
