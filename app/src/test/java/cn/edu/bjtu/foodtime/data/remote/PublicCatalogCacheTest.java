@@ -68,11 +68,13 @@ public class PublicCatalogCacheTest {
     }
     assertEquals(size,Objects.requireNonNull(directory.listFiles()).length);
     server.close();
+    worker.shutdown();
+    assertTrue("Fixture must fully stop before simulating offline",worker.awaitTermination(5,TimeUnit.SECONDS));
     try {
       // HttpURLConnection may report a closed peer as status -1 or throw IOException,
       // depending on the JDK. Neither may be converted into a cached 200 response.
       var offline=read(cache,"dining-halls");
-      assertNotEquals("Offline transport must not return cached success",200,offline.status());
+      assertNotEquals("Offline transport must not return cached success: closed="+server.isClosed()+", requests="+conditions.size()+", etag="+offline.header("ETag")+", body="+offline.body(),200,offline.status());
       assertFalse(offline.body().contains("public-hall"));
     } catch(IOException expected) { /* The platform reported the connection failure directly. */ }
   }
