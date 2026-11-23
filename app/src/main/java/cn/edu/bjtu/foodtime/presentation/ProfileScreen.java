@@ -8,6 +8,7 @@ import cn.edu.bjtu.foodtime.BuildConfig;
 import cn.edu.bjtu.foodtime.R;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import cn.edu.bjtu.foodtime.domain.model.ReleaseVersion;
+import cn.edu.bjtu.foodtime.domain.repository.ContentRequest;
 import java.util.*;
 
 final class ProfileScreen {
@@ -189,8 +190,7 @@ final class ProfileScreen {
       // 1. 想吃清单总数
       long[] favCount = {0};
       a.read("profile-fav-count", null, null, () -> {
-        List<FavoriteGroup> groups = a.repo.favoriteGroups("dish");
-        favCount[0] = groups != null ? groups.stream().mapToLong(FavoriteGroup::itemCount).sum() : 0L;
+        favCount[0] = a.repo.favoriteDishes(1).total();
       }, () -> {
         if (favCount[0] > 0) {
           TextView v = page.findViewWithTag("profile-count:favorite-dishes");
@@ -204,8 +204,9 @@ final class ProfileScreen {
       // 2. 帖子收藏数
       long[] postFavCount = {0};
       a.read("profile-post-fav-count", null, null, () -> {
+        a.repo.refresh(new ContentRequest(ContentRequest.Query.MY_COMMUNITY_FAVORITES, ""));
         var pageData = a.repo.communityCollection(true);
-        postFavCount[0] = (pageData != null && pageData.items() != null) ? pageData.items().size() : 0;
+        postFavCount[0] = pageData != null ? pageData.total() : 0;
       }, () -> {
         if (postFavCount[0] > 0) {
           TextView v = page.findViewWithTag("profile-count:community-favorites");
@@ -219,8 +220,9 @@ final class ProfileScreen {
       // 3. 我的食记数
       long[] myPostsCount = {0};
       a.read("profile-my-posts-count", null, null, () -> {
+        a.repo.refresh(new ContentRequest(ContentRequest.Query.MY_COMMUNITY_POSTS, ""));
         var pageData = a.repo.communityCollection(false);
-        myPostsCount[0] = (pageData != null && pageData.items() != null) ? pageData.items().size() : 0;
+        myPostsCount[0] = pageData != null ? pageData.total() : 0;
       }, () -> {
         if (myPostsCount[0] > 0) {
           TextView v = page.findViewWithTag("profile-count:community-mine");
@@ -234,8 +236,9 @@ final class ProfileScreen {
       // 4. 餐厅档口点评数
       long[] venueReviewsCount = {0};
       a.read("profile-venue-reviews-count", null, null, () -> {
+        a.repo.loadMyVenueReviews("", false, 1);
         var venueReviews = a.repo.myVenueReviews();
-        venueReviewsCount[0] = (venueReviews != null && venueReviews.items() != null) ? venueReviews.items().size() : 0;
+        venueReviewsCount[0] = venueReviews != null ? venueReviews.total() : 0;
       }, () -> {
         if (venueReviewsCount[0] > 0) {
           TextView v = page.findViewWithTag("profile-count:venue-mine");

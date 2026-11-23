@@ -740,9 +740,9 @@ public class MainActivity extends Activity {
     android.view.View followers=content.findViewWithTag("profile-follower-count");
     var user=repo.currentUser();
     if(user==null||!(following instanceof TextView followingText)||!(followers instanceof TextView followerText))return false;
-    followingText.setText(user.followingCount()+"\n关注");
+    followingText.setText("关注 "+user.followingCount());
     followingText.setContentDescription("我的关注，"+user.followingCount()+"人");
-    followerText.setText(user.followerCount()+"\n粉丝");
+    followerText.setText("粉丝 "+user.followerCount());
     followerText.setContentDescription("关注我的，"+user.followerCount()+"人");
     return true;
   }
