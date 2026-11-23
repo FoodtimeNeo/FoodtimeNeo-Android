@@ -14,7 +14,7 @@ import java.util.*;
 final class ProfileScreen {
   static void profile(MainActivity a, LinearLayout page, MainActivity.Route route) {
     User user = a.repo.currentUser();
-    page.setBackground(new ProfileDoodleDrawable(a));
+    page.setBackgroundColor(Design.PAPER);
     profileHeader(a, page);
 
     // 1. 顶部身份卡片瘦身与去测试态
@@ -107,31 +107,27 @@ final class ProfileScreen {
       Ui.gap(page, 16);
     }
 
-    // 2. 重构“收藏与回访”标准分组卡片列表
-    GroupBuilder saved = new GroupBuilder(a, page, "收藏与回访");
-    saved.addRow(0, true, 0, "想吃清单", "favorite-dishes", "", "");
-    saved.addRow(R.drawable.ic_photo_like, false, 0, "帖子收藏", "community-favorites", "", "");
-    saved.addRow(R.drawable.ic_community_search, false, 0, "浏览历史", "history", "", "");
+    GridGroup saved = new GridGroup(a, page, "常用");
+    saved.add("想吃清单", "favorite-dishes", "", R.drawable.ic_hub_dish, "");
+    saved.add("帖子收藏", "community-favorites", "", R.drawable.ic_hub_star, "");
+    saved.add("浏览历史", "history", "", R.drawable.ic_hub_clock, "");
+    saved.add("发帖草稿", "community-create", "", R.drawable.ic_hub_edit, "");
 
-    // 3. 重构“我的记录”标准分组卡片列表
     List<Review> myReviews = a.repo.myReviews();
-    String reviewsCount = (myReviews != null && !myReviews.isEmpty()) ? String.valueOf(myReviews.size()) : "";
-    GroupBuilder records = new GroupBuilder(a, page, "我的记录");
-    records.addRow(R.drawable.ic_community_home, false, 0, "我的食记", "community-mine", "", "");
-    records.addRow(R.drawable.ic_community_add, false, 0, "发帖草稿", "community-create", "", "");
-    records.addRow(R.drawable.ic_thumb_up, false, 0, "菜品点评", "mine-reviews", "", reviewsCount);
-    records.addRow(0, true, 1, "餐厅与档口点评", "venue-mine", "", "");
-    records.addRow(R.drawable.ic_photo_comment, false, 0, "我的回复", "mine-review-replies", "1", "");
-    records.addRow(0, true, 2, "我的提交", "mine-submissions", "", "");
+    String reviewsCount = myReviews != null && !myReviews.isEmpty() ? String.valueOf(myReviews.size()) : "";
+    GridGroup records = new GridGroup(a, page, "我的记录");
+    records.add("我的食记", "community-mine", "", R.drawable.ic_hub_note, "");
+    records.add("菜品点评", "mine-reviews", "", R.drawable.ic_hub_comment, reviewsCount);
+    records.add("餐厅点评", "venue-mine", "", R.drawable.ic_hub_dish, "");
+    records.add("我的回复", "mine-review-replies", "1", R.drawable.ic_hub_reply, "");
+    records.add("我的提交", "mine-submissions", "", R.drawable.ic_hub_upload, "");
 
-    // 4. 重构“消息与处理”标准分组卡片列表
     long unread = a.repo.unreadCount();
-    String inboxCount = unread > 0 ? String.valueOf(unread) : "";
-    GroupBuilder messages = new GroupBuilder(a, page, "消息与处理");
-    messages.addRow(R.drawable.ic_private_message_notification, false, 0, "消息信箱", "inbox", "", inboxCount);
-    messages.addRow(R.drawable.ic_photo_comment, false, 0, "建议与反馈", "feedback", "", "");
-    messages.addRow(R.drawable.ic_community_search, false, 0, "目录纠错", "my-corrections", "", "");
-    messages.addRow(R.drawable.ic_photo_share, false, 0, "举报与处理决定", "report-receipts", "", "");
+    GridGroup services = new GridGroup(a, page, "服务");
+    services.add("消息信箱", "inbox", "", R.drawable.ic_hub_inbox, unread > 0 ? String.valueOf(unread) : "");
+    services.add("建议与反馈", "feedback", "", R.drawable.ic_hub_feedback, "");
+    services.add("我的纠错", "my-corrections", "", R.drawable.ic_hub_correct, "");
+    services.add("举报与申诉", "report-receipts", "", R.drawable.ic_hub_shield, "");
 
     // 5. 重构“账号与隐私”标准分组卡片列表
     GroupBuilder account = new GroupBuilder(a, page, "账号与隐私");
@@ -254,7 +250,7 @@ final class ProfileScreen {
   private static void profileHeader(MainActivity a, LinearLayout page) {
     LinearLayout header = Ui.row(a);
     header.setGravity(Gravity.CENTER_VERTICAL);
-    header.addView(Ui.title(a, "我的手账", 28), new LinearLayout.LayoutParams(0, -2, 1));
+    header.addView(Ui.title(a, "我的", 28), new LinearLayout.LayoutParams(0, -2, 1));
 
     FrameLayout inbox = new FrameLayout(a);
     inbox.setClickable(true);
@@ -264,8 +260,11 @@ final class ProfileScreen {
     inbox.setClipToPadding(false);
     inbox.setBackground(Ui.ripple(a, Design.ALT, 0, 24));
 
-    TextView bell = Ui.text(a, "🔔", 22, Design.INK);
-    bell.setGravity(Gravity.CENTER);
+    ImageView bell = new ImageView(a);
+    bell.setImageResource(R.drawable.ic_hub_inbox);
+    bell.setImageTintList(android.content.res.ColorStateList.valueOf(Design.RED));
+    bell.setPadding(Ui.dp(a, 8), Ui.dp(a, 8), Ui.dp(a, 8), Ui.dp(a, 8));
+    bell.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
     inbox.addView(bell, new FrameLayout.LayoutParams(-1, -1));
 
     TextView badge = Ui.text(a, "", 10, Design.ON_RED);
@@ -299,6 +298,70 @@ final class ProfileScreen {
     inbox.setContentDescription(unread > 0 ? "通知信箱，" + unread + "条未读" : "通知信箱");
     badge.setVisibility(unread > 0 ? View.VISIBLE : View.GONE);
     badge.setText(unread > 99 ? "99+" : String.valueOf(unread));
+  }
+
+  private static final class GridGroup {
+    private final MainActivity a;
+    private final GridLayout grid;
+    private final int columns;
+
+    GridGroup(MainActivity a, LinearLayout page, String title) {
+      this.a = a;
+      View divider = new View(a);
+      divider.setBackgroundColor(Design.BORDER);
+      page.addView(divider, new LinearLayout.LayoutParams(-1, Ui.dp(a, 1)));
+      Ui.gap(page, 20);
+      TextView heading = Ui.title(a, title, 23);
+      heading.setTag("profile-group:" + title);
+      page.addView(heading);
+      Ui.gap(page, 16);
+      var config = a.getResources().getConfiguration();
+      float available = Math.max(240, config.screenWidthDp - 32) / Math.max(1, config.fontScale);
+      columns = available >= 320 ? 4 : available >= 240 ? 3 : 2;
+      grid = new GridLayout(a);
+      grid.setColumnCount(columns);
+      grid.setTag("profile-grid:" + title);
+      page.addView(grid, new LinearLayout.LayoutParams(-1, -2));
+      Ui.gap(page, 20);
+    }
+
+    void add(String label, String route, String id, int iconRes, String count) {
+      int index = grid.getChildCount();
+      LinearLayout tile = Ui.col(a);
+      tile.setTag("profile-entry:" + route);
+      tile.setGravity(Gravity.CENTER_HORIZONTAL);
+      tile.setPadding(Ui.dp(a, 3), Ui.dp(a, 12), Ui.dp(a, 3), Ui.dp(a, 12));
+      tile.setMinimumHeight(Ui.dp(a, 108));
+      tile.setFocusable(true);
+      tile.setClickable(true);
+      tile.setContentDescription(label);
+      tile.setBackground(Ui.ripple(a, Color.TRANSPARENT, 0, 12));
+      tile.setOnClickListener(v -> a.go(route, id));
+
+      FrameLayout iconFrame = new FrameLayout(a);
+      ImageView image = new ImageView(a);
+      image.setImageResource(iconRes);
+      image.setImageTintList(android.content.res.ColorStateList.valueOf(Design.RED));
+      image.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+      iconFrame.addView(image, new FrameLayout.LayoutParams(Ui.dp(a, 28), Ui.dp(a, 28), Gravity.CENTER));
+      TextView badge = Ui.text(a, count, 10, Design.RED);
+      badge.setTag("profile-count:" + route);
+      badge.setGravity(Gravity.CENTER);
+      badge.setBackground(Ui.shape(a, Design.PAPER, 0, 8));
+      badge.setVisibility(count == null || count.isEmpty() || count.equals("0") ? View.GONE : View.VISIBLE);
+      iconFrame.addView(badge, new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END));
+      tile.addView(iconFrame, new LinearLayout.LayoutParams(Ui.dp(a, 52), Ui.dp(a, 38)));
+      Ui.gap(tile, 8);
+      TextView text = Ui.text(a, label, 13, Design.INK);
+      text.setGravity(Gravity.CENTER);
+      text.setMaxLines(2);
+      tile.addView(text, new LinearLayout.LayoutParams(-1, -2));
+      GridLayout.LayoutParams lp = new GridLayout.LayoutParams(
+          GridLayout.spec(index / columns), GridLayout.spec(index % columns, 1f));
+      lp.width = 0;
+      lp.setGravity(Gravity.FILL_HORIZONTAL);
+      grid.addView(tile, lp);
+    }
   }
 
   private static final class GroupBuilder {

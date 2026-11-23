@@ -28,6 +28,10 @@ public final class CompactLayoutRunner extends Instrumentation {
     ui(()->{
       View first=tag("profile-entry:favorite-dishes"),second=tag("profile-entry:community-favorites");Rect a=new Rect(),b=new Rect();first.getGlobalVisibleRect(a);second.getGlobalVisibleRect(b);
       check(first.getWidth()>0&&!Rect.intersects(a,b),"Profile entries do not overlap");
+      check(a.top==b.top,"Common actions share a grid row");
+      check(tag("profile-grid:常用") instanceof GridLayout saved&&saved.getChildCount()==4,"Web common actions are present in a grid");
+      check(tag("profile-grid:我的记录") instanceof GridLayout records&&records.getChildCount()==5,"All record destinations remain");
+      check(tag("profile-grid:服务") instanceof GridLayout services&&services.getChildCount()==4,"All service destinations remain");
       check(tag("profile-entry:history")!=null&&tag("profile-entry:community-create")!=null,"All four common shortcuts remain");
       check(tag("profile-following-count")!=null&&tag("profile-follower-count")!=null,"Following/follower routes retained");
     });
