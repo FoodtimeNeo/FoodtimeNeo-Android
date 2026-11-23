@@ -228,7 +228,11 @@ public final class Models {
 
   public record Review(
       String id, String dishId, String userId, String userDisplayName, int rating, String content, long createdAt,
-      long likeCount, long replyCount, boolean likedByMe, long counterVersion,AiAssessment ai,String userEmail) {
+      long likeCount, long replyCount, boolean likedByMe, long counterVersion,AiAssessment ai,String userEmail,String imageUrl) {
+    public Review(String id,String dishId,String userId,String userDisplayName,int rating,String content,long createdAt,
+        long likeCount,long replyCount,boolean likedByMe,long counterVersion,AiAssessment ai,String userEmail) {
+      this(id,dishId,userId,userDisplayName,rating,content,createdAt,likeCount,replyCount,likedByMe,counterVersion,ai,userEmail,"");
+    }
     public Review(String id,String dishId,String userId,String userDisplayName,int rating,String content,long createdAt,
         long likeCount,long replyCount,boolean likedByMe,long counterVersion,AiAssessment ai) {
       this(id,dishId,userId,userDisplayName,rating,content,createdAt,likeCount,replyCount,likedByMe,counterVersion,ai,"");

@@ -860,7 +860,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private Review review(JSONObject j) {
     contexts.put(text(j,"dishId"),joined(j,true));
-    return new Review(text(j,"id"),text(j,"dishId"),text(j,"userId"),text(j,"userDisplayName"),j.optInt("rating"),text(j,"content"),time(j,"createdAt"),j.optLong("likeCount"),j.optLong("replyCount"),j.optBoolean("likedByMe"),j.optLong("counterVersion"),assessment(j),text(j,"userEmail"));
+    return new Review(text(j,"id"),text(j,"dishId"),text(j,"userId"),text(j,"userDisplayName"),j.optInt("rating"),text(j,"content"),time(j,"createdAt"),j.optLong("likeCount"),j.optLong("replyCount"),j.optBoolean("likedByMe"),j.optLong("counterVersion"),assessment(j),text(j,"userEmail"),text(j,"imageUrl"));
   }
   private ReviewPage fetchDishReviewPage(String dishId,int number) {
     JSONObject data=call("GET","dishes/"+dishId+"/reviews?page="+number+"&size=20",null);
@@ -907,7 +907,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     LikeState state=new LikeState(result.optBoolean("likedByMe"),result.optLong("likeCount"),result.optLong("counterVersion"));
     dishReviewPages.replaceAll((id,page) -> new ReviewPage(page.items().stream().map(row -> {
       if(!row.id().equals(reviewId)||row.counterVersion()>state.counterVersion()) return row;
-      return new Review(row.id(),row.dishId(),row.userId(),row.userDisplayName(),row.rating(),row.content(),row.createdAt(),state.likeCount(),row.replyCount(),state.likedByMe(),state.counterVersion(),row.ai(),row.userEmail());
+      return new Review(row.id(),row.dishId(),row.userId(),row.userDisplayName(),row.rating(),row.content(),row.createdAt(),state.likeCount(),row.replyCount(),state.likedByMe(),state.counterVersion(),row.ai(),row.userEmail(),row.imageUrl());
     }).collect(java.util.stream.Collectors.toList()),page.total(),page.page(),page.hasMore()));
     return state;
   }
@@ -1076,6 +1076,15 @@ public final class RemoteRepository implements FoodtimeRepository {
 
   @Override public void submitReview(String dish,int rating,String content) {
     call("POST","dishes/"+dish+"/reviews",json("rating",rating,"content",content));
+  }
+  @Override public String submitReviewTracked(String dish,int rating,String content) {
+    String id=text(call("POST","dishes/"+dish+"/reviews",json("rating",rating,"content",content)),"id");
+    if(id.isBlank())throw new IllegalStateException("点评响应异常，请查看投稿记录");
+    return id;
+  }
+  @Override public String uploadReviewPhoto(String image) { return upload(image); }
+  @Override public void submitReviewPhoto(String dish,String image,String reviewId) {
+    call("POST","dishes/"+dish+"/image-submissions",json("imageUrl",image,"reviewSubmissionId",reviewId));
   }
   @Override public void submitPhoto(String dish,String image) {
     call("POST","dishes/"+dish+"/image-submissions",json("imageUrl",upload(image)));
