@@ -510,7 +510,6 @@ final class CommunityScreen {
       LinearLayout notice=Ui.card(page);
       notice.addView(Ui.text(a,"已恢复草稿",14,Design.MUTED));
       Ui.link(notice,"删除本机草稿",()->{PostDraftStore.delete(a,ownerId);a.clearDraft(a.route());a.redraw();});
-      page.addView(notice);
     }
     photoEditor(a,page,false);
     LinearLayout form=Ui.card(page);form.addView(Ui.title(a,"02 · 标题与心得",18));Ui.gap(form,12);
