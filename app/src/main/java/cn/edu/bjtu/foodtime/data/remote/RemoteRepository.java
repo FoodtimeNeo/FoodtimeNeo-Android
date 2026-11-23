@@ -24,6 +24,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   private final VenueRemote venues;
   private final URI origin;
   private ImageDiskCache imageCache;
+  private PublicCatalogCache catalogCache;
   private final java.util.concurrent.atomic.AtomicLong imageEpoch=new java.util.concurrent.atomic.AtomicLong();
   private final CommunityPrototype communityPrototype;
   private volatile String csrf;
@@ -137,6 +138,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public cn.edu.bjtu.foodtime.domain.model.VenueModels.AuditDetail venueAuditDetail(String type,String id){return venues.auditDetail(type,id);}
   @Override public User currentUser() { return user; }
   public RemoteRepository withImageCache(File directory) { imageCache=new ImageDiskCache(directory,200L*1024*1024);return this; }
+  public RemoteRepository withCatalogCache(File directory) { catalogCache=new PublicCatalogCache(origin.toString(),directory);return this; }
   private String imageScope() {
     var actor=user;
     return origin+":"+(actor==null?"guest":actor.id()+":"+actor.role())+":"+http.sessionKey();
@@ -860,7 +862,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private Review review(JSONObject j) {
     contexts.put(text(j,"dishId"),joined(j,true));
-    return new Review(text(j,"id"),text(j,"dishId"),text(j,"userId"),text(j,"userDisplayName"),j.optInt("rating"),text(j,"content"),time(j,"createdAt"),j.optLong("likeCount"),j.optLong("replyCount"),j.optBoolean("likedByMe"),j.optLong("counterVersion"),assessment(j),text(j,"userEmail"));
+    return new Review(text(j,"id"),text(j,"dishId"),text(j,"userId"),text(j,"userDisplayName"),j.optInt("rating"),text(j,"content"),time(j,"createdAt"),j.optLong("likeCount"),j.optLong("replyCount"),j.optBoolean("likedByMe"),j.optLong("counterVersion"),assessment(j),text(j,"userEmail"),text(j,"imageUrl"));
   }
   private ReviewPage fetchDishReviewPage(String dishId,int number) {
     JSONObject data=call("GET","dishes/"+dishId+"/reviews?page="+number+"&size=20",null);
@@ -907,7 +909,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     LikeState state=new LikeState(result.optBoolean("likedByMe"),result.optLong("likeCount"),result.optLong("counterVersion"));
     dishReviewPages.replaceAll((id,page) -> new ReviewPage(page.items().stream().map(row -> {
       if(!row.id().equals(reviewId)||row.counterVersion()>state.counterVersion()) return row;
-      return new Review(row.id(),row.dishId(),row.userId(),row.userDisplayName(),row.rating(),row.content(),row.createdAt(),state.likeCount(),row.replyCount(),state.likedByMe(),state.counterVersion(),row.ai(),row.userEmail());
+      return new Review(row.id(),row.dishId(),row.userId(),row.userDisplayName(),row.rating(),row.content(),row.createdAt(),state.likeCount(),row.replyCount(),state.likedByMe(),state.counterVersion(),row.ai(),row.userEmail(),row.imageUrl());
     }).collect(java.util.stream.Collectors.toList()),page.total(),page.page(),page.hasMore()));
     return state;
   }
@@ -1076,6 +1078,15 @@ public final class RemoteRepository implements FoodtimeRepository {
 
   @Override public void submitReview(String dish,int rating,String content) {
     call("POST","dishes/"+dish+"/reviews",json("rating",rating,"content",content));
+  }
+  @Override public String submitReviewTracked(String dish,int rating,String content) {
+    String id=text(call("POST","dishes/"+dish+"/reviews",json("rating",rating,"content",content)),"id");
+    if(id.isBlank())throw new IllegalStateException("点评响应异常，请查看投稿记录");
+    return id;
+  }
+  @Override public String uploadReviewPhoto(String image) { return upload(image); }
+  @Override public void submitReviewPhoto(String dish,String image,String reviewId) {
+    call("POST","dishes/"+dish+"/image-submissions",json("imageUrl",image,"reviewSubmissionId",reviewId));
   }
   @Override public void submitPhoto(String dish,String image) {
     call("POST","dishes/"+dish+"/image-submissions",json("imageUrl",upload(image)));
@@ -1850,6 +1861,10 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public byte[] loadImage(String reference) {
     return loadImageResource(reference).bytes();
   }
+  @Override public boolean requiresImageValidation(String reference) {
+    URI uri=origin.resolve(reference);
+    return catalogCache!=null&&origin.getAuthority().equals(uri.getAuthority())&&catalogCache.isCatalogMedia(uri.getPath());
+  }
   @Override public ImageResource loadImageResource(String reference) {
     long epoch=imageEpoch.get();String scope=imageScope();
     URI uri=origin.resolve(reference);
@@ -1860,7 +1875,8 @@ public final class RemoteRepository implements FoodtimeRepository {
     String publicKey="p-"+ImageDiskCache.hash(uri.toString()),privateKey="s-"+ImageDiskCache.hash(scope+":0:"+uri);
     ImageDiskCache.Entry cached=imageCache==null?null:imageCache.get(publicKey);
     if(cached==null&&imageCache!=null)cached=imageCache.get(privateKey);
-    if(cached!=null&&cached.freshUntil()>System.currentTimeMillis()) {
+    boolean catalogMedia=sameOrigin&&catalogCache!=null&&catalogCache.isCatalogMedia(uri.getPath());
+    if(!catalogMedia&&cached!=null&&cached.freshUntil()>System.currentTimeMillis()) {
       if(epoch!=imageEpoch.get()||!scope.equals(imageScope())||Thread.currentThread().isInterrupted())throw unavailable();
       return new ImageResource(cached.bytes(),true,cached.freshUntil(),cached.etag());
     }
@@ -1908,8 +1924,11 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private static String header(HttpTransport.BinaryResponse response,String name) {var values=response.headers().get(name);return values==null||values.isEmpty()?"":values.get(0);}
   private JSONObject call(String method,String path,JSONObject body) {
-    try { return interpret(http.request(method,path,body==null?null:body.toString(),method.equals("GET")?null:token())); }
+    try { return interpret(request(method,path,body==null?null:body.toString(),method.equals("GET")?null:token())); }
     catch(IOException e) { throw unavailable(); }
+  }
+  private HttpTransport.Response request(String method,String path,String body,String csrfToken) throws IOException {
+    return catalogCache==null?http.request(method,path,body,csrfToken):catalogCache.request(http,method,path,body,csrfToken);
   }
   private String token() {
     if(csrf==null) csrf=text(call("GET","auth/csrf",null),"token");
@@ -1932,7 +1951,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private <T> List<T> list(String path,Function<JSONObject,T> mapper) {
     try {
-      JSONArray data=envelope(http.request("GET",path,null,null)).optJSONArray("data");
+      JSONArray data=envelope(request("GET",path,null,null)).optJSONArray("data");
       if(data==null) throw new RepositoryException(502,"INVALID_RESPONSE","列表响应异常",0);
       List<T> result=new ArrayList<>();for(int i=0;i<data.length();i++) result.add(mapper.apply(data.optJSONObject(i)));
       return List.copyOf(result);

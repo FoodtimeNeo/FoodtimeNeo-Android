@@ -21,6 +21,7 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default void loadMoreDishReviews(String dishId) { throw new UnsupportedOperationException(); }
   default byte[] loadImage(String reference) { throw new UnsupportedOperationException(); }
   default ImageResource loadImageResource(String reference) { return new ImageResource(loadImage(reference),false,0,""); }
+  default boolean requiresImageValidation(String reference) { return false; }
   default String imageIdentity() { var user=currentUser();return user==null?"guest":user.id()+":"+user.role(); }
   default long imageCacheBytes() { return 0; }
   default void clearImageCache() {}
@@ -157,6 +158,9 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default void readConversation(String id) {}
   default void hideConversation(String id) {}
   void submitPhoto(String dishId, String imageUrl);
+  default String submitReviewTracked(String dishId, int rating, String content) { throw new UnsupportedOperationException("点评关联不可用"); }
+  default String uploadReviewPhoto(String image) { throw new UnsupportedOperationException("图片上传不可用"); }
+  default void submitReviewPhoto(String dishId,String imageUrl,String reviewSubmissionId) { throw new UnsupportedOperationException("点评图片不可用"); }
 
   void submitReview(String dishId, int rating, String content);
   default LikeState setReviewLike(String reviewId, boolean liked) { throw new UnsupportedOperationException("该数据源不支持评论点赞"); }

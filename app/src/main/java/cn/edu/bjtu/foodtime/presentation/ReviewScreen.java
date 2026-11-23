@@ -107,6 +107,9 @@ final class ReviewScreen {
   private static void resetSubmissionState(MainActivity a) {
     a.drafts.remove(a.draftKey("reviewSubmitted"));
     a.drafts.remove(a.draftKey("photoSubmitted"));
+    a.drafts.remove(a.draftKey("reviewSubmissionId"));
+    a.drafts.remove(a.draftKey("reviewUploadedPhoto"));
+    a.drafts.remove(a.draftKey("reviewUploadedSource"));
   }
 
   private static void composer(MainActivity a,LinearLayout page,MainActivity.Route route,Target target) {
@@ -152,26 +155,71 @@ final class ReviewScreen {
       Ui.gap(card,8);
       Ui.action(card,"移除图片",false,()->{a.discardPhoto(image);a.drafts.remove(imageKey);a.redraw();});
     }
+    String syncKey=a.draftKey("syncCommunity");
+    CheckBox sync=new CheckBox(a);sync.setText("提交后前往社区发帖");
+    sync.setChecked(a.drafts.getBoolean(syncKey,false));
+    sync.setOnCheckedChangeListener((button,checked)->a.drafts.putBoolean(syncKey,checked));
+    card.addView(sync);
     Ui.gap(card,14);
     TextView error=Ui.text(a,"",14,Design.RED);
     error.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);card.addView(error);Ui.gap(card,8);
     String reviewDone=a.draftKey("reviewSubmitted"),photoDone=a.draftKey("photoSubmitted");
+    String submissionId=a.draftKey("reviewSubmissionId"),uploadedKey=a.draftKey("reviewUploadedPhoto");
     Ui.submit(card,"提交点评",error,()->{
       int score=rating[0];String content=text.getText().toString().strip();
       String selectedImage=a.drafts.getString(imageKey,"");
       if(score<1||content.isBlank())throw new IllegalArgumentException("请选择评分并填写评价");
+      if(a.drafts.getBoolean(reviewDone,false) && (!content.equals(a.drafts.getString(a.draftKey("submittedContent"),"")) || score!=a.drafts.getInt(a.draftKey("submittedRating"),0)))
+        throw new IllegalArgumentException("点评已提交，请恢复原评分和文字后重试图片");
       return ()->{
         if(!a.drafts.getBoolean(reviewDone,false)){
-          a.repo.submitReview(target.id(),score,content);a.drafts.putBoolean(reviewDone,true);
+          String id=a.repo.submitReviewTracked(target.id(),score,content);
+          a.drafts.putString(a.draftKey("submittedContent"),content);a.drafts.putInt(a.draftKey("submittedRating"),score);
+          a.drafts.putString(submissionId,id);a.drafts.putBoolean(reviewDone,true);
         }
         if(!selectedImage.isBlank()&&!a.drafts.getBoolean(photoDone,false)){
-          try{a.repo.submitPhoto(target.id(),selectedImage);a.drafts.putBoolean(photoDone,true);}
+          try{
+            String uploaded=a.drafts.getString(uploadedKey,"");
+            String sourceKey=a.draftKey("reviewUploadedSource");
+            if(!selectedImage.equals(a.drafts.getString(sourceKey,"")))uploaded="";
+            if(uploaded.isBlank()){uploaded=a.repo.uploadReviewPhoto(selectedImage);a.drafts.putString(uploadedKey,uploaded);a.drafts.putString(sourceKey,selectedImage);}
+            a.repo.submitReviewPhoto(target.id(),uploaded,a.drafts.getString(submissionId,""));a.drafts.putBoolean(photoDone,true);
+          }
           catch(RuntimeException failure){throw new IllegalStateException("点评已提交；图片暂未提交成功，请重试",failure);}
         }
       };
     },()->{
       boolean withPhoto=!a.drafts.getString(imageKey,"").isBlank();
-      a.clearDraft(route);a.message(withPhoto?"点评和图片已提交审核":"点评已提交审核");a.back();
+      if(sync.isChecked()) {
+        String body=text.getText().toString().strip(), photo=a.drafts.getString(imageKey,"");
+        openCommunity(a,route,target,body,photo,imageKey);
+      } else {a.clearDraft(route);a.message(withPhoto?"点评和图片已提交审核":"点评已提交审核");a.back();}
     });
+  }
+
+  private static void openCommunity(MainActivity a,MainActivity.Route route,Target target,String content,String photo,String imageKey) {
+    Runnable proceed=()->{
+      // Transfer ownership of the selected local file to the community draft.
+      if(!photo.isBlank())a.drafts.remove(imageKey);
+      a.clearDraft(route);
+      a.clearDraft(new MainActivity.Route("community-create",""));
+      String base="community-create::";
+      String title=target.name()+"品鉴心得";
+      String safeTitle=title.length()>50?title.substring(0,50):title;
+      a.drafts.putString(base+"食记标题",safeTitle);
+      a.drafts.putString(base+"动态正文",content);
+      a.drafts.putString(base+"linkedDishId",target.id());
+      a.drafts.putString(base+"linkedDishName",target.name());
+      a.drafts.putString(base+"linkedDishHallName",target.hallName());
+      a.drafts.putString(base+"linkedDishStallName",target.stallName());
+      if(!photo.isBlank())a.drafts.putString(base+"photo:0:image",photo);
+      if(a.repo.currentUser()!=null)PostDraftStore.save(a,a.repo.currentUser().id(),safeTitle,content,target.id(),photo.isBlank()?java.util.List.of():java.util.List.of(photo));
+      a.go("community-create","");
+    };
+    String owner=a.repo.currentUser()==null?"":a.repo.currentUser().id();
+    if(PostDraftStore.load(a,owner)==null){proceed.run();return;}
+    new android.app.AlertDialog.Builder(a).setMessage("已有社区草稿，是否替换？")
+        .setPositiveButton("替换并继续",(dialog,which)->{PostDraftStore.delete(a,owner);proceed.run();})
+        .setNegativeButton("保留草稿",(dialog,which)->{a.clearDraft(route);a.back();a.message("点评已提交，社区草稿已保留");}).show();
   }
 }

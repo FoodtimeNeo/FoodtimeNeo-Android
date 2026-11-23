@@ -46,7 +46,7 @@ final class ImageLoader {
   private static Runnable subscribe(MainActivity a,String path,int bound,Consumer<Bitmap> listener) {
     String identity=a.repo.imageIdentity(),key=identity+":"+path+":"+bound;int ticket=epoch;
     Decoded hit=MEMORY.get(key);
-    if(hit!=null&&hit.freshUntil()>System.currentTimeMillis()){listener.accept(hit.bitmap());return ()->{};}
+    if(!a.repo.requiresImageValidation(path)&&hit!=null&&hit.freshUntil()>System.currentTimeMillis()){listener.accept(hit.bitmap());return ()->{};}
     Task task=TASKS.get(key);
     if(task==null) {
       task=new Task(key);TASKS.put(key,task);Task current=task;
@@ -105,7 +105,7 @@ final class ImageLoader {
       if(thumbnail)bound=480;
       if(attached&&release[0]==null&&(thumbnail||frame.getWidth()>0)){
         Decoded cached=MEMORY.get(a.repo.imageIdentity()+":"+path+":"+bound);
-        if(cached!=null&&cached.freshUntil()>System.currentTimeMillis()){
+        if(!a.repo.requiresImageValidation(path)&&cached!=null&&cached.freshUntil()>System.currentTimeMillis()){
           completed[0]=true;release[0]=()->{};
           image.setImageBitmap(cached.bitmap());placeholder.setClickable(false);placeholder.setFocusable(false);placeholder.setVisibility(View.GONE);
           display.accept(cached.bitmap());return;

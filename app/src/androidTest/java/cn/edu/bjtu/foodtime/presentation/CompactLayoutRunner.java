@@ -28,6 +28,10 @@ public final class CompactLayoutRunner extends Instrumentation {
     ui(()->{
       View first=tag("profile-entry:favorite-dishes"),second=tag("profile-entry:community-favorites");Rect a=new Rect(),b=new Rect();first.getGlobalVisibleRect(a);second.getGlobalVisibleRect(b);
       check(first.getWidth()>0&&!Rect.intersects(a,b),"Profile entries do not overlap");
+      check(a.top==b.top,"Common actions share a grid row");
+      check(tag("profile-grid:常用") instanceof GridLayout saved&&saved.getChildCount()==4,"Web common actions are present in a grid");
+      check(tag("profile-grid:我的记录") instanceof GridLayout records&&records.getChildCount()==5,"All record destinations remain");
+      check(tag("profile-grid:服务") instanceof GridLayout services&&services.getChildCount()==4,"All service destinations remain");
       check(tag("profile-entry:history")!=null&&tag("profile-entry:community-create")!=null,"All four common shortcuts remain");
       check(tag("profile-following-count")!=null&&tag("profile-follower-count")!=null,"Following/follower routes retained");
     });
@@ -48,13 +52,34 @@ public final class CompactLayoutRunner extends Instrumentation {
     SearchHistoryStore.remember(getTargetContext(),owner,"测试5");check(SearchHistoryStore.read(getTargetContext(),owner).get(0).equals("测试5"),"Duplicate moves to front");
     SearchHistoryStore.remove(getTargetContext(),owner,"测试5");check(!SearchHistoryStore.read(getTargetContext(),owner).contains("测试5"),"Single deletion works");
     ui(()->activity.go("dish-search",""));await("search",()->tag("dish-search-keyword")!=null&&tag("dish-search-keyword").isEnabled());
+    await("daily search discovery",()->tag("search-discovery-card:"+id(100))!=null);
+    ui(()->{
+      check(tag("dish-search-results").getVisibility()==View.GONE,"Opening search shows discovery instead of fetching all results");
+      check(tag("search-discovery-chip:"+id(100))!=null,"Daily stalls provide discovery chips");
+      checkInputFits();
+    });screenshot("search-landing-android");
+    click("search-discovery-chip:"+id(100));await("discovery opens stall",()->activity.route().kind().equals("dishes")&&!activity.isPageLoading());ui(()->check(!activity.pageFailed(),"Discovery opens existing stall, not a mismatched dish keyword"));
+    ui(activity::back);await("return to discovery",()->tag("search-discovery-card:"+id(100))!=null);
     ui(()->{EditText input=(EditText)tag("dish-search-keyword");input.setText("牛肉面");input.onEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);});
     await("search complete",()->tag("dish-search-keyword").isEnabled()&&SearchHistoryStore.read(getTargetContext(),owner).get(0).equals("牛肉面"));
+    ui(()->{check(tag("dish-search-results").getVisibility()==View.VISIBLE&&tag("dish-search-discovery").getVisibility()==View.GONE,"Submitting swaps discovery for actual results");checkInputFits();});
     check(true,"Keyboard search commits history");screenshot("search-android");
+    ui(()->((EditText)tag("dish-search-keyword")).setTextSize(24));waitForIdleSync();ui(this::checkInputFits);screenshot("search-large-text-android");
+    ui(()->((EditText)tag("dish-search-keyword")).setTextSize(16));
+    click("dish-search-discovery-link");ui(()->{EditText input=(EditText)tag("dish-search-keyword");input.setText("");input.onEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);});
+    await("empty keyword browse",()->tag("dish-search-keyword").isEnabled()&&tag("dish-search-results").getVisibility()==View.VISIBLE);check(true,"Explicit empty search still browses all dishes");
     SearchHistoryStore.purge(getTargetContext(),owner);check(SearchHistoryStore.read(getTargetContext(),owner).isEmpty(),"Account purge removes keywords");
   }
+  private void checkInputFits(){
+    EditText input=(EditText)tag("dish-search-keyword");
+    check(input.getLayout()!=null&&input.getLayout().getLineBottom(0)-input.getLayout().getLineTop(0)<=input.getHeight()-input.getCompoundPaddingTop()-input.getCompoundPaddingBottom(),"Search glyph line fits within actual input content height");
+  }
   private void menu()throws Exception{
-    ui(()->{activity.selectTab("dining");activity.go("stalls",id(10));});await("menu",()->tag("menu-dish:"+id(1070))!=null);
+    ui(()->{activity.selectTab("dining");activity.go("dining","");});
+    await("home hall card",()->tag("dining-hall:"+id(10))!=null&&!activity.isPageLoading());
+    click("dining-hall:"+id(10));
+    await("hall card opens menu",()->activity.route().kind().equals("stalls")&&tag("menu-dish:"+id(1070))!=null);
+    check(true,"Actual home hall card opens linked stall/dish menu");
     ui(()->{
       check(tag("canteen-menu-rail")!=null&&tag("canteen-menu-dishes")!=null,"Independent menu panes exist");
       check(tag("menu-section:"+id(103))!=null,"Empty stall still has a selectable section");

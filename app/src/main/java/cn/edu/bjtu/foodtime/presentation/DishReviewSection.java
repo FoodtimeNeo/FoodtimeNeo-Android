@@ -58,6 +58,7 @@ final class DishReviewSection {
     author.setTypeface(Design.body(),android.graphics.Typeface.BOLD);head.addView(author,new LinearLayout.LayoutParams(0,-2,1));
     head.addView(Ui.stamp(a,r.rating()+" / 5",Design.RED));Ui.gap(card,5);
     card.addView(Ui.text(a,r.content(),16,Design.INK));Ui.gap(card,8);
+    if(!r.imageUrl().isBlank()){card.addView(Ui.image(a,r.imageUrl(),"点评图片",true));Ui.gap(card,8);}
     EmbeddedReviewReplies.attach(a,card,r);
   }
 }

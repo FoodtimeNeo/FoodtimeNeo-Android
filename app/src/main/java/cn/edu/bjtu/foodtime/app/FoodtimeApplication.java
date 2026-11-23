@@ -20,7 +20,8 @@ public final class FoodtimeApplication extends Application implements Repository
     var cookies=new CookieManager(new EncryptedCookieStore(this,BuildConfig.API_BASE_URL),CookiePolicy.ACCEPT_ORIGINAL_SERVER);
     repository = new RemoteRepository(BuildConfig.API_BASE_URL,
         new HttpTransport(BuildConfig.API_BASE_URL,cookies,BuildConfig.DEBUG),BuildConfig.COMMUNITY_PROTOTYPE_ENABLED)
-        .withImageCache(new java.io.File(getCacheDir(),"media-v2"));
+        .withImageCache(new java.io.File(getCacheDir(),"media-v2"))
+        .withCatalogCache(new java.io.File(getCacheDir(),"public-catalog-v1"));
   }
 
   @Override
