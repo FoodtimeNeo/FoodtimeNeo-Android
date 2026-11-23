@@ -45,6 +45,7 @@ public final class CompactLayoutRunner extends Instrumentation {
     screenshot("profile-android");click("profile-entry:favorite-dishes");await("favorite destination",()->activity.route().kind().equals("favorite-dishes"));check(true,"Dish favorites entry navigates");
   }
   private void search()throws Exception{
+    ui(()->activity.clearDraft(new MainActivity.Route("dish-search","")));
     String owner=activity.repo.currentUser().id();SearchHistoryStore.purge(getTargetContext(),owner);
     for(int i=0;i<12;i++)SearchHistoryStore.remember(getTargetContext(),owner,"测试"+i);
     check(SearchHistoryStore.read(getTargetContext(),owner).size()==10,"History limit is ten");
@@ -164,12 +165,56 @@ public final class CompactLayoutRunner extends Instrumentation {
     click("menu-dish:"+id(1050));await("dish detail",()->activity.route().kind().equals("detail")&&!activity.isPageLoading());check(true,"Menu dish opens existing detail");
     ui(activity::back);await("menu restored",()->tag("menu-dish:"+id(1070))!=null&&((ScrollView)tag("canteen-menu-dishes")).getScrollY()>0);check(true,"Returning restores right-pane position");
   }
+  private void changeTheme(String mode)throws Exception{
+    AtomicReference<MainActivity> created=new AtomicReference<>();
+    android.app.Application app=(android.app.Application)getTargetContext().getApplicationContext();
+    android.app.Application.ActivityLifecycleCallbacks callback=new android.app.Application.ActivityLifecycleCallbacks(){
+      public void onActivityCreated(android.app.Activity a,Bundle state){if(a instanceof MainActivity next)created.set(next);}
+      public void onActivityStarted(android.app.Activity a){} public void onActivityResumed(android.app.Activity a){}
+      public void onActivityPaused(android.app.Activity a){} public void onActivityStopped(android.app.Activity a){}
+      public void onActivitySaveInstanceState(android.app.Activity a,Bundle b){} public void onActivityDestroyed(android.app.Activity a){}
+    };
+    app.registerActivityLifecycleCallbacks(callback);
+    ui(()->{AppTheme.save(activity,mode);activity.recreate();});
+    await("theme recreation",()->created.get()!=null);
+    activity=created.get();app.unregisterActivityLifecycleCallbacks(callback);
+    await("theme content",()->activity.root!=null&&!activity.isPageLoading()&&activity.repo.currentUser()!=null);
+    check(AppTheme.mode(activity).equals(mode),"Theme preference survives activity recreation");
+  }
+  private void theme()throws Exception{
+    ui(()->{activity.selectTab("profile");activity.go("profile","");});
+    await("appearance entry",()->tag("appearance-setting")!=null);
+    int red=Design.RED;
+    changeTheme(AppTheme.DARK);
+    ui(()->{
+      check(Design.PAPER==0xff141414&&Design.INK==0xfff5f2ed,"Dark palette uses dark paper and readable ink");
+      check(Design.RED==red,"Red icon color stays unchanged");
+      check(tag("appearance-setting")!=null,"Appearance entry remains available in dark mode");
+      activity.scroll.fullScroll(View.FOCUS_DOWN);
+      for(int icon:new int[]{cn.edu.bjtu.foodtime.R.drawable.ic_hub_lock,cn.edu.bjtu.foodtime.R.drawable.ic_hub_settings}){
+        var drawable=activity.getDrawable(icon);var bitmap=Bitmap.createBitmap(48,48,Bitmap.Config.ARGB_8888);
+        drawable.setBounds(0,0,48,48);drawable.draw(new android.graphics.Canvas(bitmap));int filled=0;
+        for(int y=0;y<48;y++)for(int x=0;x<48;x++)if(android.graphics.Color.alpha(bitmap.getPixel(x,y))>128)filled++;
+        check(filled>30&&filled<48*48/2,"Account icon renders an outline instead of a solid block");bitmap.recycle();
+      }
+    });screenshot("profile-dark-android");
+    search();screenshot("search-dark-android");menu();screenshot("menu-dark-android");
+    ui(()->activity.go("community-create",""));await("dark composer",()->draftField(activity.root,"食记标题")!=null);
+    ui(()->draftField(activity.root,"食记标题").setText("主题切换保留输入"));
+    changeTheme(AppTheme.LIGHT);
+    ui(()->{
+      check(draftField(activity.root,"食记标题").getText().toString().equals("主题切换保留输入"),"Changing theme does not lose unsaved input");
+      check(Design.PAPER==0xfffffaf0&&Design.INK==0xff3a2418,"Light mode restores original palette");
+      activity.back();
+    });dialog("不保存");
+    changeTheme(AppTheme.SYSTEM);
+  }
   @Override public void onCreate(Bundle args){super.onCreate(args);start();}
   @Override public void onStart(){Bundle result=new Bundle();try{
     if(!BuildConfig.DEBUG||!BuildConfig.APPLICATION_ID.endsWith(".layoutreview")||!BuildConfig.API_BASE_URL.equals("http://127.0.0.1:18530/api/v1/"))throw new AssertionError("Only isolated local build allowed");
     activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     activity.repo.restoreSession();ui(activity::restore);
     await("fixture session",()->activity.repo.currentUser()!=null&&!activity.isPageLoading());
-    profile();draftFirstOpen();search();menu();result.putString("stream","Compact layout PASS "+checks+" checks\n");finish(-1,result);
-  }catch(Throwable error){result.putString("stream","Compact layout FAIL "+android.util.Log.getStackTraceString(error));finish(1,result);}finally{if(activity!=null)ui(activity::finish);}}
+    profile();draftFirstOpen();search();menu();theme();result.putString("stream","Compact layout PASS "+checks+" checks\n");finish(-1,result);
+  }catch(Throwable error){try{screenshot("failure-android");}catch(Exception ignored){}result.putString("stream","Compact layout FAIL "+android.util.Log.getStackTraceString(error));finish(1,result);}finally{if(activity!=null)ui(activity::finish);}}
 }

@@ -106,6 +106,7 @@ public class MainActivity extends Activity {
 
   @Override
   public void onCreate(Bundle state) {
+    setTheme(AppTheme.dark(this) ? cn.edu.bjtu.foodtime.R.style.Theme_Foodtime_Dark : cn.edu.bjtu.foodtime.R.style.Theme_Foodtime);
     super.onCreate(state);
     Design.init(this);
     repo = ((RepositoryProvider) getApplication()).repository();
@@ -1064,7 +1065,7 @@ public class MainActivity extends Activity {
           .getDecorView()
           .getWindowInsetsController()
           .setSystemBarsAppearance(
-              WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+              AppTheme.dark(this) ? 0 : WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
                   | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
               WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
                   | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);

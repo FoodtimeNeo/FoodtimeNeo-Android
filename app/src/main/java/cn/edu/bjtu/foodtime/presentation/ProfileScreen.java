@@ -131,9 +131,12 @@ final class ProfileScreen {
 
     // 5. 重构“账号与隐私”标准分组卡片列表
     GroupBuilder account = new GroupBuilder(a, page, "账号与隐私");
-    account.addRow(R.drawable.ic_launcher, false, 0, "修改密码", "password", "", "");
-    account.addRow(R.drawable.ic_community_search, false, 0, "黑名单", "blocked-users", "", "");
-    account.addRow(R.drawable.ic_private_message_notification, false, 0, "提醒设置", "notification-settings", "", "");
+    account.addRow(R.drawable.ic_hub_lock, false, 0, "修改密码", "password", "", "");
+    account.addRow(R.drawable.ic_hub_block, false, 0, "黑名单", "blocked-users", "", "");
+    account.addRow(R.drawable.ic_hub_settings, false, 0, "提醒设置", "notification-settings", "", "");
+    TextView appearance = account.addCustomRow(R.drawable.ic_hub_settings, false, 0, "外观", () -> AppTheme.choose(a));
+    appearance.setText(switch(AppTheme.mode(a)){case AppTheme.LIGHT -> "浅色";case AppTheme.DARK -> "深色";default -> "跟随系统";});
+    appearance.setTag("appearance-setting");
     if (!user.isAdmin()) {
       account.addRow(R.drawable.ic_photo_share, false, 0, "账号安全与注销", "account-lifecycle", "", "");
     }
