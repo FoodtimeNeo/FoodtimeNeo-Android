@@ -65,6 +65,7 @@ final class PhotoImport {
   }
   static void discard(Context context,String reference) {
     if(reference==null||!reference.startsWith("file:")) return;
+    if(PostDraftStore.references(context,reference)) return;
     try {
       File file=new File(java.net.URI.create(reference));
       if(file.getName().startsWith("photo-")&&file.getCanonicalFile().getParentFile().equals(context.getFilesDir().getCanonicalFile())) file.delete();

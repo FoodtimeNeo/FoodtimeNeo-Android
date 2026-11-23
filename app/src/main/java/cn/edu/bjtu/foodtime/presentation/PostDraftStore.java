@@ -19,15 +19,15 @@ final class PostDraftStore {
   private static final String FILE = "draft.json";
   private PostDraftStore() {}
 
-  static synchronized void save(MainActivity activity, String ownerId, String title,
+  static synchronized boolean save(MainActivity activity, String ownerId, String title,
       String content, String linkedDishId, List<String> images) {
-    if (ownerId == null || ownerId.isBlank()) return;
+    if (ownerId == null || ownerId.isBlank()) return false;
     File directory = directory(activity, ownerId);
     if (title.isBlank() && content.isBlank() && images.isEmpty()) {
-      delete(activity, ownerId);
-      return;
+      File target = new File(directory, FILE);
+      return !target.exists() || target.delete();
     }
-    if (!directory.exists() && !directory.mkdirs()) return;
+    if (!directory.exists() && !directory.mkdirs()) return false;
     Draft existing = load(activity, ownerId);
     try {
       JSONObject json = new JSONObject();
@@ -46,13 +46,22 @@ final class PostDraftStore {
         output.getFD().sync();
       }
       File target = new File(directory, FILE);
-      if (!temporary.renameTo(target)) {
-        target.delete();
-        temporary.renameTo(target);
-      }
+      java.nio.file.Files.move(temporary.toPath(), target.toPath(),
+          java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+      return true;
     } catch (IOException | org.json.JSONException ignored) {
-      // The current editor content remains authoritative; the next change retries.
+      return false;
     }
+  }
+
+  /** A discarded edit must not remove a photo still used by a committed draft. */
+  static synchronized boolean references(Context context, String reference) {
+    File[] owners = new File(context.getFilesDir(), "post-drafts").listFiles();
+    if (owners != null) for (File owner : owners) {
+      Draft saved = load(context, owner.getName());
+      if (saved != null && saved.images().contains(reference)) return true;
+    }
+    return false;
   }
 
   static synchronized Draft load(Context context, String ownerId) {

@@ -79,6 +79,20 @@ public final class CompactLayoutRunner extends Instrumentation {
     if(view instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++){EditText input=draftField(group.getChildAt(i),label);if(input!=null)return input;}
     return null;
   }
+  private void dialog(String label)throws Exception{
+    long end=System.currentTimeMillis()+5000;
+    while(System.currentTimeMillis()<end){
+      var root=getUiAutomation().getRootInActiveWindow();
+      if(root!=null&&!root.findAccessibilityNodeInfosByText("Pixel Launcher isn't responding").isEmpty()){
+        for(var node:root.findAccessibilityNodeInfosByText("Close app"))if(node.isClickable())node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK);
+        Thread.sleep(100);continue;
+      }
+      if(root!=null)for(var node:root.findAccessibilityNodeInfosByText(label))
+        if(node.isClickable()&&label.contentEquals(node.getText())&&node.performAction(android.view.accessibility.AccessibilityNodeInfo.ACTION_CLICK)){waitForIdleSync();return;}
+      Thread.sleep(80);
+    }
+    throw new AssertionError("Missing dialog button "+label);
+  }
   private void draftFirstOpen()throws Exception{
     String owner=activity.repo.currentUser().id();
     ui(()->{
@@ -99,7 +113,32 @@ public final class CompactLayoutRunner extends Instrumentation {
     });screenshot("draft-first-open-android");
     ui(activity::redraw);
     ui(()->check(!activity.pageFailed()&&draftField(activity.root,"食记标题")!=null,"Draft redraw remains valid"));
-    ui(()->{activity.back();activity.clearDraft(new MainActivity.Route("community-create",""));PostDraftStore.delete(activity,owner);});
+    ui(()->draftField(activity.root,"食记标题").setText("本次不保存"));
+    Thread.sleep(700);
+    check(PostDraftStore.load(activity,owner).title().equals("本机草稿标题"),"Typing never overwrites committed draft");
+    ui(activity::back);dialog("继续编辑");
+    ui(()->check(draftField(activity.root,"食记标题").getText().toString().equals("本次不保存"),"Continue retains input"));
+    ui(activity::home);dialog("不保存");
+    await("discard leaves editor",()->activity.route().kind().equals("dining"));
+    check(PostDraftStore.load(activity,owner).title().equals("本机草稿标题"),"Discard retains entry draft");
+    ui(()->{activity.selectTab("profile");activity.go("community-create","");});
+    await("draft reopened",()->draftField(activity.root,"食记标题")!=null);
+    ui(()->{check(draftField(activity.root,"食记标题").getText().toString().equals("本机草稿标题"),"Reopening restores previous content");draftField(activity.root,"食记标题").setText("明确保存的新标题");activity.selectTab("dining");});
+    dialog("保存草稿");
+    await("save leaves editor",()->activity.route().kind().equals("dining"));
+    check(PostDraftStore.load(activity,owner).title().equals("明确保存的新标题"),"Explicit save commits current content");
+    ui(()->{activity.clearDraft(new MainActivity.Route("community-create",""));PostDraftStore.delete(activity,owner);activity.go("community-create","");});
+    await("new editor",()->draftField(activity.root,"食记标题")!=null);
+    ui(()->{draftField(activity.root,"食记标题").setText("不保留的新稿");activity.back();});dialog("不保存");
+    check(PostDraftStore.load(activity,owner)==null,"Discarding new editor stores nothing");
+    java.io.File photo=new java.io.File(activity.getFilesDir(),"photo-draft-regression.jpg");
+    try(java.io.FileOutputStream out=new java.io.FileOutputStream(photo)){out.write(new byte[]{1,2,3});}
+    String reference=photo.toURI().toString();
+    check(PostDraftStore.save(activity,owner,"配图保护","正文","",java.util.List.of(reference)),"Draft metadata save succeeds");
+    PhotoImport.discard(activity,reference);
+    check(photo.exists(),"Discard cannot delete committed draft photo");
+    PostDraftStore.delete(activity,owner);PhotoImport.discard(activity,reference);
+    check(!photo.exists(),"Unreferenced temporary photo can be cleaned");
   }
   private void menu()throws Exception{
     ui(()->{activity.selectTab("dining");activity.go("dining","");});
