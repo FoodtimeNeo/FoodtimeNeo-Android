@@ -29,7 +29,7 @@ final class CanteenMenu {
     navigation=viewport(activity);navigation.setTag("canteen-menu-rail");navigation.setBackgroundColor(Design.ALT);
     rail=Ui.col(activity);navigation.addView(rail);host.addView(navigation,new LinearLayout.LayoutParams(Ui.dp(activity,92),-1));
     dishes=viewport(activity);dishes.setTag("canteen-menu-dishes");sections=Ui.col(activity);dishes.addView(sections);host.addView(dishes,new LinearLayout.LayoutParams(0,-1,1));
-    dishes.setOnTouchListener((v,event)->{if(event.getActionMasked()==MotionEvent.ACTION_DOWN){requested="";restored=true;}return false;});
+    dishes.setOnTouchListener((v,event)->{if(event.getActionMasked()==MotionEvent.ACTION_DOWN||event.getActionMasked()==MotionEvent.ACTION_MOVE){requested="";restored=true;}return false;});
     for(Stall stall:stalls){
       TextView tab=Ui.button(activity,stall.name(),false,()->select(stall.id(),true));tab.setTag("menu-stall:"+stall.id());tab.setTextSize(14);tab.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);tab.setMinHeight(Ui.dp(activity,60));tab.setPadding(Ui.dp(activity,10),Ui.dp(activity,14),Ui.dp(activity,8),Ui.dp(activity,14));tab.setBackground(Ui.ripple(activity,Design.ALT,0,0));
       rail.addView(tab,new LinearLayout.LayoutParams(-1,-2));buttons.put(stall.id(),tab);
