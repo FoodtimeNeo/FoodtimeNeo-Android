@@ -22,7 +22,8 @@ for scenario in seed fast slow fail timeout abort; do
   case "$scenario" in
     slow) settings='{"sessionDelay":2.5,"hallDelay":1,"sessionFailure":false}' ;;
     fail) settings='{"sessionDelay":0,"hallDelay":0,"sessionFailure":true}' ;;
-    timeout) settings='{"sessionDelay":20,"hallDelay":0,"sessionFailure":false}' ;;
+    timeout) settings='{"sessionDelay":8,"hallDelay":8,"sessionFailure":false}' ;;
+    abort) settings='{"sessionDelay":2.5,"hallDelay":1,"sessionFailure":false}' ;;
     *) settings='{"sessionDelay":0,"hallDelay":0,"sessionFailure":false}' ;;
   esac
   curl --fail --silent -X POST -H 'Content-Type: application/json' -d "$settings" http://127.0.0.1:18530/fixture/control > /dev/null

@@ -218,8 +218,18 @@ public final class CompactLayoutRunner extends Instrumentation {
       cookies.add(java.net.URI.create(BuildConfig.API_BASE_URL),cookie);check(true,"Seeded isolated encrypted fixture session");return;
     }
     long started=SystemClock.elapsedRealtime();
+    var coveredOnCreate=new java.util.concurrent.atomic.AtomicBoolean();
+    android.app.Application app=(android.app.Application)getTargetContext().getApplicationContext();
+    android.app.Application.ActivityLifecycleCallbacks observer=new android.app.Application.ActivityLifecycleCallbacks(){
+      public void onActivityCreated(android.app.Activity a,Bundle state){}
+      public void onActivityStarted(android.app.Activity a){coveredOnCreate.set(a.getWindow().getDecorView().findViewWithTag("cold-start-splash")!=null);} public void onActivityResumed(android.app.Activity a){}
+      public void onActivityPaused(android.app.Activity a){} public void onActivityStopped(android.app.Activity a){}
+      public void onActivitySaveInstanceState(android.app.Activity a,Bundle b){} public void onActivityDestroyed(android.app.Activity a){}
+    };
+    app.registerActivityLifecycleCallbacks(observer);
     activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
-    ui(()->check(splash()!=null,"Cold process starts with branded cover"));
+    app.unregisterActivityLifecycleCallbacks(observer);
+    check(coveredOnCreate.get(),"Cold process starts with branded cover before instrumentation waits for idle");
     if(startupScenario.equals("abort")){
       ui(activity::finish);
       activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
@@ -231,6 +241,7 @@ public final class CompactLayoutRunner extends Instrumentation {
     }
     await("startup release "+startupScenario,()->splash()==null);
     long elapsed=SystemClock.elapsedRealtime()-started;
+    Bundle timing=new Bundle();timing.putString("stream","Startup "+startupScenario+" content visible after "+elapsed+" ms\n");sendStatus(0,timing);
     check(elapsed>=1500,"Fast startup never flashes below 1.5 seconds");
     if(startupScenario.equals("fail")||startupScenario.equals("timeout")){
       ui(()->check(activity.root.findViewWithTag("startup-session-status")!=null,"Startup error exposes retry page"));
