@@ -52,10 +52,27 @@ public final class CompactLayoutRunner extends Instrumentation {
     SearchHistoryStore.remember(getTargetContext(),owner,"测试5");check(SearchHistoryStore.read(getTargetContext(),owner).get(0).equals("测试5"),"Duplicate moves to front");
     SearchHistoryStore.remove(getTargetContext(),owner,"测试5");check(!SearchHistoryStore.read(getTargetContext(),owner).contains("测试5"),"Single deletion works");
     ui(()->activity.go("dish-search",""));await("search",()->tag("dish-search-keyword")!=null&&tag("dish-search-keyword").isEnabled());
+    await("daily search discovery",()->tag("search-discovery-card:"+id(100))!=null);
+    ui(()->{
+      check(tag("dish-search-results").getVisibility()==View.GONE,"Opening search shows discovery instead of fetching all results");
+      check(tag("search-discovery-chip:"+id(100))!=null,"Daily stalls provide discovery chips");
+      checkInputFits();
+    });screenshot("search-landing-android");
+    click("search-discovery-chip:"+id(100));await("discovery opens stall",()->activity.route().kind().equals("dishes")&&!activity.isPageLoading());ui(()->check(!activity.pageFailed(),"Discovery opens existing stall, not a mismatched dish keyword"));
+    ui(activity::back);await("return to discovery",()->tag("search-discovery-card:"+id(100))!=null);
     ui(()->{EditText input=(EditText)tag("dish-search-keyword");input.setText("牛肉面");input.onEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);});
     await("search complete",()->tag("dish-search-keyword").isEnabled()&&SearchHistoryStore.read(getTargetContext(),owner).get(0).equals("牛肉面"));
+    ui(()->{check(tag("dish-search-results").getVisibility()==View.VISIBLE&&tag("dish-search-discovery").getVisibility()==View.GONE,"Submitting swaps discovery for actual results");checkInputFits();});
     check(true,"Keyboard search commits history");screenshot("search-android");
+    ui(()->((EditText)tag("dish-search-keyword")).setTextSize(24));waitForIdleSync();ui(this::checkInputFits);screenshot("search-large-text-android");
+    ui(()->((EditText)tag("dish-search-keyword")).setTextSize(16));
+    click("dish-search-discovery-link");ui(()->{EditText input=(EditText)tag("dish-search-keyword");input.setText("");input.onEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);});
+    await("empty keyword browse",()->tag("dish-search-keyword").isEnabled()&&tag("dish-search-results").getVisibility()==View.VISIBLE);check(true,"Explicit empty search still browses all dishes");
     SearchHistoryStore.purge(getTargetContext(),owner);check(SearchHistoryStore.read(getTargetContext(),owner).isEmpty(),"Account purge removes keywords");
+  }
+  private void checkInputFits(){
+    EditText input=(EditText)tag("dish-search-keyword");
+    check(input.getLayout()!=null&&input.getLayout().getLineBottom(0)-input.getLayout().getLineTop(0)<=input.getHeight()-input.getCompoundPaddingTop()-input.getCompoundPaddingBottom(),"Search glyph line fits within actual input content height");
   }
   private void menu()throws Exception{
     ui(()->{activity.selectTab("dining");activity.go("dining","");});
