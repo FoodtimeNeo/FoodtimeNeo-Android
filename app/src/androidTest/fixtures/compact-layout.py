@@ -11,6 +11,7 @@ hall={'id':uid(10),'name':'本地验收食堂','coverImageUrl':'','active':True,
 stalls=[{'id':uid(100+i),'diningHallId':hall['id'],'name':n,'active':True,'status':'active','averageScore':4.2,'reviewCount':3} for i,n in enumerate(['现做面食','今天想吃的盖浇饭和特色小炒','早餐粥铺','空档口','川味麻辣烫','饺子馄饨','煲仔饭','甜品饮料'])]
 dishes={s['id']:[{'id':uid(1000+i*10+j),'stallId':s['id'],'name':('香菇鸡腿面' if j==0 else ['番茄牛肉面','清汤馄饨','青椒肉丝饭','手工水饺'][j-1]),'price':None if j==4 else 12+j,'priceUnit':'bowl' if i==0 else 'serving','description':'热乎的一餐，现点现做。' if j%2==0 else '', 'coverImageUrl':'/api/v1/media/'+uid(999),'averageScore':None if j==4 else 4.2,'reviewCount':3,'revision':1,'active':True,'status':'active'} for j in range(5)] if i!=3 else [] for i,s in enumerate(stalls)}
 empty={'items':[],'total':0,'page':1,'size':20,'hasMore':False,'nextCursor':None}
+state={'sessionDelay':0,'hallDelay':0,'sessionFailure':False}
 class Handler(BaseHTTPRequestHandler):
  def log_message(self,*args):pass
  def log(self,status):
@@ -38,10 +39,12 @@ class Handler(BaseHTTPRequestHandler):
    etag='\"fixture-catalog-image\"'
    headers={'Cache-Control':'public, max-age=31536000, immutable','ETag':etag}
    return self.raw(304,b'','image/webp',headers) if self.headers.get('If-None-Match')==etag else self.raw(200,image.read_bytes(),'image/webp',headers)
-  if p in ['/api/v1/auth/me','/api/v1/users/me/profile']:return self.send(user)
+  if p in ['/api/v1/auth/me','/api/v1/users/me/profile']:
+   time.sleep(state['sessionDelay']);return self.send(None,503) if state['sessionFailure'] else self.send(user)
   if p=='/api/v1/auth/csrf':return self.send({'token':'fixture','headerName':'X-CSRF-TOKEN'})
   if p.endswith('/capabilities'):return self.send({'revision':'fixture','capabilities':[]})
-  if p=='/api/v1/dining-halls':return self.send([hall])
+  if p=='/api/v1/dining-halls':
+   time.sleep(state['hallDelay']);return self.send([hall])
   if p=='/api/v1/dining-halls/'+hall['id']:return self.send(hall)
   if p.endswith('/stalls'):return self.send(stalls)
   if p.startswith('/api/v1/stalls/') and p.endswith('/dishes'):
@@ -70,7 +73,8 @@ class Handler(BaseHTTPRequestHandler):
    return self.send({'date':today,'algorithmVersion':'fixture','total':len(items),'items':items})
   return self.send(empty)
  def do_POST(self):
-  self.rfile.read(int(self.headers.get('Content-Length',0)))
+  body=self.rfile.read(int(self.headers.get('Content-Length',0)))
+  if self.path=='/fixture/control':state.update(json.loads(body or '{}'));return self.send(True)
   if self.path.endswith('/auth/login'):return self.send({'user':user,'sessionMode':'normal'})
   return self.send({})
 ThreadingHTTPServer(('127.0.0.1',18530),Handler).serve_forever()

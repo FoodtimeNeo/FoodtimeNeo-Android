@@ -209,12 +209,44 @@ public final class CompactLayoutRunner extends Instrumentation {
     });dialog("不保存");
     changeTheme(AppTheme.SYSTEM);
   }
-  @Override public void onCreate(Bundle args){super.onCreate(args);start();}
+  private String startupScenario="";
+  private View splash(){return activity.getWindow().getDecorView().findViewWithTag("cold-start-splash");}
+  private void startupScenario()throws Exception{
+    if(startupScenario.equals("seed")){
+      var cookies=new cn.edu.bjtu.foodtime.data.remote.EncryptedCookieStore(getTargetContext(),BuildConfig.API_BASE_URL);
+      var cookie=new java.net.HttpCookie("FOODTIME_SESSION","isolated-startup-fixture");cookie.setPath("/");cookie.setMaxAge(3600);
+      cookies.add(java.net.URI.create(BuildConfig.API_BASE_URL),cookie);check(true,"Seeded isolated encrypted fixture session");return;
+    }
+    long started=SystemClock.elapsedRealtime();
+    activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+    ui(()->check(splash()!=null,"Cold process starts with branded cover"));
+    if(startupScenario.equals("slow")){
+      Thread.sleep(1700);ui(()->check(splash()!=null,"Slow content stays covered after the minimum"));
+      screenshot("startup-slow-android");
+    }
+    await("startup release "+startupScenario,()->splash()==null);
+    long elapsed=SystemClock.elapsedRealtime()-started;
+    check(elapsed>=1500,"Fast startup never flashes below 1.5 seconds");
+    if(startupScenario.equals("fail")||startupScenario.equals("timeout")){
+      ui(()->check(activity.root.findViewWithTag("startup-session-status")!=null,"Startup error exposes retry page"));
+      check(elapsed<19000,"Startup does not remain covered indefinitely");
+      if(startupScenario.equals("timeout"))check(elapsed>=14500,"Timeout respects the 15 second boundary");
+      screenshot("startup-"+startupScenario+"-android");
+    }else{
+      await("home content",()->tag("dining-hall:"+id(10))!=null&&!activity.isPageLoading());
+      screenshot("startup-"+startupScenario+"-ready-android");
+      ui(activity::finish);
+      activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
+      ui(()->check(splash()==null,"Warm activity launch in the same process never repeats the cover"));
+    }
+  }
+  @Override public void onCreate(Bundle args){super.onCreate(args);startupScenario=args==null?"":args.getString("startupScenario","");start();}
   @Override public void onStart(){Bundle result=new Bundle();try{
     if(!BuildConfig.DEBUG||!BuildConfig.APPLICATION_ID.endsWith(".layoutreview")||!BuildConfig.API_BASE_URL.equals("http://127.0.0.1:18530/api/v1/"))throw new AssertionError("Only isolated local build allowed");
+    if(!startupScenario.isEmpty()){startupScenario();result.putString("stream","Compact layout PASS "+checks+" checks startup "+startupScenario+"\n");finish(-1,result);return;}
     activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     activity.repo.restoreSession();ui(activity::restore);
-    await("fixture session",()->activity.repo.currentUser()!=null&&!activity.isPageLoading());
+    await("fixture session",()->activity.repo.currentUser()!=null&&!activity.isPageLoading()&&splash()==null);
     profile();draftFirstOpen();search();menu();theme();result.putString("stream","Compact layout PASS "+checks+" checks\n");finish(-1,result);
   }catch(Throwable error){try{screenshot("failure-android");}catch(Exception ignored){}result.putString("stream","Compact layout FAIL "+android.util.Log.getStackTraceString(error));finish(1,result);}finally{if(activity!=null)ui(activity::finish);}}
 }

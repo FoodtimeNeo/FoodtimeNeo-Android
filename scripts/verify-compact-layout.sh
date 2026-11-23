@@ -16,6 +16,19 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 adb install -r app/build/outputs/apk/androidTest/debug/app-debug-androidTest.apk
 adb reverse tcp:18530 tcp:18530
 adb shell am instrument -w cn.edu.bjtu.foodtime.layoutreview.test/cn.edu.bjtu.foodtime.presentation.CompactLayoutRunner | tee "$output/instrumentation.txt"
+failed=0
+grep -Eq 'Compact layout PASS [0-9]+ checks' "$output/instrumentation.txt" || failed=1
+for scenario in seed fast slow fail timeout; do
+  case "$scenario" in
+    slow) settings='{"sessionDelay":2.5,"hallDelay":1,"sessionFailure":false}' ;;
+    fail) settings='{"sessionDelay":0,"hallDelay":0,"sessionFailure":true}' ;;
+    timeout) settings='{"sessionDelay":20,"hallDelay":0,"sessionFailure":false}' ;;
+    *) settings='{"sessionDelay":0,"hallDelay":0,"sessionFailure":false}' ;;
+  esac
+  curl --fail --silent -X POST -H 'Content-Type: application/json' -d "$settings" http://127.0.0.1:18530/fixture/control > /dev/null
+  adb shell am instrument -w -e startupScenario "$scenario" cn.edu.bjtu.foodtime.layoutreview.test/cn.edu.bjtu.foodtime.presentation.CompactLayoutRunner | tee "$output/startup-$scenario.txt"
+  grep -Eq 'Compact layout PASS [0-9]+ checks' "$output/startup-$scenario.txt" || failed=1
+done
 adb logcat -d > "$output/logcat.txt"
 adb pull /sdcard/Android/data/cn.edu.bjtu.foodtime.layoutreview/files "$output/screenshots" || true
-grep -Eq 'Compact layout PASS [0-9]+ checks' "$output/instrumentation.txt"
+exit "$failed"
