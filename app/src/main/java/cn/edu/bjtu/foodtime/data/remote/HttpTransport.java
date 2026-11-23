@@ -65,6 +65,12 @@ public final class HttpTransport {
         "application/json; charset=utf-8", csrf);
   }
 
+  public Response request(String method,String path,String json,String csrf,Map<String,String> headers) throws IOException {
+    BinaryResponse raw=exchange(method,path,json==null?null:json.getBytes(StandardCharsets.UTF_8),
+        "application/json; charset=utf-8",csrf,headers);
+    return new Response(raw.status(),new String(raw.body(),StandardCharsets.UTF_8),raw.headers());
+  }
+
   public Response send(String method, String path, byte[] payload, String contentType,
       String csrf) throws IOException {
     BinaryResponse raw=exchange(method,path,payload,contentType,csrf,Map.of());

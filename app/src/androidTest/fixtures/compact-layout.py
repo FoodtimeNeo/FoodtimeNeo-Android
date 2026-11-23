@@ -1,7 +1,7 @@
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from urllib.parse import urlsplit,parse_qs
 from pathlib import Path
-import json,time,os,datetime
+import json,time,os,datetime,hashlib,re
 repo=Path(__file__).resolve().parents[4]
 root=Path(os.environ.get('ANDROID_UI_OUTPUT',str(repo/'app/build/reports/compact-layout')))
 root.mkdir(parents=True,exist_ok=True)
@@ -15,17 +15,29 @@ class Handler(BaseHTTPRequestHandler):
  def log_message(self,*args):pass
  def log(self,status):
   with (root/'requests.jsonl').open('a',encoding='utf-8') as f:f.write(json.dumps({'method':self.command,'path':self.path,'status':status})+'\n')
- def raw(self,status,payload,kind):
-  self.send_response(status);self.send_header('Content-Type',kind);self.send_header('Content-Length',str(len(payload)));self.send_header('Cache-Control','no-store');self.end_headers()
+ def raw(self,status,payload,kind,headers=None):
+  self.send_response(status);self.send_header('Content-Type',kind);self.send_header('Content-Length',str(len(payload)))
+  for key,value in (headers or {'Cache-Control':'no-store'}).items():self.send_header(key,value)
+  self.end_headers()
   try:self.wfile.write(payload)
   except (BrokenPipeError,ConnectionResetError):pass
   self.log(status)
- def send(self,data,status=200):self.raw(status,json.dumps({'code':'OK' if status<400 else 'UNAVAILABLE','message':'' if status<400 else '本地模拟加载失败','data':data,'requestId':'layout-fixture'},ensure_ascii=False).encode(),'application/json')
+ def send(self,data,status=200):
+  payload=json.dumps({'code':'OK' if status<400 else 'UNAVAILABLE','message':'' if status<400 else '本地模拟加载失败','data':data,'requestId':'layout-fixture'},ensure_ascii=False).encode()
+  path=urlsplit(self.path).path
+  public=status==200 and re.fullmatch(r'/api/v1/(?:dining-halls|dining-halls/[0-9a-f-]{36}/stalls|stalls/[0-9a-f-]{36}(?:/dishes)?|dishes/search|dishes/[0-9a-f-]{36}(?:/images)?)',path)
+  if public:
+   etag='"catalog-v1-'+hashlib.sha256(json.dumps(data,sort_keys=True).encode()).hexdigest()+'"'
+   headers={'Cache-Control':'private, no-cache','X-Foodtime-Public-Catalog':'1','ETag':etag}
+   return self.raw(304,b'','application/json',headers) if self.headers.get('If-None-Match')==etag else self.raw(status,payload,'application/json',headers)
+  self.raw(status,payload,'application/json')
  def do_GET(self):
   url=urlsplit(self.path);p=url.path;q=parse_qs(url.query)
   if p.startswith('/api/v1/media/'):
    image=repo/'app/src/main/assets/images/hall_1.webp'
-   return self.raw(200,image.read_bytes(),'image/webp')
+   etag='\"fixture-catalog-image\"'
+   headers={'Cache-Control':'public, max-age=31536000, immutable','ETag':etag}
+   return self.raw(304,b'','image/webp',headers) if self.headers.get('If-None-Match')==etag else self.raw(200,image.read_bytes(),'image/webp',headers)
   if p in ['/api/v1/auth/me','/api/v1/users/me/profile']:return self.send(user)
   if p=='/api/v1/auth/csrf':return self.send({'token':'fixture','headerName':'X-CSRF-TOKEN'})
   if p.endswith('/capabilities'):return self.send({'revision':'fixture','capabilities':[]})

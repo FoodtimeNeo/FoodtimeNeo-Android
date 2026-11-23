@@ -21,6 +21,7 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
   default void loadMoreDishReviews(String dishId) { throw new UnsupportedOperationException(); }
   default byte[] loadImage(String reference) { throw new UnsupportedOperationException(); }
   default ImageResource loadImageResource(String reference) { return new ImageResource(loadImage(reference),false,0,""); }
+  default boolean requiresImageValidation(String reference) { return false; }
   default String imageIdentity() { var user=currentUser();return user==null?"guest":user.id()+":"+user.role(); }
   default long imageCacheBytes() { return 0; }
   default void clearImageCache() {}
