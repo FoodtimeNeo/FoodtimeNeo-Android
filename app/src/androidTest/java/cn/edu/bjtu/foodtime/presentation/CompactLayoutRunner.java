@@ -54,7 +54,11 @@ public final class CompactLayoutRunner extends Instrumentation {
     SearchHistoryStore.purge(getTargetContext(),owner);check(SearchHistoryStore.read(getTargetContext(),owner).isEmpty(),"Account purge removes keywords");
   }
   private void menu()throws Exception{
-    ui(()->{activity.selectTab("dining");activity.go("stalls",id(10));});await("menu",()->tag("menu-dish:"+id(1070))!=null);
+    ui(()->{activity.selectTab("dining");activity.go("dining","");});
+    await("home hall card",()->tag("dining-hall:"+id(10))!=null&&!activity.isPageLoading());
+    click("dining-hall:"+id(10));
+    await("hall card opens menu",()->activity.route().kind().equals("stalls")&&tag("menu-dish:"+id(1070))!=null);
+    check(true,"Actual home hall card opens linked stall/dish menu");
     ui(()->{
       check(tag("canteen-menu-rail")!=null&&tag("canteen-menu-dishes")!=null,"Independent menu panes exist");
       check(tag("menu-section:"+id(103))!=null,"Empty stall still has a selectable section");
