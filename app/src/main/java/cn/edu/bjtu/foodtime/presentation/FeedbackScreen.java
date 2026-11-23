@@ -33,7 +33,11 @@ final class FeedbackScreen {
       this.a=a;this.admin=admin;a.heading(page,"",admin?"建议与反馈管理":"建议与反馈",admin?"仅超级管理员可查看全部反馈和回复。":"当前账号每天 "+("visitor".equals(a.repo.currentUser().role())?2:5)+" 条反馈；同设备每天合计 10 条，每天 UTC+8 00:00 重置。");
       if(admin){
         Ui.action(page,"导出未完成反馈（CSV）",false,()->a.feedbackDocuments.export());
-        page.addView(Ui.text(a,"导出表自带处理状态和处理建议。保留反馈编号、反馈类型、反馈内容，在处理建议列填写用户可见的回复；状态可保留处理中或改为已完成，空白不修改。兼容旧表回复列，请勿与处理建议同时使用。保存为 CSV UTF-8。",14,Design.MUTED));
+        LinearLayout guideBox=Ui.col(a);TextView guideToggle=Ui.button(a,"表格填写说明 ▾",false,()->{});
+        TextView guide=Ui.text(a,"导出表自带处理状态和处理建议。保留反馈编号、反馈类型、反馈内容，在处理建议列填写用户可见的回复；状态可保留处理中或改为已完成，空白不修改。兼容旧表回复列，请勿与处理建议同时使用。保存为 CSV UTF-8。",14,Design.MUTED);
+        guide.setVisibility(View.GONE);guideToggle.setTextColor(Design.MUTED);guideToggle.setGravity(android.view.Gravity.START|android.view.Gravity.CENTER_VERTICAL);guideToggle.setBackground(Ui.ripple(a,Design.PAPER,0,0));
+        guideToggle.setOnClickListener(v->{boolean open=guide.getVisibility()!=View.VISIBLE;guide.setVisibility(open?View.VISIBLE:View.GONE);guideToggle.setText(open?"表格填写说明 ▴":"表格填写说明 ▾");});
+        guideBox.addView(guideToggle,new LinearLayout.LayoutParams(-1,-2));guideBox.addView(guide,new LinearLayout.LayoutParams(-1,-2));page.addView(guideBox);
         Ui.action(page,"导入回复与状态",false,()->a.feedbackDocuments.importCsv());
       }else form(page);
       LinearLayout tabs=Ui.row(a);
