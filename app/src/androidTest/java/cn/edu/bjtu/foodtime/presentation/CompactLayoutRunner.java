@@ -27,10 +27,18 @@ public final class CompactLayoutRunner extends Instrumentation {
     ui(()->activity.selectTab("profile"));await("profile",()->tag("profile-entry:favorite-dishes")!=null);
     ui(()->{
       View first=tag("profile-entry:favorite-dishes"),second=tag("profile-entry:community-favorites");Rect a=new Rect(),b=new Rect();first.getGlobalVisibleRect(a);second.getGlobalVisibleRect(b);
-      check(first.getWidth()>0&&!Rect.intersects(a,b),"Shortcut tiles do not overlap");
+      check(first.getWidth()>0&&!Rect.intersects(a,b),"Profile entries do not overlap");
       check(tag("profile-entry:history")!=null&&tag("profile-entry:community-create")!=null,"All four common shortcuts remain");
       check(tag("profile-following-count")!=null&&tag("profile-follower-count")!=null,"Following/follower routes retained");
-    });screenshot("profile-android");click("profile-entry:favorite-dishes");await("favorite destination",()->activity.route().kind().equals("favorite-dishes"));check(true,"Dish favorites entry navigates");
+    });
+    await("profile totals",()->tag("profile-count:venue-mine") instanceof TextView text&&text.getText().toString().equals("43"));
+    ui(()->{
+      check(((TextView)tag("profile-count:favorite-dishes")).getText().toString().equals("31"),"Dish total counts unique favorites, not summed groups");
+      check(((TextView)tag("profile-count:community-favorites")).getText().toString().equals("52"),"Post favorites use server total beyond first page");
+      check(((TextView)tag("profile-count:community-mine")).getText().toString().equals("65"),"Own posts use server total beyond first page");
+      check(((TextView)tag("profile-following-count")).getText().toString().equals("关注 12"),"Following refresh retains inline layout");
+    });
+    screenshot("profile-android");click("profile-entry:favorite-dishes");await("favorite destination",()->activity.route().kind().equals("favorite-dishes"));check(true,"Dish favorites entry navigates");
   }
   private void search()throws Exception{
     String owner=activity.repo.currentUser().id();SearchHistoryStore.purge(getTargetContext(),owner);
