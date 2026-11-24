@@ -546,8 +546,17 @@ public final class RemoteRepository implements FoodtimeRepository {
     return new cn.edu.bjtu.foodtime.domain.model.SearchModels.Dish(text(row,"id"),text(row,"name"),decimal(row,"price"),
         text(row,"priceUnit"),text(row,"imageUrl"),decimal(row,"averageScore"),row.optLong("reviewCount"));
   }
+  private JSONObject publicSearch(String resource,cn.edu.bjtu.foodtime.domain.model.SearchModels.Query query,JSONObject body) {
+    if(query.latitude()!=null||query.longitude()!=null||query.sort().equals("distance"))return call("POST","search/"+resource+"/query",body);
+    var parts=new ArrayList<String>();var keys=body.keys();
+    while(keys.hasNext()){String key=keys.next();Object value=body.opt(key);if(value==null||value==JSONObject.NULL)continue;
+      if(value instanceof JSONArray list){for(int i=0;i<list.length();i++)parts.add(key+"="+encode(list.optString(i)));}
+      else parts.add(key+"="+encode(String.valueOf(value)));
+    }
+    Collections.sort(parts);return call("GET","search/"+resource+"?"+String.join("&",parts),null);
+  }
   @Override public cn.edu.bjtu.foodtime.domain.model.SearchModels.Page<cn.edu.bjtu.foodtime.domain.model.SearchModels.Stall> searchStalls(cn.edu.bjtu.foodtime.domain.model.SearchModels.Query query,int page) {
-    JSONObject data=call("POST","search/stalls/query",searchBody(query,page));var rows=new ArrayList<cn.edu.bjtu.foodtime.domain.model.SearchModels.Stall>();
+    JSONObject data=publicSearch("stalls",query,searchBody(query,page));var rows=new ArrayList<cn.edu.bjtu.foodtime.domain.model.SearchModels.Stall>();
     JSONArray items=array(data,"items");for(int i=0;i<items.length();i++) {
       JSONObject row=items.optJSONObject(i);var dishes=new ArrayList<cn.edu.bjtu.foodtime.domain.model.SearchModels.Dish>();JSONArray photos=array(row,"dishes");
       for(int j=0;j<photos.length();j++)dishes.add(searchDish(photos.optJSONObject(j)));
@@ -557,7 +566,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   @Override public cn.edu.bjtu.foodtime.domain.model.SearchModels.Page<cn.edu.bjtu.foodtime.domain.model.SearchModels.Dish> searchStallDishes(cn.edu.bjtu.foodtime.domain.model.SearchModels.Query query,String stallId,int page) {
     JSONObject body=searchBody(query,page);try{body.put("stallId",stallId);body.put("size",query.previewSize());}catch(JSONException e){throw new IllegalArgumentException(e);}
-    JSONObject data=call("POST","search/dishes/query",body);var rows=new ArrayList<cn.edu.bjtu.foodtime.domain.model.SearchModels.Dish>();JSONArray items=array(data,"items");
+    JSONObject data=publicSearch("dishes",query,body);var rows=new ArrayList<cn.edu.bjtu.foodtime.domain.model.SearchModels.Dish>();JSONArray items=array(data,"items");
     for(int i=0;i<items.length();i++)rows.add(searchDish(items.optJSONObject(i)));
     return new cn.edu.bjtu.foodtime.domain.model.SearchModels.Page<>(rows,data.optLong("total"),page,data.optInt("size",10));
   }

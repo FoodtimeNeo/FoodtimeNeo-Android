@@ -10,6 +10,14 @@ import java.util.concurrent.*;
 import static org.junit.Assert.*;
 
 public class PublicCatalogCacheTest {
+  @Test public void publicSearchRevalidatesButLocationAndNotesNeverPersist()throws Exception {
+    var cache=new PublicCatalogCache(base,temporary.newFolder());
+    String path="search/stalls?q=noodle&size=10";
+    read(cache,path);read(cache,path);assertEquals(etag,conditions.get(1));
+    assertTrue(PublicCatalogCache.eligible("GET","search/dishes?q=noodle"));
+    for(String value:List.of("search/notes?q=noodle","search/stalls?latitude=39&longitude=116","search/stalls?sort=distance"))assertFalse(PublicCatalogCache.eligible("GET",value));
+    assertFalse(PublicCatalogCache.eligible("POST","search/stalls/query"));
+  }
   @Rule public TemporaryFolder temporary=new TemporaryFolder();
   private ServerSocket server;
   private ExecutorService worker;

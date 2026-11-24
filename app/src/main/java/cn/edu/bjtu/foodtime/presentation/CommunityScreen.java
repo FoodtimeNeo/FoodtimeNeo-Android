@@ -144,9 +144,10 @@ final class CommunityScreen {
 
   static void collection(MainActivity a,LinearLayout page,MainActivity.Route route){
     if (a.isCommunityHub()) { feed(a, page, route); return; }
-    boolean favorites=route.kind().equals("community-favorites");var result=a.repo.communityCollection(favorites);
+    boolean favorites=route.kind().equals("community-favorites");
     a.heading(page,"02",favorites?"我的收藏":"我的食记",favorites?"收藏的公开食记都在这里。":"查看发布记录与审核进度；可在详情修改自己的食记。");
     if(favorites){FavoritePostsScreen screen=new FavoritePostsScreen(a,page);page.post(()->{if(page.isAttachedToWindow())screen.refresh();});return;}
+    var result=a.repo.communityCollection(false);
     if(result.items().isEmpty())Ui.empty(page,favorites?"还没有收藏食记":"还没有发布食记",favorites?"在食记详情点击收藏，方便下次再找。":"发布一篇校园美食记录吧。");
     else waterfall(a,page,result.items());
     if(result.hasMore()){
@@ -175,6 +176,9 @@ final class CommunityScreen {
   }
 
   static void postCard(MainActivity a,LinearLayout column,CommunityPost post) {
+    postCard(a,column,post,"");
+  }
+  static void postCard(MainActivity a,LinearLayout column,CommunityPost post,String keyword) {
     LinearLayout card=Ui.card(column);card.setTag("community-post-card:"+post.id());card.setPadding(0,0,0,Ui.dp(a,4));
     card.setBackground(Ui.ripple(a, Design.PAPER, Design.BORDER, 12));
     card.setElevation(0);
@@ -192,6 +196,7 @@ final class CommunityScreen {
 
     LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,10),Ui.dp(a,10),Ui.dp(a,10),Ui.dp(a,9));
     TextView title=Ui.text(a,post.title(),15,Design.INK);
+    title.setText(SearchText.highlight(post.title(),keyword));
     title.setTypeface(Design.title());title.setMaxLines(2);title.setEllipsize(TextUtils.TruncateAt.END);
     body.addView(title,new LinearLayout.LayoutParams(-1,-2));Ui.gap(body,8);
     if(!post.status().equals("approved")){body.addView(Ui.text(a,post.status().equals("rejected")?"未通过："+post.reviewReason():post.reviewStage().equals("manual_pending")?"待人工审核":"AI审核中",12,Design.RED));Ui.gap(body,6);}
