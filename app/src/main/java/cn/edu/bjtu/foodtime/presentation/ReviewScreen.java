@@ -63,7 +63,7 @@ final class ReviewScreen {
           ()->response.set(a.repo.searchDishes(keyword,1)),
           ()->{
             DishSearchPage data=response.get();status.setText(data.items().isEmpty()?"没有匹配的菜品":"请选择要点评的菜品");
-            for(DishSearchRow dish:data.items())DishSearchScreen.appendRow(a,results,dish,()->{
+            for(DishSearchRow dish:data.items())DishSearchRows.appendRow(a,results,dish,()->{
               storeTarget(a,dish.id(),dish.name(),dish.diningHallName(),dish.stallName());a.redraw();
             });
           },()->{if(response.get()==null)status.setText("");});

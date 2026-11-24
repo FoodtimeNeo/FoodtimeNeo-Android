@@ -529,6 +529,43 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public DishSearchPage searchDishes(String query, int page) {
     return searchDishes(query,page,DishSearchFilters.empty());
   }
+
+  private JSONObject searchBody(cn.edu.bjtu.foodtime.domain.model.SearchModels.Query q,int page) {
+    return json("q",q.q(),"diningHallIds",new JSONArray(q.halls()),"minPrice",q.minPrice(),"maxPrice",q.maxPrice(),
+        "minRating",q.minRating(),"sort",q.sort(),"type",q.type(),"latitude",q.latitude(),"longitude",q.longitude(),
+        "previewSize",q.previewSize(),"page",page,"size",10);
+  }
+  private static JSONArray array(JSONObject data,String key) {
+    JSONArray value=data.optJSONArray(key);
+    if(value==null)throw new RepositoryException(0,"PROTOCOL_ERROR","搜索返回数据异常，请重试",0);
+    return value;
+  }
+  @Override public boolean searchDistanceAvailable() { return array(call("GET","search/capabilities",null),"distanceHallIds").length()>0; }
+  private static Double optionalDouble(JSONObject row,String field) { return row.isNull(field)?null:row.optDouble(field); }
+  private static cn.edu.bjtu.foodtime.domain.model.SearchModels.Dish searchDish(JSONObject row) {
+    return new cn.edu.bjtu.foodtime.domain.model.SearchModels.Dish(text(row,"id"),text(row,"name"),decimal(row,"price"),
+        text(row,"priceUnit"),text(row,"imageUrl"),decimal(row,"averageScore"),row.optLong("reviewCount"));
+  }
+  @Override public cn.edu.bjtu.foodtime.domain.model.SearchModels.Page<cn.edu.bjtu.foodtime.domain.model.SearchModels.Stall> searchStalls(cn.edu.bjtu.foodtime.domain.model.SearchModels.Query query,int page) {
+    JSONObject data=call("POST","search/stalls/query",searchBody(query,page));var rows=new ArrayList<cn.edu.bjtu.foodtime.domain.model.SearchModels.Stall>();
+    JSONArray items=array(data,"items");for(int i=0;i<items.length();i++) {
+      JSONObject row=items.optJSONObject(i);var dishes=new ArrayList<cn.edu.bjtu.foodtime.domain.model.SearchModels.Dish>();JSONArray photos=array(row,"dishes");
+      for(int j=0;j<photos.length();j++)dishes.add(searchDish(photos.optJSONObject(j)));
+      rows.add(new cn.edu.bjtu.foodtime.domain.model.SearchModels.Stall(text(row,"id"),text(row,"name"),text(row,"diningHallId"),text(row,"diningHallName"),text(row,"imageUrl"),decimal(row,"averageScore"),row.optLong("reviewCount"),optionalDouble(row,"distanceMeters"),row.optLong("matchCount"),dishes));
+    }
+    return new cn.edu.bjtu.foodtime.domain.model.SearchModels.Page<>(rows,data.optLong("total"),page,data.optInt("size",10));
+  }
+  @Override public cn.edu.bjtu.foodtime.domain.model.SearchModels.Page<cn.edu.bjtu.foodtime.domain.model.SearchModels.Dish> searchStallDishes(cn.edu.bjtu.foodtime.domain.model.SearchModels.Query query,String stallId,int page) {
+    JSONObject body=searchBody(query,page);try{body.put("stallId",stallId);body.put("size",query.previewSize());}catch(JSONException e){throw new IllegalArgumentException(e);}
+    JSONObject data=call("POST","search/dishes/query",body);var rows=new ArrayList<cn.edu.bjtu.foodtime.domain.model.SearchModels.Dish>();JSONArray items=array(data,"items");
+    for(int i=0;i<items.length();i++)rows.add(searchDish(items.optJSONObject(i)));
+    return new cn.edu.bjtu.foodtime.domain.model.SearchModels.Page<>(rows,data.optLong("total"),page,data.optInt("size",10));
+  }
+  @Override public cn.edu.bjtu.foodtime.domain.model.SearchModels.Page<cn.edu.bjtu.foodtime.domain.model.SearchModels.Note> searchNotes(cn.edu.bjtu.foodtime.domain.model.SearchModels.Query query,int page) {
+    JSONObject data=call("POST","search/notes/query",searchBody(query,page));var rows=new ArrayList<cn.edu.bjtu.foodtime.domain.model.SearchModels.Note>();JSONArray items=array(data,"items");
+    for(int i=0;i<items.length();i++){JSONObject row=items.optJSONObject(i);rows.add(new cn.edu.bjtu.foodtime.domain.model.SearchModels.Note(cacheCommunityPost(row.optJSONObject("post")),optionalDouble(row,"distanceMeters"),text(row,"diningHallName")));}
+    return new cn.edu.bjtu.foodtime.domain.model.SearchModels.Page<>(rows,data.optLong("total"),page,data.optInt("size",10));
+  }
   @Override public DishSearchPage searchDishes(String query, int page, DishSearchFilters filters) {
     StringBuilder path=new StringBuilder("dishes/search?q=").append(encode(query))
         .append("&page=").append(page).append("&size=20&sort=")
