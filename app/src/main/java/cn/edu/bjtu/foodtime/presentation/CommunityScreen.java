@@ -175,6 +175,9 @@ final class CommunityScreen {
   }
 
   static void postCard(MainActivity a,LinearLayout column,CommunityPost post) {
+    postCard(a,column,post,"");
+  }
+  static void postCard(MainActivity a,LinearLayout column,CommunityPost post,String keyword) {
     LinearLayout card=Ui.card(column);card.setTag("community-post-card:"+post.id());card.setPadding(0,0,0,Ui.dp(a,4));
     card.setBackground(Ui.ripple(a, Design.PAPER, Design.BORDER, 12));
     card.setElevation(0);
@@ -192,6 +195,7 @@ final class CommunityScreen {
 
     LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,10),Ui.dp(a,10),Ui.dp(a,10),Ui.dp(a,9));
     TextView title=Ui.text(a,post.title(),15,Design.INK);
+    title.setText(SearchText.highlight(post.title(),keyword));
     title.setTypeface(Design.title());title.setMaxLines(2);title.setEllipsize(TextUtils.TruncateAt.END);
     body.addView(title,new LinearLayout.LayoutParams(-1,-2));Ui.gap(body,8);
     if(!post.status().equals("approved")){body.addView(Ui.text(a,post.status().equals("rejected")?"未通过："+post.reviewReason():post.reviewStage().equals("manual_pending")?"待人工审核":"AI审核中",12,Design.RED));Ui.gap(body,6);}

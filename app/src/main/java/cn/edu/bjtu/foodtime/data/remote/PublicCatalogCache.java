@@ -16,7 +16,8 @@ final class PublicCatalogCache {
   static boolean eligible(String method,String path){
     if(!"GET".equals(method)||path.contains("#")||path.contains("\\"))return false;
     String resource=path.split("\\?",2)[0];
-    return resource.matches("dining-halls|dining-halls/"+ID+"/stalls|stalls/"+ID+"(?:/dishes)?|dishes/search|dishes/"+ID+"(?:/images)?");
+    if(path.matches(".*(?:[?&])(?:latitude|longitude)=.*")||path.matches(".*(?:[?&])sort=distance(?:&.*)?"))return false;
+    return resource.matches("dining-halls|dining-halls/"+ID+"/stalls|stalls/"+ID+"(?:/dishes)?|dishes/search|dishes/"+ID+"(?:/images)?|search/(?:stalls|dishes)");
   }
   HttpTransport.Response request(HttpTransport transport,String method,String path,String body,String csrf)throws IOException{
     if(!eligible(method,path))return transport.request(method,path,body,csrf);
