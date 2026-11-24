@@ -144,9 +144,10 @@ final class CommunityScreen {
 
   static void collection(MainActivity a,LinearLayout page,MainActivity.Route route){
     if (a.isCommunityHub()) { feed(a, page, route); return; }
-    boolean favorites=route.kind().equals("community-favorites");var result=a.repo.communityCollection(favorites);
+    boolean favorites=route.kind().equals("community-favorites");
     a.heading(page,"02",favorites?"我的收藏":"我的食记",favorites?"收藏的公开食记都在这里。":"查看发布记录与审核进度；可在详情修改自己的食记。");
     if(favorites){FavoritePostsScreen screen=new FavoritePostsScreen(a,page);page.post(()->{if(page.isAttachedToWindow())screen.refresh();});return;}
+    var result=a.repo.communityCollection(false);
     if(result.items().isEmpty())Ui.empty(page,favorites?"还没有收藏食记":"还没有发布食记",favorites?"在食记详情点击收藏，方便下次再找。":"发布一篇校园美食记录吧。");
     else waterfall(a,page,result.items());
     if(result.hasMore()){
