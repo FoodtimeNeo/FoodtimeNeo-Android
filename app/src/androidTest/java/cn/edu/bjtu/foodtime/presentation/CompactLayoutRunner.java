@@ -58,6 +58,10 @@ public final class CompactLayoutRunner extends Instrumentation {
       check(tag("dish-search-results").getVisibility()==View.GONE,"Opening search shows discovery instead of fetching all results");
       check(tag("search-discovery-chip:"+id(100))!=null,"Daily stalls provide discovery chips");
       checkInputFits();
+      View dishes=tag("search-tab:dishes"),notes=tag("search-tab:notes");
+      check(dishes.getLeft()==0&&notes.getRight()<dishes.getRootView().getWidth()/2,"Search tabs are packed against the left edge");
+      TextView sort=(TextView)tag("search-sort");var arrow=sort.getCompoundDrawablesRelative()[2];
+      check(arrow!=null&&arrow.getBounds().height()==Ui.dp(activity,14)&&!sort.getText().toString().contains("⌄"),"Sort arrow is a centered vector instead of a baseline glyph");
     });screenshot("search-landing-android");
     click("search-discovery-chip:"+id(100));await("discovery opens stall",()->activity.route().kind().equals("dishes")&&!activity.isPageLoading());ui(()->check(!activity.pageFailed(),"Discovery opens existing stall, not a mismatched dish keyword"));
     ui(activity::back);await("return to discovery",()->tag("search-discovery-card:"+id(100))!=null);
