@@ -20,23 +20,23 @@ final class ProfileScreen {
     // 1. 顶部身份卡片瘦身与去测试态
     LinearLayout identity = Ui.col(a);
     identity.setPadding(Ui.dp(a, 16), Ui.dp(a, 16), Ui.dp(a, 16), Ui.dp(a, 16));
-    identity.setBackground(Ui.shape(a, Design.ALT, 0, 20));
+    identity.setBackground(Ui.shape(a, Design.ALT, Design.BORDER, 16));
 
     LinearLayout person = Ui.row(a);
     person.setGravity(Gravity.CENTER_VERTICAL);
     View avatar = Ui.image(a, Ui.thumb(user.avatarUrl()), user.displayName().isEmpty() ? "用户" : user.displayName().substring(0, 1), false);
-    avatar.setBackground(Ui.shape(a, Design.ALT, Design.RED, 999));
+    avatar.setBackground(Ui.shape(a, Design.PAPER, Design.RED, 999));
     avatar.setClipToOutline(true);
     avatar.setContentDescription("个人头像");
-    person.addView(avatar, new LinearLayout.LayoutParams(Ui.dp(a, 64), Ui.dp(a, 64)));
+    person.addView(avatar, new LinearLayout.LayoutParams(Ui.dp(a, 62), Ui.dp(a, 62)));
 
     LinearLayout copy = Ui.col(a);
     LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(0, -2, 1);
     copyLp.leftMargin = Ui.dp(a, 14);
 
-    copy.addView(Ui.title(a, user.displayName(), 22));
+    copy.addView(Ui.title(a, user.displayName(), 21));
     Ui.gap(copy, 3);
-    copy.addView(Ui.text(a, user.email(), 12, Design.MUTED));
+    copy.addView(Ui.text(a, "认真吃饭，也认真生活", 12, Design.MUTED));
     Ui.gap(copy, 8);
 
     // 关注、粉丝轻量数字排布与“编辑资料”紧凑排列
@@ -310,22 +310,24 @@ final class ProfileScreen {
 
     GridGroup(MainActivity a, LinearLayout page, String title) {
       this.a = a;
-      View divider = new View(a);
-      divider.setBackgroundColor(Design.BORDER);
-      page.addView(divider, new LinearLayout.LayoutParams(-1, Ui.dp(a, 1)));
-      Ui.gap(page, 20);
-      TextView heading = Ui.title(a, title, 23);
+      LinearLayout container = Ui.col(a);
+      container.setPadding(Ui.dp(a, 12), Ui.dp(a, 14), Ui.dp(a, 12), Ui.dp(a, 8));
+      container.setBackground(Ui.shape(a, Design.ALT, Design.BORDER, 16));
+      TextView heading = Ui.title(a, title, 17);
+      heading.setPadding(Ui.dp(a, 4), 0, Ui.dp(a, 4), 0);
       heading.setTag("profile-group:" + title);
-      page.addView(heading);
-      Ui.gap(page, 16);
+      container.addView(heading);
+      Ui.gap(container, 10);
       var config = a.getResources().getConfiguration();
-      float available = Math.max(240, config.screenWidthDp - 32) / Math.max(1, config.fontScale);
+      float available = Math.max(240, config.screenWidthDp - 56) / Math.max(1, config.fontScale);
       columns = available >= 320 ? 4 : available >= 240 ? 3 : 2;
       grid = new GridLayout(a);
       grid.setColumnCount(columns);
       grid.setTag("profile-grid:" + title);
-      page.addView(grid, new LinearLayout.LayoutParams(-1, -2));
-      Ui.gap(page, 20);
+      container.addView(grid, new LinearLayout.LayoutParams(-1, -2));
+      LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(-1, -2);
+      cardLp.bottomMargin = Ui.dp(a, 12);
+      page.addView(container, cardLp);
     }
 
     void add(String label, String route, String id, int iconRes, String count) {
@@ -523,7 +525,10 @@ final class ProfileScreen {
 
   private static void roundedAction(MainActivity a, LinearLayout panel, String label, boolean primary, Runnable run) {
     TextView button = Ui.button(a, label, primary, run);
-    button.setBackground(Ui.ripple(a, primary ? Design.RED : Design.PAPER, Design.INK, 18));
+    if (!primary) {
+      button.setTextColor(Design.RED);
+      button.setBackground(Ui.ripple(a, Design.PAPER, Design.BORDER, 14));
+    }
     panel.addView(button, new LinearLayout.LayoutParams(-1, -2));
   }
 

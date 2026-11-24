@@ -138,8 +138,35 @@ final class CommunityScreen {
   private static void pinManagement(MainActivity a,LinearLayout body,String id){TextView button=Ui.button(a,"置顶管理",false,()->a.go("community-pins",id));button.setTag("community-pins-open");body.addView(button,new LinearLayout.LayoutParams(-1,-2));Ui.gap(body,8);}
 
   private static void renderPins(MainActivity a,LinearLayout body,List<cn.edu.bjtu.foodtime.domain.model.CommunityPins.Entry> pins){
-    if(pins.isEmpty())return;LinearLayout card=Ui.card(body);card.setTag("community-pins");card.addView(Ui.title(a,"置顶食记",16));
-    for(var pin:pins){LinearLayout row=Ui.col(a);row.setPadding(Ui.dp(a,4),Ui.dp(a,10),Ui.dp(a,4),Ui.dp(a,10));row.setMinimumHeight(Ui.dp(a,52));TextView title=Ui.text(a,"置顶 · "+pin.title(),15,Design.RED);title.setMaxLines(2);title.setEllipsize(TextUtils.TruncateAt.END);row.addView(title);row.addView(Ui.text(a,"@"+pin.userDisplayName(),12,Design.MUTED));row.setBackground(Ui.ripple(a,Design.PAPER,0,8));row.setFocusable(true);row.setClickable(true);row.setTag("community-pinned-post:"+pin.id());row.setContentDescription("置顶食记："+pin.title()+"，作者"+pin.userDisplayName());row.setOnClickListener(v->a.go("community-detail",pin.id()));card.addView(row,new LinearLayout.LayoutParams(-1,-2));}
+    if(pins.isEmpty())return;
+    LinearLayout card=Ui.col(a);card.setTag("community-pins");
+    card.setPadding(Ui.dp(a,12),Ui.dp(a,10),Ui.dp(a,12),Ui.dp(a,8));
+    card.setBackground(Ui.shape(a,Design.ALT,Design.BORDER,14));
+    LinearLayout.LayoutParams cardLp=new LinearLayout.LayoutParams(-1,-2);cardLp.bottomMargin=Ui.dp(a,12);
+    body.addView(card,cardLp);
+    TextView heading=Ui.title(a,"置顶食记",14);heading.setTextColor(Design.MUTED);card.addView(heading);
+    Ui.gap(card,4);
+    for(int i=0;i<pins.size();i++){
+      var pin=pins.get(i);
+      if(i>0){View sep=new View(a);sep.setBackgroundColor(Design.BORDER);card.addView(sep,new LinearLayout.LayoutParams(-1,Ui.dp(a,1)));}
+      LinearLayout row=Ui.row(a);row.setGravity(Gravity.CENTER_VERTICAL);
+      row.setPadding(Ui.dp(a,2),Ui.dp(a,8),Ui.dp(a,2),Ui.dp(a,8));row.setMinimumHeight(Ui.dp(a,46));
+      TextView badge=Ui.text(a,"置顶",11,Design.RED);
+      badge.setTypeface(android.graphics.Typeface.create(Design.body(),android.graphics.Typeface.BOLD));
+      badge.setPadding(Ui.dp(a,7),Ui.dp(a,2),Ui.dp(a,7),Ui.dp(a,2));
+      badge.setBackground(Ui.shape(a,Design.RED_SOFT,0,8));
+      LinearLayout.LayoutParams blp=new LinearLayout.LayoutParams(-2,-2);blp.rightMargin=Ui.dp(a,8);
+      row.addView(badge,blp);
+      LinearLayout copy=Ui.col(a);
+      TextView title=Ui.text(a,pin.title(),14,Design.INK);title.setTypeface(android.graphics.Typeface.create(Design.body(),android.graphics.Typeface.BOLD));title.setMaxLines(1);title.setEllipsize(TextUtils.TruncateAt.END);copy.addView(title);
+      copy.addView(Ui.text(a,"@"+pin.userDisplayName(),11,Design.MUTED));
+      row.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
+      row.setBackground(Ui.ripple(a,Color.TRANSPARENT,0,8));row.setFocusable(true);row.setClickable(true);
+      row.setTag("community-pinned-post:"+pin.id());
+      row.setContentDescription("置顶食记："+pin.title()+"，作者"+pin.userDisplayName());
+      row.setOnClickListener(v->a.go("community-detail",pin.id()));
+      card.addView(row,new LinearLayout.LayoutParams(-1,-2));
+    }
   }
 
   static void collection(MainActivity a,LinearLayout page,MainActivity.Route route){
@@ -180,31 +207,47 @@ final class CommunityScreen {
   }
   static void postCard(MainActivity a,LinearLayout column,CommunityPost post,String keyword) {
     LinearLayout card=Ui.card(column);card.setTag("community-post-card:"+post.id());card.setPadding(0,0,0,Ui.dp(a,4));
-    card.setBackground(Ui.ripple(a, Design.PAPER, Design.BORDER, 12));
-    card.setElevation(0);
+    card.setBackground(Ui.ripple(a, Design.PAPER, Design.BORDER, 14));
+    card.setElevation(Ui.dp(a, 1));
     LinearLayout.LayoutParams cardLp=(LinearLayout.LayoutParams)card.getLayoutParams();cardLp.bottomMargin=Ui.dp(a,10);
     String cover=post.imageUrls().isEmpty()?"":post.imageUrls().get(0);
-    FrameLayout media=(FrameLayout)Ui.communityImage(a,Ui.thumb(cover),post.title(),coverRatio(post));
-    if(post.imageUrls().size()>1) {
-      TextView badge=Ui.text(a,"▣ "+post.imageUrls().size(),11,Color.WHITE);
-      badge.setGravity(Gravity.CENTER);badge.setPadding(Ui.dp(a,7),Ui.dp(a,3),Ui.dp(a,7),Ui.dp(a,3));
-      badge.setBackground(Ui.shape(a,0xB3000000,0,12));
-      FrameLayout.LayoutParams badgeLp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.END);
-      badgeLp.setMargins(0,Ui.dp(a,8),Ui.dp(a,8),0);media.addView(badge,badgeLp);
+    if(!cover.isBlank()){
+      FrameLayout media=(FrameLayout)Ui.communityImage(a,Ui.thumb(cover),post.title(),coverRatio(post));
+      if(post.imageUrls().size()>1) {
+        TextView badge=Ui.text(a,"▣ "+post.imageUrls().size(),11,Color.WHITE);
+        badge.setGravity(Gravity.CENTER);badge.setPadding(Ui.dp(a,7),Ui.dp(a,3),Ui.dp(a,7),Ui.dp(a,3));
+        badge.setBackground(Ui.shape(a,0xB3000000,0,12));
+        FrameLayout.LayoutParams badgeLp=new FrameLayout.LayoutParams(-2,-2,Gravity.TOP|Gravity.END);
+        badgeLp.setMargins(0,Ui.dp(a,8),Ui.dp(a,8),0);media.addView(badge,badgeLp);
+      }
+      card.addView(media,new LinearLayout.LayoutParams(-1,-2));
+    }else{
+      LinearLayout notePad=Ui.col(a);
+      notePad.setBackgroundColor(Design.ALT);
+      notePad.setPadding(Ui.dp(a,12),Ui.dp(a,14),Ui.dp(a,12),Ui.dp(a,14));
+      notePad.setMinimumHeight(Ui.dp(a,96));
+      String rawBody=post.content()==null?"":post.content().trim();
+      if(!rawBody.isEmpty()){
+        TextView quote=Ui.text(a,"“",20,Design.RED);quote.setLineSpacing(0,1);notePad.addView(quote);
+        TextView excerpt=Ui.text(a,rawBody,12,Design.MUTED);excerpt.setMaxLines(4);excerpt.setEllipsize(TextUtils.TruncateAt.END);notePad.addView(excerpt);
+      }else{
+        notePad.setGravity(Gravity.CENTER);
+        notePad.addView(Ui.foodDoodle(a,Math.abs(post.id().hashCode()),Design.MUTED),new LinearLayout.LayoutParams(Ui.dp(a,48),Ui.dp(a,40)));
+      }
+      card.addView(notePad,new LinearLayout.LayoutParams(-1,-2));
     }
-    card.addView(media,new LinearLayout.LayoutParams(-1,-2));
 
     LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,10),Ui.dp(a,10),Ui.dp(a,10),Ui.dp(a,9));
-    TextView title=Ui.text(a,post.title(),15,Design.INK);
+    TextView title=Ui.text(a,post.title(),14,Design.INK);
     title.setText(SearchText.highlight(post.title(),keyword));
-    title.setTypeface(Design.title());title.setMaxLines(2);title.setEllipsize(TextUtils.TruncateAt.END);
-    body.addView(title,new LinearLayout.LayoutParams(-1,-2));Ui.gap(body,8);
+    title.setTypeface(android.graphics.Typeface.create(Design.body(),android.graphics.Typeface.BOLD));title.setMaxLines(2);title.setEllipsize(TextUtils.TruncateAt.END);
+    body.addView(title,new LinearLayout.LayoutParams(-1,-2));Ui.gap(body,7);
     if(!post.status().equals("approved")){body.addView(Ui.text(a,post.status().equals("rejected")?"未通过："+post.reviewReason():post.reviewStage().equals("manual_pending")?"待人工审核":"AI审核中",12,Design.RED));Ui.gap(body,6);}
     LinearLayout meta=Ui.row(a);
     String author=post.userDisplayName().isBlank()?"校园干饭人":post.userDisplayName();
-    TextView name=Ui.text(a,"@"+author,12,Design.MUTED);name.setSingleLine(true);name.setEllipsize(TextUtils.TruncateAt.END);
+    TextView name=Ui.text(a,"@"+author,11,Design.MUTED);name.setSingleLine(true);name.setEllipsize(TextUtils.TruncateAt.END);
     meta.addView(name,new LinearLayout.LayoutParams(0,-2,1));
-    meta.addView(Ui.text(a,"♡ "+post.likeCount(),12,Design.MUTED));body.addView(meta);
+    meta.addView(Ui.text(a,"♡ "+post.likeCount(),11,Design.MUTED));body.addView(meta);
     card.addView(body,new LinearLayout.LayoutParams(-1,-2));
     card.setClickable(true);card.setFocusable(true);
     card.setContentDescription(post.title()+"，作者"+author+"，查看详情");
