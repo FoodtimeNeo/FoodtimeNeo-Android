@@ -52,7 +52,7 @@ final class UnifiedSearchScreen {
     error=Ui.text(a,"",13,Design.RED);Ui.observeError(error);page.addView(error);status=Ui.text(a,"",12,Design.MUTED);status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);page.addView(status);
     history=Ui.col(a);page.addView(history);discovery=Ui.col(a);discovery.setTag("dish-search-discovery");page.addView(discovery);results=Ui.col(a);results.setTag("dish-search-results");page.addView(results);
     pagination=new NumberedPagination(a,this::load);page.addView(pagination);
-    page.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int width=(int)((r-l)/a.getResources().getDisplayMetrics().density);int next=SearchModels.columns(width);if(next!=columns){columns=next;if(stallPage!=null)load(currentPage);}});
+    page.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int width=(int)((r-l-page.getPaddingLeft()-page.getPaddingRight())/a.getResources().getDisplayMetrics().density);int next=SearchModels.columns(width);if(next!=columns){columns=next;if(stallPage!=null)load(currentPage);}});
     page.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener(){public void onViewAttachedToWindow(View v){}public void onViewDetachedFromWindow(View v){revision++;a.searchLocation.clear();latitude=null;longitude=null;if(dialog!=null)dialog.dismiss();if(popup!=null)popup.dismiss();}});
     var hallResponse=new AtomicReference<List<cn.edu.bjtu.foodtime.domain.model.Models.Hall>>();a.read(requestKey+":halls",null,error,()->hallResponse.set(a.repo.loadHalls()),()->{availableHalls.clear();availableHalls.addAll(hallResponse.get());},()->{});
     restoreFilters();sortButton.setText(label(sort)+"⌄");
@@ -97,7 +97,7 @@ final class UnifiedSearchScreen {
       LinearLayout identity=Ui.row(a);group.addView(identity);View cover=Ui.image(a,Ui.thumb(stall.imageUrl()),stall.name(),false);identity.addView(cover,new LinearLayout.LayoutParams(Ui.dp(a,44),Ui.dp(a,44)));LinearLayout copy=Ui.col(a);copy.setPadding(Ui.dp(a,8),0,0,0);identity.addView(copy,new LinearLayout.LayoutParams(0,-2,1));TextView name=Ui.text(a,stall.name()+"（"+stall.hallName()+"）",15,Design.INK);name.setMaxLines(2);copy.addView(name);copy.addView(Ui.text(a,(stall.averageScore()==null?"暂无评分":"★ "+stall.averageScore().stripTrailingZeros())+" · "+stall.reviewCount()+"条点评",12,Design.MUTED));identity.setOnClickListener(v->a.go("dishes",stall.id()));identity.setContentDescription(stall.name()+"（"+stall.hallName()+"）");
       if(stall.distanceMeters()!=null)identity.addView(Ui.text(a,SearchModels.distance(stall.distanceMeters()),11,Design.MUTED));
       Ui.gap(group,8);HorizontalScrollView strip=new HorizontalScrollView(a);strip.setHorizontalScrollBarEnabled(false);LinearLayout row=Ui.row(a);row.setGravity(Gravity.TOP);strip.addView(row);group.addView(strip);
-      int available=page.getWidth()>0?page.getWidth():Ui.dp(a,a.getResources().getConfiguration().screenWidthDp-28);int width=Math.max(Ui.dp(a,64),(available-Ui.dp(a,8)*(columns-1))/columns);
+      int available=page.getWidth()>0?page.getWidth()-page.getPaddingLeft()-page.getPaddingRight():Ui.dp(a,a.getResources().getConfiguration().screenWidthDp-28);int width=Math.max(Ui.dp(a,64),(available-Ui.dp(a,8)*(columns-1))/columns);
       for(Dish dish:stall.dishes())appendDish(row,dish,width);
       final int[] next={2};final boolean[] pending={false};final long[] total={stall.matchCount()};final int[] count={stall.dishes().size()};long groupRevision=revision;Query snapshot=query();
       strip.setOnScrollChangeListener((v,x,y,oldX,oldY)->{
