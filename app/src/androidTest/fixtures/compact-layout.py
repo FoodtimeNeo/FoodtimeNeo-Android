@@ -39,6 +39,7 @@ class Handler(BaseHTTPRequestHandler):
    etag='\"fixture-catalog-image\"'
    headers={'Cache-Control':'public, max-age=31536000, immutable','ETag':etag}
    return self.raw(304,b'','image/webp',headers) if self.headers.get('If-None-Match')==etag else self.raw(200,image.read_bytes(),'image/webp',headers)
+  if p=='/api/v1/search/capabilities':return self.send({'distanceHallIds':[],'coordinateSystem':'WGS84','distanceKind':'straight-line'})
   if p in ['/api/v1/auth/me','/api/v1/users/me/profile']:
    time.sleep(state['sessionDelay']);return self.send(None,503) if state['sessionFailure'] else self.send(user)
   if p=='/api/v1/auth/csrf':return self.send({'token':'fixture','headerName':'X-CSRF-TOKEN'})
@@ -74,6 +75,19 @@ class Handler(BaseHTTPRequestHandler):
   return self.send(empty)
  def do_POST(self):
   body=self.rfile.read(int(self.headers.get('Content-Length',0)))
+  if self.path.startswith('/api/v1/search/'):
+   query=json.loads(body or '{}');term=query.get('q','');page=query.get('page',1);size=query.get('size',10);preview=query.get('previewSize',4)
+   if self.path=='/api/v1/search/notes/query':
+    posts=[{'id':uid(8000+i),'userId':user['id'],'userDisplayName':user['displayName'],'title':term+'笔记'+str(i),'content':'本地界面验收笔记','imageUrls':['/api/v1/media/'+uid(999)],'images':[{'id':uid(8500+i),'url':'/api/v1/media/'+uid(999),'width':800,'height':600,'sortOrder':0}],'status':'approved','createdAt':'2026-11-20T00:00:00Z','likeCount':3,'commentCount':0,'favoriteCount':0,'viewCount':0,'contentRevision':1} for i in range(4)]
+    rows=[{'post':post,'distanceMeters':None,'diningHallName':hall['name']} for post in posts]
+   elif self.path=='/api/v1/search/dishes/query':
+    rows=[{**d,'imageUrl':d['coverImageUrl']} for d in dishes.get(query.get('stallId'),[]) if term in d['name']]
+   else:
+    rows=[]
+    for stall in stalls:
+     matches=[{**d,'imageUrl':d['coverImageUrl']} for d in dishes[stall['id']] if term in d['name']]
+     if matches:rows.append({**stall,'diningHallId':hall['id'],'diningHallName':hall['name'],'distanceMeters':None,'matchCount':len(matches),'imageUrl':'/api/v1/media/'+uid(999),'dishes':matches[:preview]})
+   return self.send({'items':rows[(page-1)*size:page*size],'total':len(rows),'page':page,'size':size})
   if self.path=='/fixture/control':state.update(json.loads(body or '{}'));return self.send(True)
   if self.path.endswith('/auth/login'):return self.send({'user':user,'sessionMode':'normal'})
   return self.send({})

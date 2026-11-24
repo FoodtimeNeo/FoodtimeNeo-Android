@@ -140,7 +140,7 @@ final class FavoriteDishesScreen {
               ? "这页还没有想吃的菜。" : "这个分组还没有菜品。")
               : "共 " + result.total() + " 道菜 · 第 " + page + " 页");
           for (var dish : result.items()) {
-            DishSearchScreen.appendRow(activity, rows, dish, () -> activity.go("detail", dish.id()));
+            DishSearchRows.appendRow(activity, rows, dish, () -> activity.go("detail", dish.id()));
             Ui.link(rows, "设置分组", () -> chooseGroups(dish.id()));
           }
           if (page > 1) Ui.action(rows, "上一页", false, () -> load(page - 1));

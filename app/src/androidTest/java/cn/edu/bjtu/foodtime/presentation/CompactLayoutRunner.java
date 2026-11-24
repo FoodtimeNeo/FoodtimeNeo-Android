@@ -62,13 +62,23 @@ public final class CompactLayoutRunner extends Instrumentation {
     click("search-discovery-chip:"+id(100));await("discovery opens stall",()->activity.route().kind().equals("dishes")&&!activity.isPageLoading());ui(()->check(!activity.pageFailed(),"Discovery opens existing stall, not a mismatched dish keyword"));
     ui(activity::back);await("return to discovery",()->tag("search-discovery-card:"+id(100))!=null);
     ui(()->{EditText input=(EditText)tag("dish-search-keyword");input.setText("牛肉面");input.onEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);});
-    await("search complete",()->tag("dish-search-keyword").isEnabled()&&SearchHistoryStore.read(getTargetContext(),owner).get(0).equals("牛肉面"));
+    await("search complete",()->tag("search-stall:"+id(100))!=null&&SearchHistoryStore.read(getTargetContext(),owner).get(0).equals("牛肉面"));
     ui(()->{check(tag("dish-search-results").getVisibility()==View.VISIBLE&&tag("dish-search-discovery").getVisibility()==View.GONE,"Submitting swaps discovery for actual results");checkInputFits();});
     check(true,"Keyboard search commits history");screenshot("search-android");
     ui(()->((EditText)tag("dish-search-keyword")).setTextSize(24));waitForIdleSync();ui(this::checkInputFits);screenshot("search-large-text-android");
     ui(()->((EditText)tag("dish-search-keyword")).setTextSize(16));
-    click("dish-search-discovery-link");ui(()->{EditText input=(EditText)tag("dish-search-keyword");input.setText("");input.onEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);});
+    click("search-tab:notes");await("unified note results",()->tag("community-post-card:"+id(8000))!=null);
+    ui(()->check(tag("unified-search-toolbar")!=null,"Both result types share compact search toolbar"));
+    screenshot("unified-search-notes");click("search-tab:dishes");await("return to dish groups",()->tag("search-stall:"+id(100))!=null);
+    ui(()->{EditText input=(EditText)tag("dish-search-keyword");input.setText("");input.onEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);});
     await("empty keyword browse",()->tag("dish-search-keyword").isEnabled()&&tag("dish-search-results").getVisibility()==View.VISIBLE);check(true,"Explicit empty search still browses all dishes");
+    await("browse group",()->tag("search-dish:"+id(1000))!=null);
+    ui(()->{View first=tag("search-dish:"+id(1000)),fourth=tag("search-dish:"+id(1003));check(first.getWidth()>0&&fourth!=null,"Responsive row displays four dish cards");check(tag("app-header-brand")==null,"Search does not retain oversized brand header");});
+    await("visible search thumbnail decoded",()->{
+      View card=tag("search-dish:"+id(1000));if(!(card instanceof LinearLayout))return false;
+      View frame=((LinearLayout)card).getChildAt(0);return frame instanceof FrameLayout image&&image.getChildAt(0) instanceof ImageView bitmap&&bitmap.getDrawable()!=null;
+    });
+    screenshot("unified-search-four-cards");
     SearchHistoryStore.purge(getTargetContext(),owner);check(SearchHistoryStore.read(getTargetContext(),owner).isEmpty(),"Account purge removes keywords");
   }
   private void checkInputFits(){

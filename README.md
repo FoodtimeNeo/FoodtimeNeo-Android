@@ -40,3 +40,5 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 按最新dev建立功能分支，使用中文提交，并以一次非快进合并回dev；复用旧功能分支时先让其指针指向最新dev。正式发布默认通过dev → main的PR；负责人明确授权本地合并推送时保留合并历史。main合并提交的CI通过后，CD检出同一SHA验证、构建并发布签名release APK，也支持在main手动执行。
 
 点评已支持点赞、回复、回复点赞和“我的回复”审核记录，具体交互见[点评互动](docs/modules/review-interactions.md)。
+
+统一搜索：菜品按档口分组，笔记支持关联食堂筛选；紧凑布局、横滑续载及距离配置见 [统一搜索](docs/modules/unified-search.md)。真实食堂坐标待采集，本功能不改变当前正式版本号。
