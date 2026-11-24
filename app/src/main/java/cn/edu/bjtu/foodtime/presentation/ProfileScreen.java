@@ -118,7 +118,7 @@ final class ProfileScreen {
     GridGroup records = new GridGroup(a, page, "我的记录");
     records.add("我的食记", "community-mine", "", R.drawable.ic_hub_note, "");
     records.add("菜品点评", "mine-reviews", "", R.drawable.ic_hub_comment, reviewsCount);
-    records.add("餐厅点评", "venue-mine", "", R.drawable.ic_hub_dish, "");
+    records.add("餐厅点评", "venue-mine", "", R.drawable.ic_hub_store, "");
     records.add("我的回复", "mine-review-replies", "1", R.drawable.ic_hub_reply, "");
     records.add("我的提交", "mine-submissions", "", R.drawable.ic_hub_upload, "");
 
@@ -133,16 +133,16 @@ final class ProfileScreen {
     GroupBuilder account = new GroupBuilder(a, page, "账号与隐私");
     account.addRow(R.drawable.ic_hub_lock, false, 0, "修改密码", "password", "", "");
     account.addRow(R.drawable.ic_hub_block, false, 0, "黑名单", "blocked-users", "", "");
-    account.addRow(R.drawable.ic_hub_settings, false, 0, "提醒设置", "notification-settings", "", "");
-    TextView appearance = account.addCustomRow(R.drawable.ic_hub_settings, false, 0, "外观", () -> AppTheme.choose(a));
+    account.addRow(R.drawable.ic_hub_bell, false, 0, "提醒设置", "notification-settings", "", "");
+    TextView appearance = account.addCustomRow(R.drawable.ic_hub_palette, false, 0, "外观", () -> AppTheme.choose(a));
     appearance.setText(switch(AppTheme.mode(a)){case AppTheme.LIGHT -> "浅色";case AppTheme.DARK -> "深色";default -> "跟随系统";});
     appearance.setTag("appearance-setting");
     if (!user.isAdmin()) {
-      account.addRow(R.drawable.ic_photo_share, false, 0, "账号安全与注销", "account-lifecycle", "", "");
+      account.addRow(R.drawable.ic_hub_key, false, 0, "账号安全与注销", "account-lifecycle", "", "");
     }
 
     // 图片缓存清理行
-    TextView cacheSize = account.addCustomRow(R.drawable.food_tray, true, 1, "清理图片缓存", () -> {
+    TextView cacheSize = account.addCustomRow(R.drawable.ic_hub_trash, false, 0, "清理图片缓存", () -> {
       Ui.confirm(a, "清理图片缓存？", "仅清理本地图片缓存，不影响账号数据。", () -> {
         a.request(null, null, a.repo::clearImageCache, () -> {
           Ui.clearImages();
@@ -393,7 +393,7 @@ final class ProfileScreen {
                 String label, String kind, String id, String countText) {
       if (itemCount > 0) {
         View divider = new View(a);
-        divider.setBackgroundColor(0x14000000); // 1dp 细浅色分割线
+        divider.setBackgroundColor(Design.BORDER); // 1dp 细浅色分割线
         LinearLayout.LayoutParams divLp = new LinearLayout.LayoutParams(-1, Ui.dp(a, 1));
         divLp.leftMargin = Ui.dp(a, 48);
         divLp.rightMargin = Ui.dp(a, 16);
@@ -465,7 +465,7 @@ final class ProfileScreen {
                           String label, Runnable onClick) {
       if (itemCount > 0) {
         View divider = new View(a);
-        divider.setBackgroundColor(0x14000000);
+        divider.setBackgroundColor(Design.BORDER);
         LinearLayout.LayoutParams divLp = new LinearLayout.LayoutParams(-1, Ui.dp(a, 1));
         divLp.leftMargin = Ui.dp(a, 48);
         divLp.rightMargin = Ui.dp(a, 16);
