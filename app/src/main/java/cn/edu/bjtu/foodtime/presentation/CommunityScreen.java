@@ -174,7 +174,7 @@ final class CommunityScreen {
     return image+Math.min(1.0,.34+post.content().length()/100.0);
   }
 
-  private static void postCard(MainActivity a,LinearLayout column,CommunityPost post) {
+  static void postCard(MainActivity a,LinearLayout column,CommunityPost post) {
     LinearLayout card=Ui.card(column);card.setTag("community-post-card:"+post.id());card.setPadding(0,0,0,Ui.dp(a,4));
     card.setBackground(Ui.ripple(a, Design.PAPER, Design.BORDER, 12));
     card.setElevation(0);

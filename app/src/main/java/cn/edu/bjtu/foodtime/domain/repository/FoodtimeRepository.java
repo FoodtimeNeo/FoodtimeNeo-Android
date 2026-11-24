@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 import java.util.List;
 
 /** Screen-facing contract. Network implementations should load/cache off the main thread. */
-public interface FoodtimeRepository extends AuthRepository, CatalogRepository, VenueRepository, ReportManagementRepository, NotificationRepository, AppealRepository, PriceHistoryRepository, CommunityPinRepository, PostEditRepository {
+public interface FoodtimeRepository extends AuthRepository, CatalogRepository, VenueRepository, ReportManagementRepository, NotificationRepository, AppealRepository, PriceHistoryRepository, CommunityPinRepository, PostEditRepository, SearchRepository {
   /** Run on a worker. Read methods below return immutable cached snapshots. */
   default boolean hasSessionToRestore() { return true; }
   default void restoreSession() {}

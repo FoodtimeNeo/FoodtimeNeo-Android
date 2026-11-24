@@ -251,7 +251,7 @@ public class MainActivity extends Activity {
     screens.put("venue-mine",VenueScreen::mine);
     screens.put("dining", DiningScreen::halls);
     screens.put("campus-map", CampusMapScreen::show);
-    screens.put("dish-search", DishSearchScreen::show);
+    screens.put("dish-search", UnifiedSearchScreen::show);
     screens.put("price-history", PriceHistoryScreen::show);
     screens.put("favorite-dishes", FavoriteDishesScreen::show);
     screens.put("correction", CorrectionScreen::submit);
@@ -264,7 +264,7 @@ public class MainActivity extends Activity {
     screens.put("notification-settings", NotificationSettingsScreen::show);
     screens.put("community", CommunityScreen::feed);
     screens.put("community-following", CommunityScreen::feed);
-    screens.put("community-search", CommunityDiscoveryScreen::show);
+    screens.put("community-search", UnifiedSearchScreen::show);
     screens.put("community-author", CommunityDiscoveryScreen::show);
     screens.put("community-detail", CommunityScreen::detail);
     screens.put("community-create", CommunityScreen::create);
@@ -981,6 +981,7 @@ public class MainActivity extends Activity {
   }
   private void buildHeader() {
     header.removeAllViews();
+    if(isUnifiedSearch()) return;
     if (isCommunityDetailRoute()) {
       CommunityScreen.detailHeader(this, header, repo.communityPost(route().id()));
       return;
@@ -1484,12 +1485,16 @@ public class MainActivity extends Activity {
     }, () -> {});
   }
 
+  private boolean isUnifiedSearch(){return route().kind().equals("dish-search")||route().kind().equals("community-search");}
+  LinearLayout searchToolbar(){header.removeAllViews();return header;}
+  final SearchLocation searchLocation=new SearchLocation();
   void requestNotificationPermission(Runnable allowed) {notificationPermission.request(this,allowed);}
   @Override public void onRequestPermissionsResult(int code,String[] permissions,int[] grantResults) {
     super.onRequestPermissionsResult(code,permissions,grantResults);
     if(code==NotificationPermission.REQUEST_CODE)notificationPermission.result(this,grantResults);
+    if(code==SearchLocation.REQUEST_CODE)searchLocation.result(this);
   }
-  @Override protected void onPause() { super.onPause();foreground=false;if(communityPager!=null)communityPager.cancelSwipe();resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
+  @Override protected void onPause() { super.onPause();foreground=false;searchLocation.pause();if(communityPager!=null)communityPager.cancelSwipe();resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW||level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL||level>=android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND)Ui.trimImages();}
-  @Override protected void onDestroy() {if(coldStartSplash!=null)coldStartSplash.close();postDraftExit.close();notificationPermission.clear();if(accountActionConfirmation!=null)accountActionConfirmation.dismiss();if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();if(feedbackDocuments!=null)feedbackDocuments.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override protected void onDestroy() {if(coldStartSplash!=null)coldStartSplash.close();postDraftExit.close();notificationPermission.clear();searchLocation.clear();if(accountActionConfirmation!=null)accountActionConfirmation.dismiss();if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();if(feedbackDocuments!=null)feedbackDocuments.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }

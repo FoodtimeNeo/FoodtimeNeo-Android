@@ -1,6 +1,6 @@
 # FoodtimeNeo Android · 北交干饭吧
 
-当前版本 **2.1.2（正式版）**（versionCode 28）。更新范围与交付流程见 [2.1.2 正式版发布说明](docs/releases/release-2.1.2.md)。管理功能与权限见 [社区管理与个人资料](docs/modules/community-management.md)。固定签名与历史验收见 [1.0.0 发布验收](docs/releases/release-1.0.0.md)。
+当前版本 **2.1.3（正式版）**（versionCode 29）。更新范围与交付流程见 [2.1.3 正式版发布说明](docs/releases/release-2.1.3.md)。管理功能与权限见 [社区管理与个人资料](docs/modules/community-management.md)。固定签名与历史验收见 [1.0.0 发布验收](docs/releases/release-1.0.0.md)。
 
 原生 Java 17 / Android View 应用，默认访问真实 Backend。视觉沿用所给 Web 风格的纸张底色、墨棕描边、实色阴影与中文字体。
 
@@ -40,3 +40,5 @@ adb install -r app/build/outputs/apk/debug/app-debug.apk
 按最新dev建立功能分支，使用中文提交，并以一次非快进合并回dev；复用旧功能分支时先让其指针指向最新dev。正式发布默认通过dev → main的PR；负责人明确授权本地合并推送时保留合并历史。main合并提交的CI通过后，CD检出同一SHA验证、构建并发布签名release APK，也支持在main手动执行。
 
 点评已支持点赞、回复、回复点赞和“我的回复”审核记录，具体交互见[点评互动](docs/modules/review-interactions.md)。
+
+统一搜索：菜品按档口分组，笔记支持关联食堂筛选；紧凑布局、横滑续载及距离配置见 [统一搜索](docs/modules/unified-search.md)。真实食堂坐标待采集，本版包含上述统一搜索功能。
