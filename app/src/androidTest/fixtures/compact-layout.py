@@ -64,12 +64,16 @@ class Handler(BaseHTTPRequestHandler):
    if p.endswith('/reviews'):return self.send(empty)
    if d:return self.send({**d,'diningHallId':hall['id'],'diningHallName':hall['name'],'stallName':next(s['name'] for s in stalls if s['id']==d['stallId'])})
   if p.endswith('/users/me/dish-favorites'):return self.send({**empty,'total':31})
-  if p.endswith('/users/me/community-favorites'):return self.send({**empty,'total':52})
+  if p.endswith('/users/me/community-favorites'):
+   indices=[0] if q.get('unfiled')==['true'] else [1,2] if q.get('groupId') else [0,1,2]
+   posts=[{'id':uid(9010+i),'userId':user['id'],'userDisplayName':user['displayName'],'title':'收藏食记'+str(i),'content':'本地收藏夹验收','status':'approved','imageUrls':['/api/v1/media/'+uid(999)],'images':[{'id':uid(9110+i),'url':'/api/v1/media/'+uid(999),'width':800,'height':600,'sortOrder':0}],'createdAt':'2026-11-20T00:00:00Z','likeCount':0,'commentCount':0,'favoriteCount':1,'viewCount':0,'contentRevision':1} for i in indices]
+   return self.send({**empty,'items':posts,'total':len(indices) if q.get('groupId') or q.get('unfiled') else 52})
   if p.endswith('/users/me/community-posts'):return self.send({**empty,'total':65})
   if p.endswith('/users/me/venue-reviews'):return self.send({**empty,'total':43})
   if p.endswith('/unread-count'):return self.send({'unreadCount':0})
   if p.endswith('/notices/current'):return self.send(None)
-  if p.endswith('/notices/current-set') or p.endswith('/favorite-groups'):return self.send([])
+  if p.endswith('/favorite-groups'):return self.send([{'id':uid(9000),'kind':'post','name':'晚饭收藏','sortOrder':0,'revision':1,'itemCount':2}] if q.get('kind')==['post'] else [])
+  if p.endswith('/notices/current-set'):return self.send([])
   if p.endswith('/community/pins'):return self.send({'revision':0,'items':[],'canManage':False})
   if p.endswith('/recommendations/daily'):
    items=[{'stallId':s['id'],'stallName':s['name'],'diningHallId':hall['id'],'diningHallName':hall['name'],'averageRating':4.2,'reviewCount':3,'imageUrl':'/api/v1/media/'+uid(999),'recommendationType':'QUALITY','recommendationScore':.9,'reasonCode':'GOOD_REPUTATION','reason':'同学好评推荐'} for s in stalls[:2]]

@@ -94,6 +94,24 @@ public final class CompactLayoutRunner extends Instrumentation {
     EditText input=(EditText)tag("dish-search-keyword");
     check(input.getLayout()!=null&&input.getLayout().getLineBottom(0)-input.getLayout().getLineTop(0)<=input.getHeight()-input.getCompoundPaddingTop()-input.getCompoundPaddingBottom(),"Search glyph line fits within actual input content height");
   }
+  private void favoriteFolders()throws Exception{
+    ui(()->{activity.selectTab("community");activity.go("community-favorites","");});
+    await("favorite folder index",()->tag("favorite-post-folder:all")!=null&&tag("favorite-post-folder:unfiled")!=null);
+    ui(()->check(tag("favorite-post-create-group")!=null,"Folder creation remains visible on the index"));
+    await("custom favorite folder",()->tag("favorite-post-folder:"+id(9000))!=null);
+    waitForIdleSync();Thread.sleep(200);screenshot("favorite-folder-index");
+    click("favorite-post-folder:all");await("all favorite contents",()->tag("community-post-card:"+id(9010))!=null&&!activity.isPageLoading());
+    ui(()->{check(activity.route().kind().equals("community-favorite-folder"),"Folder content has its own back-stack entry");check(activity.scroll instanceof RefreshScrollView,"Folder contents retain gesture refresh");});
+    waitForIdleSync();Thread.sleep(200);screenshot("favorite-folder-all");ui(activity::back);
+    await("back to folders",()->tag("favorite-post-folder:unfiled")!=null);
+    click("favorite-post-folder:unfiled");await("default favorites",()->tag("favorite-post-folder-title")!=null&&!activity.isPageLoading());
+    ui(()->check(((TextView)tag("favorite-post-folder-title")).getText().toString().equals("默认分组"),"Default folder is separate from all favorites"));
+    ui(activity::refreshCurrent);await("folder refresh retained",()->tag("favorite-post-folder-title")!=null&&!activity.isPageLoading());
+    ui(()->check(activity.route().id().equals("unfiled"),"Refreshing retains selected folder"));ui(activity::back);
+    await("folder index restored",()->tag("favorite-post-folder:"+id(9000))!=null);click("favorite-post-folder:"+id(9000));
+    await("custom contents",()->tag("community-post-card:"+id(9011))!=null);
+    ui(()->check(activity.route().id().equals(id(9000)),"Custom folder opens only its own contents"));ui(activity::back);
+  }
   private EditText draftField(View view,String label){
     if(view instanceof EditText input&&label.contentEquals(input.getContentDescription()))return input;
     if(view instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++){EditText input=draftField(group.getChildAt(i),label);if(input!=null)return input;}
@@ -282,6 +300,6 @@ public final class CompactLayoutRunner extends Instrumentation {
     activity=(MainActivity)startActivitySync(new Intent(getTargetContext(),MainActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK));
     activity.repo.restoreSession();ui(activity::restore);
     await("fixture session",()->activity.repo.currentUser()!=null&&!activity.isPageLoading()&&splash()==null);
-    profile();draftFirstOpen();search();menu();theme();result.putString("stream","Compact layout PASS "+checks+" checks\n");finish(-1,result);
+    profile();draftFirstOpen();search();menu();favoriteFolders();theme();result.putString("stream","Compact layout PASS "+checks+" checks\n");finish(-1,result);
   }catch(Throwable error){try{screenshot("failure-android");}catch(Exception ignored){}result.putString("stream","Compact layout FAIL "+android.util.Log.getStackTraceString(error));finish(1,result);}finally{if(activity!=null)ui(activity::finish);}}
 }

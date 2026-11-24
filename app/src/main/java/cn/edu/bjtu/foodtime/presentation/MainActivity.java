@@ -275,6 +275,7 @@ public class MainActivity extends Activity {
     screens.put("account-lifecycle",AccountLifecycleScreen::show);
     screens.put("direct-chat", ChatScreen::chat);
     screens.put("community-favorites", CommunityScreen::collection);
+    screens.put("community-favorite-folder", (a,page,route)->{FavoritePostsScreen folder=new FavoritePostsScreen(a,page,route.id());page.post(()->{if(page.isAttachedToWindow())folder.refresh();});});
     screens.put("admin-community", CommunityAdminScreen::queue);
     screens.put("admin-community-detail", CommunityAdminScreen::detail);
     screens.put("stalls", DiningScreen::stalls);
@@ -789,7 +790,7 @@ public class MainActivity extends Activity {
       case "community-following" -> ContentRequest.Query.COMMUNITY_FOLLOWING;
       case "community-detail", "community-edit" -> ContentRequest.Query.COMMUNITY_POST;
       case "community-mine" -> ContentRequest.Query.MY_COMMUNITY_POSTS;
-      case "community-favorites" -> ContentRequest.Query.MY_COMMUNITY_FAVORITES;
+      case "community-favorites" -> null;
       case "inbox" -> switch(drafts.getString(draftKey("tab"),"notice")) {
         case "message" -> ContentRequest.Query.MESSAGES;
         case "chat" -> ContentRequest.Query.CONVERSATIONS;
@@ -927,7 +928,7 @@ public class MainActivity extends Activity {
       case "community-create" -> "写一页美食手账";
       case "community-edit" -> "修改食记";
       case "community-mine" -> "我的食记";
-      case "community-favorites" -> "我的收藏";
+      case "community-favorites", "community-favorite-folder" -> "我的收藏";
       case "inbox" -> "通知信箱";
       case "direct-chat" -> "私信";
       case "admin-community" -> "社区审核";
@@ -1107,7 +1108,9 @@ public class MainActivity extends Activity {
       content = communityPager.current().content();
       root.addView(communityPager.frame, new LinearLayout.LayoutParams(-1, 0, 1));
     } else {
-      scroll = new ScrollView(this);
+      boolean favoriteFolder=route().kind().equals("community-favorite-folder");
+      android.widget.ProgressBar folderRefresh=new android.widget.ProgressBar(this);folderRefresh.setVisibility(View.INVISIBLE);folderRefresh.setIndeterminateTintList(android.content.res.ColorStateList.valueOf(Design.RED));
+      scroll = favoriteFolder?new RefreshScrollView(this,folderRefresh,()->!isPageLoading(),this::refreshCurrent,null):new ScrollView(this);
       scroll.setFillViewport(true);
       content = Ui.col(this);
       content.setBackgroundColor(Design.PAPER);
@@ -1124,6 +1127,9 @@ public class MainActivity extends Activity {
         quickSize.setMargins(0,0,Ui.dp(this,18),Ui.dp(this,15));
         pageFrame.addView(quickReview,quickSize);
         root.addView(pageFrame,new LinearLayout.LayoutParams(-1,0,1));
+      }else if(favoriteFolder){
+        FrameLayout folderFrame=new FrameLayout(this);folderFrame.addView(scroll,new FrameLayout.LayoutParams(-1,-1));
+        folderFrame.addView(folderRefresh,new FrameLayout.LayoutParams(Ui.dp(this,36),Ui.dp(this,36),Gravity.TOP|Gravity.CENTER_HORIZONTAL));root.addView(folderFrame,new LinearLayout.LayoutParams(-1,0,1));
       }else root.addView(scroll, new LinearLayout.LayoutParams(-1, 0, 1));
     }
     if (chat || post) {
