@@ -75,7 +75,12 @@ public final class CompactLayoutRunner extends Instrumentation {
     ui(()->check(tag("unified-search-toolbar")!=null,"Both result types share compact search toolbar"));
     screenshot("unified-search-notes");click("search-tab:dishes");await("return to dish groups",()->tag("search-stall:"+id(100))!=null);
     ui(()->{EditText input=(EditText)tag("dish-search-keyword");input.setText("");input.onEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);});
-    await("empty keyword browse",()->tag("dish-search-keyword").isEnabled()&&tag("dish-search-results").getVisibility()==View.VISIBLE);check(true,"Explicit empty search still browses all dishes");
+    await("cleared search discovery",()->tag("dish-search-discovery").getVisibility()==View.VISIBLE&&tag("dish-search-results").getVisibility()==View.GONE);check(true,"Clearing keyword returns to discovery without submitting");
+    ui(()->{EditText input=(EditText)tag("dish-search-keyword");input.setText("面");});
+    await("real search suggestions",()->tag("search-suggestion:香菇鸡腿面")!=null);check(true,"Typed text shows real matching suggestions");
+    ui(()->{EditText input=(EditText)tag("dish-search-keyword");input.setText("");});
+    await("clear suggestions",()->tag("dish-search-discovery").getVisibility()==View.VISIBLE);
+    ui(()->{EditText input=(EditText)tag("dish-search-keyword");input.setText("面");input.onEditorAction(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);});
     await("browse group",()->tag("search-dish:"+id(1000))!=null);
     ui(()->{View first=tag("search-dish:"+id(1000)),fourth=tag("search-dish:"+id(1003));check(first.getWidth()>0&&fourth!=null,"Responsive row displays four dish cards");Rect visible=new Rect();check(fourth.getGlobalVisibleRect(visible)&&visible.width()==fourth.getWidth(),"Four complete cards fit inside page padding");check(tag("app-header-brand")==null,"Search does not retain oversized brand header");});
     await("visible search thumbnail decoded",()->{

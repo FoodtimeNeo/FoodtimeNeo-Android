@@ -4,6 +4,7 @@ import android.app.AlertDialog;
 import android.text.*;
 import android.view.*;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.BaseInputConnection;
 import android.widget.*;
 import cn.edu.bjtu.foodtime.domain.model.SearchModels;
 import cn.edu.bjtu.foodtime.domain.model.SearchModels.*;
@@ -15,7 +16,7 @@ import java.util.concurrent.atomic.AtomicReference;
 final class UnifiedSearchScreen {
   static void show(MainActivity a,LinearLayout page,MainActivity.Route route){new UnifiedSearchScreen(a,page,route);}
   private final MainActivity a;
-  private final LinearLayout page,toolbar,tabs,tools,results,discovery,history;
+  private final LinearLayout page,toolbar,tabs,tools,results,discovery,history,suggestions;
   private final EditText input;
   private final TextView error,status,sortButton,distanceButton,filterButton;
   private final NumberedPagination pagination;
@@ -29,6 +30,8 @@ final class UnifiedSearchScreen {
   private int currentPage=1,columns=4;
   private AlertDialog dialog;
   private PopupWindow popup;
+  private Runnable suggestionTask;
+  private long suggestionRevision;
   private Page<Stall> stallPage;
   private Page<Note> notePage;
   private final List<cn.edu.bjtu.foodtime.domain.model.Models.Hall> availableHalls=new ArrayList<>();
@@ -54,23 +57,45 @@ final class UnifiedSearchScreen {
     history=Ui.col(a);page.addView(history);discovery=Ui.col(a);discovery.setTag("dish-search-discovery");page.addView(discovery);results=Ui.col(a);results.setTag("dish-search-results");page.addView(results);
     pagination=new NumberedPagination(a,this::load);page.addView(pagination);
     page.addOnLayoutChangeListener((v,l,t,r,b,ol,ot,or,ob)->{int width=(int)((r-l-page.getPaddingLeft()-page.getPaddingRight())/a.getResources().getDisplayMetrics().density);int next=SearchModels.columns(width);if(next!=columns){columns=next;if(stallPage!=null)load(currentPage);}});
-    page.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener(){public void onViewAttachedToWindow(View v){}public void onViewDetachedFromWindow(View v){revision++;a.searchLocation.clear();latitude=null;longitude=null;if(dialog!=null)dialog.dismiss();if(popup!=null)popup.dismiss();}});
+    suggestions=Ui.col(a);suggestions.setTag("search-suggestions");page.addView(suggestions);suggestions.setVisibility(View.GONE);
+    page.addOnAttachStateChangeListener(new View.OnAttachStateChangeListener(){public void onViewAttachedToWindow(View v){}public void onViewDetachedFromWindow(View v){revision++;cancelSuggestions();a.searchLocation.clear();latitude=null;longitude=null;if(dialog!=null)dialog.dismiss();if(popup!=null)popup.dismiss();}});
     var hallResponse=new AtomicReference<List<cn.edu.bjtu.foodtime.domain.model.Models.Hall>>();a.read(requestKey+":halls",null,error,()->hallResponse.set(a.repo.loadHalls()),()->{availableHalls.clear();availableHalls.addAll(hallResponse.get());},()->{});
     restoreFilters();updateTools();
     searched=a.drafts.getBoolean(key+":searched",false);
-    if(searched)page.post(()->load(Math.max(1,a.drafts.getInt(key+":page",1))));else showDiscovery();
+    if(searched&&!submitted.isBlank())page.post(()->load(Math.max(1,a.drafts.getInt(key+":page",1))));else showDiscovery();
+    input.addTextChangedListener(new TextWatcher(){public void beforeTextChanged(CharSequence s,int start,int count,int after){}public void onTextChanged(CharSequence s,int start,int before,int count){editing();}public void afterTextChanged(Editable s){}});
+    input.setOnFocusChangeListener((v,focused)->{if(focused&&!input.getText().toString().isBlank())editing();});
   }
-  private TextView small(String label,Runnable action){TextView view=Ui.button(a,label,false,action);view.setTextSize(14);view.setMinHeight(Ui.dp(a,40));view.setPadding(Ui.dp(a,8),Ui.dp(a,6),Ui.dp(a,8),Ui.dp(a,6));view.setBackground(Ui.ripple(a,Design.PAPER,0,8));return view;}
+  private TextView small(String label,Runnable action){TextView view=Ui.button(a,label,false,action);view.setTextSize(14);view.setMinHeight(Ui.dp(a,40));view.setPadding(Ui.dp(a,8),Ui.dp(a,6),Ui.dp(a,8),Ui.dp(a,6));view.setBackground(Ui.ripple(a,Design.BAR,0,0));return view;}
   private void paintTabs(){tabs.removeAllViews();for(String value:List.of("dishes","notes")){TextView button=small(value.equals("dishes")?"菜品":"笔记",()->switchTab(value));button.setTag("search-tab:"+value);button.setTextSize(17);button.setSelected(tab.equals(value));if(tab.equals(value))button.setTextColor(Design.RED);LinearLayout.LayoutParams tabLayout=new LinearLayout.LayoutParams(-2,Ui.dp(a,44));tabLayout.setMarginEnd(Ui.dp(a,20));tabs.addView(button,tabLayout);}}
   private void switchTab(String next){if(next.equals(tab))return;saveFilters();revision++;loading=false;tab=next;sort="relevance";type="all";min=max=rating=null;restoreFilters();stallPage=null;notePage=null;paintTabs();sortButton.setText(label(sort));a.drafts.putString(key+":tab",tab);if(searched)load(1);}
-  private void submit(){submitted=input.getText().toString().strip();SearchHistoryStore.remember(a,a.repo.currentUser().id(),submitted);searched=true;load(1);}
+  private void submit(){cancelSuggestions();suggestions.setVisibility(View.GONE);input.clearFocus();submitted=input.getText().toString().strip();if(submitted.isEmpty()){revision++;loading=false;save();showDiscovery();a.drafts.putBoolean(key+":searched",false);return;}tools.setVisibility(View.VISIBLE);SearchHistoryStore.remember(a,a.repo.currentUser().id(),submitted);searched=true;load(1);}
+  private void cancelSuggestions(){suggestionRevision++;if(suggestionTask!=null)input.removeCallbacks(suggestionTask);}
+  private void editing(){
+    cancelSuggestions();revision++;loading=false;String term=input.getText().toString().strip();error.setText("");
+    if(term.isEmpty()){submitted="";a.drafts.putString(key+":q","");a.drafts.putBoolean(key+":searched",false);showDiscovery();return;}
+    tools.setVisibility(View.GONE);results.setVisibility(View.GONE);history.setVisibility(View.GONE);discovery.setVisibility(View.GONE);pagination.state(1,1,false);status.setText("");suggestions.removeAllViews();suggestions.setVisibility(View.VISIBLE);
+    long request=suggestionRevision;String selected=tab;suggestions.addView(Ui.text(a,"正在匹配…",13,Design.MUTED));
+    suggestionTask=()->{
+      if(request!=suggestionRevision)return;
+      if(BaseInputConnection.getComposingSpanStart(input.getText())>=0){input.postDelayed(suggestionTask,100);return;}
+      var matches=new AtomicReference<List<String>>();TextView failure=new TextView(a);
+      Query query=new Query(term,List.of(),null,null,null,"relevance","all",null,null,2);
+      a.read(requestKey+":suggestions:"+request,null,failure,()->{
+        var values=new LinkedHashSet<String>();values.add(term);
+        if(selected.equals("notes")){for(Note note:a.repo.searchNotes(query,1).items())values.add(note.post().title());}
+        else {for(Stall stall:a.repo.searchStalls(query,1).items())for(Dish dish:stall.dishes())values.add(dish.name());}
+        var limited=new ArrayList<String>();for(String value:values){if(limited.size()==10)break;limited.add(value);}matches.set(limited);
+      },()->{if(request!=suggestionRevision)return;suggestions.removeAllViews();for(String value:matches.get()){TextView option=small(value,()->{input.setText(value);submit();});option.setText(SearchText.highlight(value,term));option.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);option.setTag("search-suggestion:"+value);suggestions.addView(option,new LinearLayout.LayoutParams(-1,Ui.dp(a,48)));}},()->{if(request==suggestionRevision&&failure.length()>0){suggestions.removeAllViews();suggestions.addView(small("搜索 “"+term+"”",()->submit()));suggestions.addView(Ui.text(a,"匹配内容加载失败，可直接搜索",13,Design.MUTED));}});
+    };input.postDelayed(suggestionTask,250);
+  }
   private Query query(){
     if(sort.equals("distance")&&(latitude==null||android.os.SystemClock.elapsedRealtime()-locatedAt>300000))throw new IllegalStateException("请点击距离最近，重新定位");
     return new Query(submitted,List.copyOf(halls),min,max,rating,sort,type,sort.equals("distance")?latitude:null,sort.equals("distance")?longitude:null,Math.min(8,columns*2));
   }
   private void load(int number){
     final Query query;try{query=query();}catch(IllegalStateException failure){error.setText(failure.getMessage());return;}
-    updateTools();long request=++revision;loading=true;searched=true;currentPage=number;results.setVisibility(View.VISIBLE);history.setVisibility(View.GONE);discovery.setVisibility(View.GONE);results.removeAllViews();stallPage=null;notePage=null;error.setText("");status.setText("正在搜索…");pagination.state(number,1,false);
+    tools.setVisibility(View.VISIBLE);suggestions.setVisibility(View.GONE);updateTools();long request=++revision;loading=true;searched=true;currentPage=number;results.setVisibility(View.VISIBLE);history.setVisibility(View.GONE);discovery.setVisibility(View.GONE);results.removeAllViews();stallPage=null;notePage=null;error.setText("");status.setText("正在搜索…");pagination.state(number,1,false);
     AtomicReference<Page<Stall>> stalls=new AtomicReference<>();AtomicReference<Page<Note>> notes=new AtomicReference<>();String selected=tab;
     TextView requestError=new TextView(a);
     a.read(requestKey+":"+request,null,requestError,()->{if(selected.equals("notes"))notes.set(a.repo.searchNotes(query,number));else stalls.set(a.repo.searchStalls(query,number));},()->{
@@ -86,7 +111,7 @@ final class UnifiedSearchScreen {
   private void saveFilters(){String prefix=filterKey();a.drafts.putString(prefix+":min",min==null?"":min.toPlainString());a.drafts.putString(prefix+":max",max==null?"":max.toPlainString());a.drafts.putString(prefix+":rating",rating==null?"":rating.toPlainString());a.drafts.putString(prefix+":type",type);a.drafts.putString(prefix+":sort",sort);a.drafts.putStringArrayList(prefix+":halls",new ArrayList<>(halls));}
   private void restoreFilters(){String prefix=filterKey();min=savedAmount(prefix+":min");max=savedAmount(prefix+":max");rating=savedAmount(prefix+":rating");type=a.drafts.getString(prefix+":type","all");sort=a.drafts.getString(prefix+":sort","relevance");if(sort.equals("distance")&&latitude==null)sort="relevance";halls.clear();var saved=a.drafts.getStringArrayList(prefix+":halls");if(saved!=null)halls.addAll(saved);}
   private BigDecimal savedAmount(String name){String value=a.drafts.getString(name,"");try{return value.isBlank()?null:new BigDecimal(value);}catch(NumberFormatException e){return null;}}
-  private void showDiscovery(){searched=false;status.setText("");pagination.state(1,1,false);results.setVisibility(View.GONE);discovery.setVisibility(View.VISIBLE);history.setVisibility(View.VISIBLE);paintHistory();if(!discoveryLoaded){new SearchDiscovery(a,discovery);discoveryLoaded=true;}}
+  private void showDiscovery(){searched=false;tools.setVisibility(View.GONE);suggestions.setVisibility(View.GONE);status.setText("");pagination.state(1,1,false);results.setVisibility(View.GONE);discovery.setVisibility(View.VISIBLE);history.setVisibility(View.VISIBLE);paintHistory();if(!discoveryLoaded){new SearchDiscovery(a,discovery);discoveryLoaded=true;}}
   private void paintHistory(){history.removeAllViews();List<String> values=SearchHistoryStore.read(a,a.repo.currentUser().id());if(values.isEmpty())return;LinearLayout title=Ui.row(a);title.addView(Ui.text(a,"历史搜索",16,Design.INK),new LinearLayout.LayoutParams(0,-2,1));title.addView(small(editingHistory?"完成":"编辑",()->{editingHistory=!editingHistory;paintHistory();}));if(editingHistory)title.addView(small("清空",()->Ui.confirm(a,"清空搜索历史？","",()->{SearchHistoryStore.purge(a,a.repo.currentUser().id());paintHistory();})));history.addView(title);
     LinearLayout row=Ui.row(a);history.addView(row);int used=0,limit=a.getResources().getConfiguration().screenWidthDp-28;
     for(String value:values){TextView chip=small(value+(editingHistory?" ×":""),()->{if(editingHistory){SearchHistoryStore.remove(a,a.repo.currentUser().id(),value);paintHistory();}else{input.setText(value);submit();}});chip.setTextSize(13);chip.setMaxWidth(Ui.dp(a,limit));chip.measure(View.MeasureSpec.makeMeasureSpec(Ui.dp(a,limit),View.MeasureSpec.AT_MOST),0);int width=chip.getMeasuredWidth()/Math.max(1,(int)a.getResources().getDisplayMetrics().density)+8;if(used>0&&used+width>limit){row=Ui.row(a);history.addView(row);used=0;}row.addView(chip);used+=width;}
@@ -95,7 +120,7 @@ final class UnifiedSearchScreen {
     results.removeAllViews();if(stallPage==null)return;
     for(Stall stall:stallPage.items()){
       LinearLayout group=Ui.col(a);group.setPadding(0,Ui.dp(a,10),0,Ui.dp(a,10));group.setTag("search-stall:"+stall.id());results.addView(group);
-      LinearLayout identity=Ui.row(a);group.addView(identity);View cover=Ui.image(a,Ui.thumb(stall.imageUrl()),stall.name(),false);identity.addView(cover,new LinearLayout.LayoutParams(Ui.dp(a,44),Ui.dp(a,44)));LinearLayout copy=Ui.col(a);copy.setPadding(Ui.dp(a,8),0,0,0);identity.addView(copy,new LinearLayout.LayoutParams(0,-2,1));TextView name=Ui.text(a,stall.name()+"（"+stall.hallName()+"）",15,Design.INK);name.setMaxLines(2);copy.addView(name);copy.addView(Ui.text(a,(stall.averageScore()==null?"暂无评分":"★ "+stall.averageScore().stripTrailingZeros())+" · "+stall.reviewCount()+"条点评",12,Design.MUTED));identity.setOnClickListener(v->a.go("dishes",stall.id()));identity.setContentDescription(stall.name()+"（"+stall.hallName()+"）");
+      LinearLayout identity=Ui.row(a);group.addView(identity);View cover=Ui.image(a,Ui.thumb(stall.imageUrl()),stall.name(),false);identity.addView(cover,new LinearLayout.LayoutParams(Ui.dp(a,44),Ui.dp(a,44)));LinearLayout copy=Ui.col(a);copy.setPadding(Ui.dp(a,8),0,0,0);identity.addView(copy,new LinearLayout.LayoutParams(0,-2,1));TextView name=Ui.text(a,stall.name()+"（"+stall.hallName()+"）",15,Design.INK);name.setSingleLine(true);name.setEllipsize(TextUtils.TruncateAt.END);name.setText(SearchText.highlight(stall.name()+"（"+stall.hallName()+"）",submitted));copy.addView(name);copy.addView(Ui.text(a,(stall.averageScore()==null?"暂无评分":"★ "+stall.averageScore().stripTrailingZeros().toPlainString())+" · "+stall.reviewCount()+"条点评",12,Design.MUTED));identity.setOnClickListener(v->a.go("dishes",stall.id()));identity.setContentDescription(stall.name()+"（"+stall.hallName()+"）");
       if(stall.distanceMeters()!=null)identity.addView(Ui.text(a,SearchModels.distance(stall.distanceMeters()),11,Design.MUTED));
       Ui.gap(group,8);HorizontalScrollView strip=new HorizontalScrollView(a);strip.setHorizontalScrollBarEnabled(false);LinearLayout row=Ui.row(a);row.setGravity(Gravity.TOP);strip.addView(row);group.addView(strip);
       int available=page.getWidth()>0?page.getWidth()-page.getPaddingLeft()-page.getPaddingRight():Ui.dp(a,a.getResources().getConfiguration().screenWidthDp-28);int width=Math.max(Ui.dp(a,64),(available-Ui.dp(a,8)*(columns-1))/columns);
@@ -114,15 +139,15 @@ final class UnifiedSearchScreen {
   }
   private void appendDish(LinearLayout row,Dish dish,int width){
     LinearLayout card=Ui.col(a);card.setTag("search-dish:"+dish.id());LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(width,-2);lp.rightMargin=Ui.dp(a,8);row.addView(card,lp);
-    card.addView(Ui.image(a,Ui.thumb(dish.imageUrl()),dish.name(),false),new LinearLayout.LayoutParams(-1,width));TextView title=Ui.text(a,dish.name(),13,Design.INK);title.setMaxLines(2);title.setLineSpacing(0,1);title.setPadding(0,Ui.dp(a,2),0,0);title.setEllipsize(TextUtils.TruncateAt.END);card.addView(title);
-    TextView price=Ui.text(a,dish.price()==null?"价格未知":"¥"+dish.price().stripTrailingZeros()+(dish.priceUnit().equals("unspecified")?"":"/"+cn.edu.bjtu.foodtime.domain.model.PriceHistory.unit(dish.priceUnit())),13,Design.RED);price.setLineSpacing(0,1);card.addView(price);
-    if(dish.averageScore()!=null){TextView score=Ui.text(a,dish.averageScore().stripTrailingZeros()+"分",11,Design.MUTED);score.setLineSpacing(0,1);card.addView(score);}
+    card.addView(Ui.image(a,Ui.thumb(dish.imageUrl()),dish.name(),false),new LinearLayout.LayoutParams(-1,width));TextView title=Ui.text(a,dish.name(),13,Design.INK);title.setSingleLine(true);title.setText(SearchText.highlight(dish.name(),submitted));title.setLineSpacing(0,1);title.setPadding(0,Ui.dp(a,2),0,0);title.setEllipsize(TextUtils.TruncateAt.END);card.addView(title);
+    TextView price=Ui.text(a,dish.price()==null?"价格未知":"¥"+dish.price().stripTrailingZeros().toPlainString()+(dish.priceUnit().equals("unspecified")?"":"/"+cn.edu.bjtu.foodtime.domain.model.PriceHistory.unit(dish.priceUnit())),13,Design.RED);price.setLineSpacing(0,1);card.addView(price);
+    if(dish.averageScore()!=null){TextView score=Ui.text(a,dish.averageScore().stripTrailingZeros().toPlainString()+"分",11,Design.MUTED);score.setLineSpacing(0,1);card.addView(score);}
     card.setContentDescription(dish.name());card.setOnClickListener(v->a.go("detail",dish.id()));
   }
   private void paintNotes(){
     results.removeAllViews();if(notePage==null)return;LinearLayout row=Ui.row(a);row.setGravity(Gravity.TOP);results.addView(row);
     LinearLayout left=Ui.col(a),right=Ui.col(a);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);lp.rightMargin=Ui.dp(a,5);row.addView(left,lp);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-2,1);rp.leftMargin=Ui.dp(a,5);row.addView(right,rp);
-    int i=0;for(Note note:notePage.items()){LinearLayout column=i++%2==0?left:right;CommunityScreen.postCard(a,column,note.post());if(!note.hallName().isBlank())column.addView(Ui.text(a,note.hallName()+" "+SearchModels.distance(note.distanceMeters()),11,Design.MUTED));}
+    int i=0;for(Note note:notePage.items()){LinearLayout column=i++%2==0?left:right;CommunityScreen.postCard(a,column,note.post(),submitted);if(!note.hallName().isBlank())column.addView(Ui.text(a,note.hallName()+" "+SearchModels.distance(note.distanceMeters()),11,Design.MUTED));}
   }
   private void showSort(){if(popup!=null)popup.dismiss();LinearLayout choices=Ui.col(a);String[] values=tab.equals("notes")?new String[]{"relevance","latest","likes","distance"}:new String[]{"relevance","rating_desc","price_asc","price_desc","distance"};for(String value:values){TextView item=small(label(value)+(sort.equals(value)?" ✓":""),()->{popup.dismiss();if(value.equals("distance"))locate();else{sort=value;sortButton.setText(label(value));load(1);}});choices.addView(item,new LinearLayout.LayoutParams(-1,Ui.dp(a,44)));}popup=new PopupWindow(choices,Ui.dp(a,230),-2,true);popup.setBackgroundDrawable(Ui.shape(a,Design.PAPER,Design.BORDER,12));popup.setOutsideTouchable(true);popup.showAsDropDown(sortButton);}
   private String label(String value){return switch(value){case "price_asc"->"价格从低到高";case "price_desc"->"价格从高到低";case "rating_desc"->"评分优先";case "latest"->"最新发布";case "likes"->"最多点赞";case "distance"->"距离最近";default->"综合排序";};}
