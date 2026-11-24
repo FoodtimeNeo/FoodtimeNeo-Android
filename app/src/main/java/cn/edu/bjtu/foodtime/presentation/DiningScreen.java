@@ -8,11 +8,11 @@ import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import java.util.List;
 
 final class DiningScreen {
-  private static final float[] COVER_RATIOS={1.06f,.74f,.86f,1.18f,.78f,1.02f};
+  private static final float CARD_COVER_RATIO = .72f;
 
   static void halls(MainActivity a, LinearLayout page, MainActivity.Route route) {
     page.setBackground(new FoodDoodleDrawable(a));
-    a.heading(page,"01","食堂手账","");
+    page.setPadding(Ui.dp(a, 14), Ui.dp(a, 12), Ui.dp(a, 14), Ui.dp(a, 24));
 
     if (a.repo.halls().isEmpty()) {
       if (a.isPageLoading()) Ui.empty(page, "正在准备食堂…", "热乎的档口马上就来。");
@@ -23,36 +23,38 @@ final class DiningScreen {
       return;
     }
 
-    // 顶部紧凑搜索行：搜索框 + 右侧紧凑“食堂地图”图标按钮
+    // 顶部发现流搜索栏：直达全局统一搜索 + 右侧紧凑地图入口
     LinearLayout searchRow = Ui.row(a);
     searchRow.setGravity(Gravity.CENTER_VERTICAL);
-    EditText search = new EditText(a);
-    search.setId(View.generateViewId());
-    search.setContentDescription("想去哪家食堂？");
-    search.setHint("想去哪家食堂？");
-    search.setTextSize(15);
-    search.setTypeface(Design.body());
-    search.setSingleLine(true);
-    search.setFilters(new android.text.InputFilter[] {new android.text.InputFilter.LengthFilter(100)});
-    search.setPadding(Ui.dp(a, 16), 0, Ui.dp(a, 16), 0);
-    search.setBackground(Ui.shape(a, Design.PAPER, Design.BORDER, 22));
-    search.setTextColor(Design.INK);
-    search.setHintTextColor(Design.MUTED);
-    search.setImeOptions(android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH);
-    String key = a.draftKey("search");
-    search.setText(a.drafts.getString(key, ""));
-    searchRow.addView(search, new LinearLayout.LayoutParams(0, Ui.dp(a, 46), 1));
 
-    TextView clear = Ui.button(a, "清空", false, () -> {
-      search.setText("");
-      search.requestFocus();
-    });
-    clear.setBackground(Ui.ripple(a, Design.ALT, 0, 22));
-    clear.setContentDescription("清除搜索关键词");
-    clear.setVisibility(search.getText().length() == 0 ? View.GONE : View.VISIBLE);
-    LinearLayout.LayoutParams clearLp = new LinearLayout.LayoutParams(-2, Ui.dp(a, 46));
-    clearLp.leftMargin = Ui.dp(a, 6);
-    searchRow.addView(clear, clearLp);
+    LinearLayout searchPill = Ui.row(a);
+    searchPill.setGravity(Gravity.CENTER_VERTICAL);
+    searchPill.setFocusable(true);
+    searchPill.setClickable(true);
+    searchPill.setTag("dining-global-search");
+    searchPill.setContentDescription("搜索菜品、档口或笔记");
+    searchPill.setBackground(Ui.ripple(a, Design.ALT, Design.BORDER, 22));
+    searchPill.setPadding(Ui.dp(a, 14), Ui.dp(a, 4), Ui.dp(a, 5), Ui.dp(a, 4));
+    ImageView searchIcon = new ImageView(a);
+    searchIcon.setImageResource(cn.edu.bjtu.foodtime.R.drawable.ic_community_search);
+    searchIcon.setImageTintList(android.content.res.ColorStateList.valueOf(Design.MUTED));
+    searchIcon.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+    searchPill.addView(searchIcon, new LinearLayout.LayoutParams(Ui.dp(a, 18), Ui.dp(a, 18)));
+    TextView searchHint = Ui.text(a, "搜菜品、档口或食记", 14, Design.MUTED);
+    searchHint.setSingleLine(true);
+    searchHint.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    LinearLayout.LayoutParams hintLp = new LinearLayout.LayoutParams(0, -2, 1);
+    hintLp.leftMargin = Ui.dp(a, 8);
+    hintLp.rightMargin = Ui.dp(a, 8);
+    searchPill.addView(searchHint, hintLp);
+    TextView searchCta = Ui.text(a, "搜索", 13, Design.ON_RED);
+    searchCta.setTypeface(Typeface.create(Design.body(), Typeface.BOLD));
+    searchCta.setGravity(Gravity.CENTER);
+    searchCta.setPadding(Ui.dp(a, 12), Ui.dp(a, 6), Ui.dp(a, 12), Ui.dp(a, 6));
+    searchCta.setBackground(Ui.shape(a, Design.RED, 0, 18));
+    searchPill.addView(searchCta, new LinearLayout.LayoutParams(-2, Ui.dp(a, 34)));
+    searchPill.setOnClickListener(v -> a.go("dish-search", ""));
+    searchRow.addView(searchPill, new LinearLayout.LayoutParams(0, Ui.dp(a, 44), 1));
 
     LinearLayout mapBtn = Ui.row(a);
     mapBtn.setGravity(Gravity.CENTER);
@@ -63,62 +65,83 @@ final class DiningScreen {
     mapBtn.setPadding(Ui.dp(a, 12), 0, Ui.dp(a, 12), 0);
     ImageView mapIcon = new ImageView(a);
     mapIcon.setImageResource(cn.edu.bjtu.foodtime.R.drawable.ic_campus_map);
-    mapIcon.setImageTintList(android.content.res.ColorStateList.valueOf(Design.INK));
+    mapIcon.setImageTintList(android.content.res.ColorStateList.valueOf(Design.RED));
     mapBtn.addView(mapIcon, new LinearLayout.LayoutParams(Ui.dp(a, 18), Ui.dp(a, 18)));
-    TextView mapText = Ui.text(a, "食堂地图", 13, Design.INK);
-    mapText.setTypeface(Design.body());
+    TextView mapText = Ui.text(a, "地图", 13, Design.INK);
+    mapText.setTypeface(Typeface.create(Design.body(), Typeface.BOLD));
     LinearLayout.LayoutParams textLp = new LinearLayout.LayoutParams(-2, -2);
-    textLp.leftMargin = Ui.dp(a, 5);
+    textLp.leftMargin = Ui.dp(a, 4);
     mapBtn.addView(mapText, textLp);
     mapBtn.setOnClickListener(v -> a.go("campus-map", ""));
-    LinearLayout.LayoutParams mapLp = new LinearLayout.LayoutParams(-2, Ui.dp(a, 46));
+    LinearLayout.LayoutParams mapLp = new LinearLayout.LayoutParams(-2, Ui.dp(a, 44));
     mapLp.leftMargin = Ui.dp(a, 8);
     searchRow.addView(mapBtn, mapLp);
 
     page.addView(searchRow, new LinearLayout.LayoutParams(-1, -2));
-    Ui.gap(page, 14);
+    Ui.gap(page, 16);
 
-    // 今日推荐横向卡片
+    // 今日推荐紧凑横向发现条
     RecommendationSection.show(a, page);
 
-    // 底部食堂瀑布流区域
-    TextView count = Ui.text(a, "", 14, Design.MUTED);
+    // 全部食堂标题 + 校区轻筛选胶囊
+    LinearLayout sectionHeader = Ui.row(a);
+    sectionHeader.setGravity(Gravity.CENTER_VERTICAL);
+    TextView count = Ui.title(a, "", 20);
     count.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-    page.addView(count);
+    sectionHeader.addView(count, new LinearLayout.LayoutParams(0, -2, 1));
+    LinearLayout areaChips = Ui.row(a);
+    sectionHeader.addView(areaChips, new LinearLayout.LayoutParams(-2, -2));
+    page.addView(sectionHeader, new LinearLayout.LayoutParams(-1, -2));
     Ui.gap(page, 12);
+
     LinearLayout list = Ui.col(a);
     page.addView(list);
 
     List<Hall> allHalls = a.repo.halls();
-    Runnable filter = () -> {
-      String query = search.getText().toString();
-      a.drafts.putString(key, query);
-      clear.setVisibility(query.isEmpty() ? View.GONE : View.VISIBLE);
+    String[] areas = {"全部", "主校区", "东区"};
+    String areaKey = a.draftKey("area-filter");
+    String[] activeArea = {a.drafts.getString(areaKey, "全部")};
+    Runnable[] renderHalls = {null};
+    renderHalls[0] = () -> {
+      areaChips.removeAllViews();
+      for (String area : areas) {
+        boolean chosen = area.equals(activeArea[0]);
+        TextView chip = Ui.text(a, area, 12, chosen ? Design.RED : Design.MUTED);
+        chip.setTypeface(chosen ? Typeface.create(Design.body(), Typeface.BOLD) : Design.body());
+        chip.setGravity(Gravity.CENTER);
+        chip.setPadding(Ui.dp(a, 10), Ui.dp(a, 5), Ui.dp(a, 10), Ui.dp(a, 5));
+        chip.setMinHeight(Ui.dp(a, 30));
+        chip.setBackground(Ui.ripple(a, chosen ? Design.RED_SOFT : Design.ALT, chosen ? Design.RED : 0, 15));
+        chip.setFocusable(true);
+        chip.setClickable(true);
+        chip.setOnClickListener(v -> {
+          activeArea[0] = area;
+          a.drafts.putString(areaKey, area);
+          renderHalls[0].run();
+        });
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-2, -2);
+        clp.leftMargin = Ui.dp(a, 6);
+        areaChips.addView(chip, clp);
+      }
+
       list.removeAllViews();
       List<Hall> filtered = new java.util.ArrayList<>();
       for (Hall hall : allHalls) {
-        if (cn.edu.bjtu.foodtime.domain.model.CatalogSearch.matches(hall.name(), query)) {
+        boolean isEast = hall.name().contains("东区");
+        if ("全部".equals(activeArea[0])
+            || ("东区".equals(activeArea[0]) && isEast)
+            || ("主校区".equals(activeArea[0]) && !isEast)) {
           filtered.add(hall);
         }
       }
-      int found = filtered.size();
-      count.setText(query.isBlank()
-          ? "全部食堂 (" + allHalls.size() + ")"
-          : "全部食堂 (" + found + ")");
-      if (found == 0) {
-        Ui.empty(list, "没有找到相关食堂", "换个关键词搜搜看吧。");
+      count.setText("全部食堂 (" + filtered.size() + ")");
+      if (filtered.isEmpty()) {
+        Ui.empty(list, "该区域暂无食堂", "切换“全部”查看校内所有食堂。");
       } else {
         hallGallery(a, list, filtered);
       }
     };
-    Ui.observe(search, filter);
-    search.setOnEditorActionListener((view, action, event) -> {
-      if (action != android.view.inputmethod.EditorInfo.IME_ACTION_SEARCH) return false;
-      ((android.view.inputmethod.InputMethodManager) a.getSystemService(android.content.Context.INPUT_METHOD_SERVICE))
-          .hideSoftInputFromWindow(search.getWindowToken(), 0);
-      return true;
-    });
-    filter.run();
+    renderHalls[0].run();
   }
 
   static String getHallFallbackImage(Hall hall, int index) {
@@ -180,62 +203,143 @@ final class DiningScreen {
     return location;
   }
 
-  private static void hallGallery(MainActivity a,LinearLayout page,List<Hall> halls) {
-    LinearLayout waterfall=Ui.row(a);waterfall.setGravity(Gravity.TOP);
-    LinearLayout left=Ui.col(a),right=Ui.col(a);
-    LinearLayout.LayoutParams leftLp=new LinearLayout.LayoutParams(0,-2,1);leftLp.rightMargin=Ui.dp(a,6);
-    LinearLayout.LayoutParams rightLp=new LinearLayout.LayoutParams(0,-2,1);rightLp.leftMargin=Ui.dp(a,6);
-    waterfall.addView(left,leftLp);waterfall.addView(right,rightLp);
-    float[] heights={0,0};
-    for(int i=0;i<halls.size();i++) {
-      int column=heights[0]<=heights[1]?0:1;
-      float ratio=COVER_RATIOS[i%COVER_RATIOS.length];
-      hallCard(a,column==0?left:right,halls.get(i),i,ratio);
-      heights[column]+=ratio+.58f;
+  private static void hallGallery(MainActivity a, LinearLayout page, List<Hall> halls) {
+    for (int i = 0; i < halls.size(); i += 2) {
+      LinearLayout row = Ui.row(a);
+      row.setGravity(Gravity.TOP);
+      LinearLayout.LayoutParams leftLp = new LinearLayout.LayoutParams(0, -1, 1);
+      leftLp.rightMargin = Ui.dp(a, 5);
+      row.addView(hallCard(a, halls.get(i), i), leftLp);
+      LinearLayout.LayoutParams rightLp = new LinearLayout.LayoutParams(0, -1, 1);
+      rightLp.leftMargin = Ui.dp(a, 5);
+      if (i + 1 < halls.size()) {
+        row.addView(hallCard(a, halls.get(i + 1), i + 1), rightLp);
+      } else {
+        row.addView(new Space(a), rightLp);
+      }
+      LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, -2);
+      rowLp.bottomMargin = Ui.dp(a, 10);
+      page.addView(row, rowLp);
     }
-    page.addView(waterfall,new LinearLayout.LayoutParams(-1,-2));
   }
 
-  private static void hallCard(MainActivity a,LinearLayout column,Hall hall,int index,float ratio) {
-    LinearLayout card=Ui.col(a);
-    card.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,18));
-    card.setClipToOutline(true);card.setElevation(Ui.dp(a,2));
-    String image=hall.coverImageUrl();
-    if(image==null||image.isBlank()) image=getHallFallbackImage(hall, index);
-    card.addView(Ui.ratioImage(a,Ui.thumb(image),hall.name(),ratio),new LinearLayout.LayoutParams(-1,-2));
-    LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,14));
-    TextView number=Ui.text(a,String.format("第 %02d 站",index+1),11,index%3==1?Design.GREEN:Design.RED);
-    number.setLetterSpacing(.08f);body.addView(number);Ui.gap(body,6);
-    TextView name=Ui.title(a,hall.name(),20);name.setMaxLines(2);body.addView(name);
+  private static LinearLayout hallCard(MainActivity a, Hall hall, int index) {
+    LinearLayout card = Ui.col(a);
+    card.setBackground(Ui.ripple(a, Design.PAPER, Design.BORDER, 14));
+    card.setClipToOutline(true);
+    card.setElevation(Ui.dp(a, 1));
+    String image = hall.coverImageUrl();
+    if (image == null || image.isBlank()) image = getHallFallbackImage(hall, index);
+    FrameLayout cover = new FrameLayout(a);
+    cover.addView(Ui.ratioImage(a, Ui.thumb(image), hall.name(), CARD_COVER_RATIO),
+        new FrameLayout.LayoutParams(-1, -2));
     if (hall.averageScore() != null) {
-      Ui.gap(body, 4);
-      body.addView(Ui.text(a,VenueScreen.scoreLabel(hall.averageScore(),hall.reviewCount()),12,Design.RED));
+      TextView scorePill = Ui.text(a,
+          "★ " + hall.averageScore().stripTrailingZeros().toPlainString(), 11, 0xffffffff);
+      scorePill.setTypeface(Typeface.create(Design.body(), Typeface.BOLD));
+      scorePill.setPadding(Ui.dp(a, 7), Ui.dp(a, 3), Ui.dp(a, 7), Ui.dp(a, 3));
+      scorePill.setBackground(Ui.shape(a, 0xcc2b1c14, 0, 10));
+      FrameLayout.LayoutParams pillLp = new FrameLayout.LayoutParams(-2, -2, Gravity.TOP | Gravity.END);
+      pillLp.setMargins(0, Ui.dp(a, 8), Ui.dp(a, 8), 0);
+      cover.addView(scorePill, pillLp);
     }
-    Ui.gap(body,8);body.addView(Ui.text(a,hallMetaLabel(a, hall),12,Design.MUTED));
-    card.addView(body,new LinearLayout.LayoutParams(-1,-2));
-    card.setFocusable(true);card.setClickable(true);
-    card.setTag("dining-hall:"+hall.id());
-    card.setContentDescription(hall.name()+"，查看档口和菜品");
-    card.setOnClickListener(v -> a.go("stalls",hall.id()));
-    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=Ui.dp(a,12);
-    column.addView(card,lp);
+    card.addView(cover, new LinearLayout.LayoutParams(-1, -2));
+    LinearLayout body = Ui.col(a);
+    body.setPadding(Ui.dp(a, 10), Ui.dp(a, 10), Ui.dp(a, 10), Ui.dp(a, 12));
+    TextView name = Ui.title(a, hall.name(), 16);
+    name.setMaxLines(1);
+    name.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    body.addView(name);
+    Ui.gap(body, 4);
+    TextView meta = Ui.text(a, hallMetaLabel(a, hall), 12, Design.MUTED);
+    meta.setMaxLines(1);
+    meta.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    body.addView(meta);
+    card.addView(body, new LinearLayout.LayoutParams(-1, -2));
+    card.setFocusable(true);
+    card.setClickable(true);
+    card.setTag("dining-hall:" + hall.id());
+    card.setContentDescription(hall.name() + "，查看档口和菜品");
+    card.setOnClickListener(v -> a.go("stalls", hall.id()));
+    return card;
   }
 
   static void stalls(MainActivity a, LinearLayout page, MainActivity.Route route) {
     Hall hall=a.repo.hall(route.id());
     if(hall==null||!hall.active())throw new IllegalArgumentException("食堂不存在或已停用");
     page.setPadding(0,0,0,0);
-    LinearLayout heading=Ui.col(a);heading.setPadding(Ui.dp(a,16),Ui.dp(a,16),Ui.dp(a,16),Ui.dp(a,6));
-    LinearLayout name=Ui.row(a);name.addView(Ui.title(a,hall.name(),26),new LinearLayout.LayoutParams(0,-2,1));
-    TextView reviews=Ui.button(a,"评价 ›",false,()->a.go("venue-reviews","hall~"+hall.id()+"~all"));reviews.setTextSize(13);reviews.setBackground(Ui.ripple(a,Design.PAPER,0,8));name.addView(reviews);heading.addView(name);
-    heading.addView(Ui.text(a,a.repo.stalls(hall.id()).size()+" 个档口",13,Design.MUTED));
-    TextView info=Ui.button(a,"食堂信息 ⌄",false,()->{
+    LinearLayout heading=Ui.col(a);
+    heading.setBackgroundColor(Design.PAPER);
+    heading.setPadding(Ui.dp(a,14),Ui.dp(a,12),Ui.dp(a,14),Ui.dp(a,10));
+
+    LinearLayout headerCard=Ui.row(a);
+    headerCard.setGravity(Gravity.CENTER_VERTICAL);
+    headerCard.setPadding(Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,12));
+    headerCard.setBackground(Ui.shape(a,Design.ALT,Design.BORDER,14));
+
+    String coverUrl=hall.coverImageUrl();
+    if(coverUrl!=null&&!coverUrl.isBlank()){
+      View thumb=Ui.image(a,Ui.thumb(coverUrl),hall.name(),false);
+      thumb.setBackground(Ui.shape(a,Design.PAPER,0,10));
+      thumb.setClipToOutline(true);
+      LinearLayout.LayoutParams tlp=new LinearLayout.LayoutParams(Ui.dp(a,56),Ui.dp(a,56));
+      tlp.rightMargin=Ui.dp(a,12);
+      headerCard.addView(thumb,tlp);
+    }
+
+    LinearLayout metaCol=Ui.col(a);
+    TextView titleView=Ui.title(a,hall.name(),20);
+    titleView.setMaxLines(1);
+    titleView.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    metaCol.addView(titleView);
+    Ui.gap(metaCol,4);
+
+    LinearLayout subRow=Ui.row(a);
+    subRow.setGravity(Gravity.CENTER_VERTICAL);
+    if(hall.averageScore()!=null){
+      TextView score=Ui.text(a,"★ "+hall.averageScore().stripTrailingZeros().toPlainString(),12,Design.GOLD);
+      score.setTypeface(Typeface.create(Design.body(),Typeface.BOLD));
+      subRow.addView(score);
+      TextView dot=Ui.text(a," · ",12,Design.MUTED);
+      subRow.addView(dot);
+    }
+    subRow.addView(Ui.text(a,a.repo.stalls(hall.id()).size()+" 个档口",12,Design.MUTED));
+    metaCol.addView(subRow);
+    headerCard.addView(metaCol,new LinearLayout.LayoutParams(0,-2,1));
+
+    LinearLayout actionsCol=Ui.col(a);
+    actionsCol.setGravity(Gravity.END);
+    TextView reviews=Ui.text(a,"评价 ›",12,Design.RED);
+    reviews.setTypeface(Typeface.create(Design.body(),Typeface.BOLD));
+    reviews.setGravity(Gravity.CENTER);
+    reviews.setMinHeight(Ui.dp(a,32));
+    reviews.setPadding(Ui.dp(a,10),Ui.dp(a,4),Ui.dp(a,10),Ui.dp(a,4));
+    reviews.setBackground(Ui.ripple(a,Design.RED_SOFT,0,16));
+    reviews.setFocusable(true);reviews.setClickable(true);
+    reviews.setOnClickListener(v->a.go("venue-reviews","hall~"+hall.id()+"~all"));
+    actionsCol.addView(reviews);
+    Ui.gap(actionsCol,6);
+    TextView info=Ui.text(a,"信息 ⌄",12,Design.MUTED);
+    info.setGravity(Gravity.CENTER);
+    info.setMinHeight(Ui.dp(a,28));
+    info.setPadding(Ui.dp(a,10),Ui.dp(a,2),Ui.dp(a,10),Ui.dp(a,2));
+    info.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,14));
+    info.setFocusable(true);info.setClickable(true);
+    info.setContentDescription("食堂信息");
+    info.setOnClickListener(v->{
       LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,20),Ui.dp(a,12),Ui.dp(a,20),Ui.dp(a,20));
       body.addView(Ui.text(a,VenueScreen.scoreLabel(hall.averageScore(),hall.reviewCount()),14,Design.MUTED));Ui.gap(body,12);
       CatalogQuickActions.show(a,body,"halls",hall.id());
       Ui.action(body,"投稿档口",false,()->a.go("submit-stall",hall.id()));
       new android.app.AlertDialog.Builder(a).setTitle(hall.name()).setView(body).setNegativeButton("关闭",null).show();
-    });info.setTextSize(13);info.setGravity(Gravity.START|Gravity.CENTER_VERTICAL);info.setBackground(Ui.ripple(a,Design.PAPER,0,8));heading.addView(info);page.addView(heading);
+    });
+    actionsCol.addView(info);
+    headerCard.addView(actionsCol,new LinearLayout.LayoutParams(-2,-2));
+
+    heading.addView(headerCard,new LinearLayout.LayoutParams(-1,-2));
+    page.addView(heading);
+    View topRule=new View(a);topRule.setBackgroundColor(Design.BORDER);
+    page.addView(topRule,new LinearLayout.LayoutParams(-1,Ui.dp(a,1)));
     if(a.repo.stalls(hall.id()).isEmpty()){Ui.empty(page,"暂无档口","");return;}
     new CanteenMenu(a,page,a.repo.stalls(hall.id()));
   }
