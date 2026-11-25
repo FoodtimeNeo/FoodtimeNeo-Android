@@ -220,7 +220,8 @@ final class CampusMapScreen {
           map.setUserLocation(false, 0, 0, 0);
         }
         if (locateBtn != null) {
-          locateBtn.setTextColor(userOnCampus ? 0xff1a73e8 : (locating ? Design.RED : Design.INK));
+          int locatedBlue = AppTheme.dark(a) ? 0xff64b5f6 : 0xff1a73e8;
+          locateBtn.setTextColor(userOnCampus ? locatedBlue : (locating ? Design.RED : Design.INK));
         }
       }
 
@@ -1056,7 +1057,7 @@ final class CampusMapScreen {
 
       if (failed) {
         paint.setStyle(Paint.Style.FILL);
-        paint.setColor(Design.INK);
+        paint.setColor(0xff2b1c14);
         paint.setTextSize(Ui.dp(getContext(), 14));
         canvas.drawText("地图图片读取失败，请使用下方名称选择", Ui.dp(getContext(), 12), Ui.dp(getContext(), 28), paint);
       }
@@ -1255,7 +1256,7 @@ final class CampusMapScreen {
       paint.setColor(selected ? Color.WHITE : Design.RED);
       canvas.drawCircle(dotCx, midY, dotR, paint);
 
-      textPaint.setColor(selected ? Design.ON_RED : Design.INK);
+      textPaint.setColor(selected ? Design.ON_RED : 0xff2b1c14);
       Paint.FontMetrics fm = textPaint.getFontMetrics();
       float textY = midY - (fm.ascent + fm.descent) / 2f;
       canvas.drawText(label, dotCx + dotR + Ui.dp(getContext(), 4.5f), textY, textPaint);
