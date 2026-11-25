@@ -209,12 +209,16 @@ public final class CampusNavigator {
       float ex = first.x2(), ey = first.y2();
       int j = i + 1;
       while (j < segments.size()
-          && Objects.equals(segments.get(j).roadName(), road)
           && (segments.get(j).note() == null || segments.get(j).note().isEmpty())
           && (note == null || note.isEmpty())) {
-        dist += segments.get(j).distanceMeters();
-        ex = segments.get(j).x2();
-        ey = segments.get(j).y2();
+        Segment nxt = segments.get(j);
+        boolean sameRoad = Objects.equals(nxt.roadName(), road);
+        boolean microStraight = nxt.distanceMeters() < 32.0
+            && "直行".equals(turnWord(ex - sx, ey - sy, nxt.x2() - nxt.x1(), nxt.y2() - nxt.y1()));
+        if (!sameRoad && !microStraight) break;
+        dist += nxt.distanceMeters();
+        ex = nxt.x2();
+        ey = nxt.y2();
         j++;
       }
       float curDx = ex - sx, curDy = ey - sy;

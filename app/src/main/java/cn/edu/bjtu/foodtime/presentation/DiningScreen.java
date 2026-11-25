@@ -317,14 +317,6 @@ final class DiningScreen {
     meta.setMaxLines(1);
     meta.setEllipsize(android.text.TextUtils.TruncateAt.END);
     body.addView(meta);
-    if (fix != null && hall.hasCoordinates()) {
-      double meters = hallDistanceMeters(hall, fix);
-      Ui.gap(body, 4);
-      TextView distView = Ui.text(a, "步行 " + CampusProjection.formatWalkSummary(meters), 11, Design.RED);
-      distView.setMaxLines(1);
-      distView.setEllipsize(android.text.TextUtils.TruncateAt.END);
-      body.addView(distView);
-    }
     card.addView(body, new LinearLayout.LayoutParams(-1, -2));
     card.setFocusable(true);
     card.setClickable(true);
