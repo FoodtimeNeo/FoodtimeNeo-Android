@@ -24,8 +24,11 @@ public final class Models {
       BigDecimal averageRating,long reviewCount,String imageUrl,
       String recommendationType,double recommendationScore,String reasonCode,String reason) {}
 
-  public record Hall(String id, String name, String coverImageUrl, boolean active, BigDecimal averageScore, long reviewCount) {
-    public Hall(String id,String name,String coverImageUrl,boolean active){this(id,name,coverImageUrl,active,null,0);}
+  public record Hall(String id, String name, String coverImageUrl, boolean active, BigDecimal averageScore, long reviewCount,
+                     Double latitude, Double longitude) {
+    public Hall(String id,String name,String coverImageUrl,boolean active,BigDecimal averageScore,long reviewCount){this(id,name,coverImageUrl,active,averageScore,reviewCount,null,null);}
+    public Hall(String id,String name,String coverImageUrl,boolean active){this(id,name,coverImageUrl,active,null,0,null,null);}
+    public boolean hasCoordinates(){return latitude!=null&&longitude!=null&&Double.isFinite(latitude)&&Double.isFinite(longitude);}
   }
 
   public record Stall(
@@ -448,8 +451,9 @@ public final class Models {
       String description,
       String price,
       String coverImageUrl,
-      boolean active, String priceUnit) {
-    public AdminEntity(String id,String name,String description,String price,String coverImageUrl,boolean active){this(id,name,description,price,coverImageUrl,active,"unspecified");}
+      boolean active, String priceUnit, String latitude, String longitude) {
+    public AdminEntity(String id,String name,String description,String price,String coverImageUrl,boolean active){this(id,name,description,price,coverImageUrl,active,"unspecified","","");}
+    public AdminEntity(String id,String name,String description,String price,String coverImageUrl,boolean active,String priceUnit){this(id,name,description,price,coverImageUrl,active,priceUnit,"","");}
   }
 
   public record Audit(

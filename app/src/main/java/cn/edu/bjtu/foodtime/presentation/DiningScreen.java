@@ -2,8 +2,10 @@ package cn.edu.bjtu.foodtime.presentation;
 
 import android.graphics.*;
 import android.graphics.drawable.Drawable;
+import android.location.Location;
 import android.view.*;
 import android.widget.*;
+import cn.edu.bjtu.foodtime.domain.map.CampusProjection;
 import cn.edu.bjtu.foodtime.domain.model.Models.*;
 import java.util.List;
 
@@ -83,15 +85,27 @@ final class DiningScreen {
     // 今日推荐紧凑横向发现条
     RecommendationSection.show(a, page);
 
-    // 全部食堂标题 + 校区轻筛选胶囊
+    // 全部食堂标题 + 按距离排序开关 + 校区轻筛选胶囊
     LinearLayout sectionHeader = Ui.row(a);
     sectionHeader.setGravity(Gravity.CENTER_VERTICAL);
     TextView count = Ui.title(a, "", 20);
     count.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
     sectionHeader.addView(count, new LinearLayout.LayoutParams(0, -2, 1));
-    LinearLayout areaChips = Ui.row(a);
-    sectionHeader.addView(areaChips, new LinearLayout.LayoutParams(-2, -2));
+    TextView distanceChip = Ui.text(a, "按距离", 12, Design.MUTED);
+    distanceChip.setGravity(Gravity.CENTER);
+    distanceChip.setLineSpacing(0, 1);
+    distanceChip.setPadding(Ui.dp(a, 11), Ui.dp(a, 5), Ui.dp(a, 11), Ui.dp(a, 5));
+    distanceChip.setMinHeight(Ui.dp(a, 30));
+    distanceChip.setFocusable(true);
+    distanceChip.setClickable(true);
+    distanceChip.setTag("dining-sort-distance");
+    sectionHeader.addView(distanceChip, new LinearLayout.LayoutParams(-2, -2));
     page.addView(sectionHeader, new LinearLayout.LayoutParams(-1, -2));
+    Ui.gap(page, 8);
+
+    LinearLayout areaChips = Ui.row(a);
+    areaChips.setGravity(Gravity.CENTER_VERTICAL);
+    page.addView(areaChips, new LinearLayout.LayoutParams(-1, -2));
     Ui.gap(page, 12);
 
     LinearLayout list = Ui.col(a);
@@ -100,16 +114,28 @@ final class DiningScreen {
     List<Hall> allHalls = a.repo.halls();
     String[] areas = {"全部", "主校区", "东区"};
     String areaKey = a.draftKey("area-filter");
+    String sortKey = a.draftKey("sort-distance");
     String[] activeArea = {a.drafts.getString(areaKey, "全部")};
+    boolean[] sortByDistance = {a.drafts.getBoolean(sortKey, false)};
+    boolean[] locating = {false};
     Runnable[] renderHalls = {null};
     renderHalls[0] = () -> {
+      Location fix = a.searchLocation.cachedFix();
+      boolean distActive = sortByDistance[0] && fix != null;
+      distanceChip.setText(locating[0] ? "定位中…" : (distActive ? "按距离 ✓" : "按距离"));
+      distanceChip.setTextColor(distActive ? Design.RED : Design.MUTED);
+      distanceChip.setTypeface(distActive ? Typeface.create(Design.body(), Typeface.BOLD) : Design.body());
+      distanceChip.setBackground(Ui.ripple(a, distActive ? Design.RED_SOFT : Design.ALT, distActive ? Design.RED : Design.BORDER, 15));
+
       areaChips.removeAllViews();
-      for (String area : areas) {
+      for (int i = 0; i < areas.length; i++) {
+        String area = areas[i];
         boolean chosen = area.equals(activeArea[0]);
         TextView chip = Ui.text(a, area, 12, chosen ? Design.RED : Design.MUTED);
         chip.setTypeface(chosen ? Typeface.create(Design.body(), Typeface.BOLD) : Design.body());
         chip.setGravity(Gravity.CENTER);
-        chip.setPadding(Ui.dp(a, 10), Ui.dp(a, 5), Ui.dp(a, 10), Ui.dp(a, 5));
+        chip.setLineSpacing(0, 1);
+        chip.setPadding(Ui.dp(a, 12), Ui.dp(a, 5), Ui.dp(a, 12), Ui.dp(a, 5));
         chip.setMinHeight(Ui.dp(a, 30));
         chip.setBackground(Ui.ripple(a, chosen ? Design.RED_SOFT : Design.ALT, chosen ? Design.RED : 0, 15));
         chip.setFocusable(true);
@@ -120,7 +146,7 @@ final class DiningScreen {
           renderHalls[0].run();
         });
         LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-2, -2);
-        clp.leftMargin = Ui.dp(a, 6);
+        if (i > 0) clp.leftMargin = Ui.dp(a, 8);
         areaChips.addView(chip, clp);
       }
 
@@ -134,14 +160,54 @@ final class DiningScreen {
           filtered.add(hall);
         }
       }
+      if (distActive) {
+        filtered.sort((h1, h2) -> {
+          double d1 = hallDistanceMeters(h1, fix);
+          double d2 = hallDistanceMeters(h2, fix);
+          return Double.compare(d1, d2);
+        });
+      }
       count.setText("全部食堂 (" + filtered.size() + ")");
       if (filtered.isEmpty()) {
-        Ui.empty(list, "该区域暂无食堂", "切换“全部”查看校内所有食堂。");
+        Ui.empty(list, "暂无食堂", "可切换“全部”查看");
       } else {
-        hallGallery(a, list, filtered);
+        hallGallery(a, list, filtered, fix);
       }
     };
+    distanceChip.setOnClickListener(v -> {
+      if (locating[0]) return;
+      if (sortByDistance[0] && a.searchLocation.cachedFix() != null) {
+        sortByDistance[0] = false;
+        a.drafts.putBoolean(sortKey, false);
+        renderHalls[0].run();
+        return;
+      }
+      locating[0] = true;
+      renderHalls[0].run();
+      a.searchLocation.requestOrCached(a, loc -> {
+        locating[0] = false;
+        sortByDistance[0] = true;
+        a.drafts.putBoolean(sortKey, true);
+        if (list.isAttachedToWindow()) renderHalls[0].run();
+      }, msg -> {
+        locating[0] = false;
+        sortByDistance[0] = false;
+        a.drafts.putBoolean(sortKey, false);
+        a.message(msg == null || msg.isBlank() ? "暂时无法获取位置" : msg);
+        if (list.isAttachedToWindow()) renderHalls[0].run();
+      });
+    });
     renderHalls[0].run();
+    if (a.searchLocation.cachedFix() == null && a.searchLocation.hasPermission(a)) {
+      a.searchLocation.requestOrCached(a, loc -> {
+        if (list.isAttachedToWindow()) renderHalls[0].run();
+      }, ignored -> {});
+    }
+  }
+
+  static double hallDistanceMeters(Hall hall, Location fix) {
+    if (hall == null || fix == null || !hall.hasCoordinates()) return Double.POSITIVE_INFINITY;
+    return CampusProjection.distanceMeters(fix.getLatitude(), fix.getLongitude(), hall.latitude(), hall.longitude());
   }
 
   static String getHallFallbackImage(Hall hall, int index) {
@@ -199,17 +265,17 @@ final class DiningScreen {
     return location;
   }
 
-  private static void hallGallery(MainActivity a, LinearLayout page, List<Hall> halls) {
+  private static void hallGallery(MainActivity a, LinearLayout page, List<Hall> halls, Location fix) {
     for (int i = 0; i < halls.size(); i += 2) {
       LinearLayout row = Ui.row(a);
       row.setGravity(Gravity.TOP);
       LinearLayout.LayoutParams leftLp = new LinearLayout.LayoutParams(0, -1, 1);
       leftLp.rightMargin = Ui.dp(a, 5);
-      row.addView(hallCard(a, halls.get(i), i), leftLp);
+      row.addView(hallCard(a, halls.get(i), i, fix), leftLp);
       LinearLayout.LayoutParams rightLp = new LinearLayout.LayoutParams(0, -1, 1);
       rightLp.leftMargin = Ui.dp(a, 5);
       if (i + 1 < halls.size()) {
-        row.addView(hallCard(a, halls.get(i + 1), i + 1), rightLp);
+        row.addView(hallCard(a, halls.get(i + 1), i + 1, fix), rightLp);
       } else {
         row.addView(new Space(a), rightLp);
       }
@@ -219,7 +285,7 @@ final class DiningScreen {
     }
   }
 
-  private static LinearLayout hallCard(MainActivity a, Hall hall, int index) {
+  private static LinearLayout hallCard(MainActivity a, Hall hall, int index, Location fix) {
     LinearLayout card = Ui.col(a);
     card.setBackground(Ui.ripple(a, Design.PAPER, Design.BORDER, 14));
     card.setClipToOutline(true);
@@ -333,11 +399,60 @@ final class DiningScreen {
     headerCard.addView(actionsCol,new LinearLayout.LayoutParams(-2,-2));
 
     heading.addView(headerCard,new LinearLayout.LayoutParams(-1,-2));
+    Ui.gap(heading,8);
+    heading.addView(navigationBar(a, hall, ""), new LinearLayout.LayoutParams(-1, -2));
     page.addView(heading);
     View topRule=new View(a);topRule.setBackgroundColor(Design.BORDER);
     page.addView(topRule,new LinearLayout.LayoutParams(-1,Ui.dp(a,1)));
     if(a.repo.stalls(hall.id()).isEmpty()){Ui.empty(page,"暂无档口","");return;}
     new CanteenMenu(a,page,a.repo.stalls(hall.id()));
+  }
+
+  static LinearLayout navigationBar(MainActivity a, Hall hall, String prefixLabel) {
+    LinearLayout bar = Ui.row(a);
+    bar.setGravity(Gravity.CENTER_VERTICAL);
+    bar.setPadding(Ui.dp(a, 12), Ui.dp(a, 8), Ui.dp(a, 10), Ui.dp(a, 8));
+    bar.setBackground(Ui.ripple(a, Design.ALT, Design.BORDER, 12));
+    bar.setFocusable(true);
+    bar.setClickable(true);
+    bar.setTag("hall-navigate:" + hall.id());
+    bar.setOnClickListener(v -> a.go("campus-map", "nav:" + hall.id()));
+
+    ImageView icon = new ImageView(a);
+    icon.setImageResource(cn.edu.bjtu.foodtime.R.drawable.ic_campus_map);
+    icon.setImageTintList(android.content.res.ColorStateList.valueOf(Design.RED));
+    LinearLayout.LayoutParams ilp = new LinearLayout.LayoutParams(Ui.dp(a, 16), Ui.dp(a, 16));
+    ilp.rightMargin = Ui.dp(a, 8);
+    bar.addView(icon, ilp);
+
+    Location fix = a.searchLocation.cachedFix();
+    String distText;
+    if (fix != null && hall.hasCoordinates()) {
+      double meters = hallDistanceMeters(hall, fix);
+      String summary = CampusProjection.formatWalkSummary(meters);
+      distText = (prefixLabel == null || prefixLabel.isBlank())
+          ? "距您 " + summary
+          : prefixLabel + " · " + summary;
+    } else {
+      distText = (prefixLabel == null || prefixLabel.isBlank())
+          ? "查看地图与路线"
+          : prefixLabel;
+    }
+    TextView label = Ui.text(a, distText, 12, Design.INK);
+    label.setMaxLines(1);
+    label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+    bar.addView(label, new LinearLayout.LayoutParams(0, -2, 1));
+
+    TextView goBtn = Ui.text(a, "去这里 ›", 12, Design.RED);
+    goBtn.setTypeface(Typeface.create(Design.body(), Typeface.BOLD));
+    goBtn.setGravity(Gravity.CENTER);
+    goBtn.setLineSpacing(0, 1);
+    goBtn.setPadding(Ui.dp(a, 10), Ui.dp(a, 4), Ui.dp(a, 10), Ui.dp(a, 4));
+    goBtn.setBackground(Ui.shape(a, Design.RED_SOFT, 0, 12));
+    LinearLayout.LayoutParams glp = new LinearLayout.LayoutParams(-2, -2);
+    glp.leftMargin = Ui.dp(a, 8);
+    bar.addView(goBtn, glp);
+    return bar;
   }
 
   static void cover(MainActivity a, LinearLayout page, String name, String image, Runnable action) {

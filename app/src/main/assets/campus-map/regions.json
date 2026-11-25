@@ -1,11 +1,20 @@
 {
-  "version": "2026-11-17-hd-draft-1",
+  "version": "2026-11-26-nav-v1",
   "width": 5032,
   "height": 3579,
   "regions": [
     {
       "id": "minghu",
       "name": "明湖餐厅",
+      "shortName": "明湖",
+      "subtitle": "明湖餐厅 1–3 楼",
+      "pin": [
+        2540,
+        815
+      ],
+      "entryNodeId": "hall-minghu",
+      "lat": 39.951828,
+      "lng": 116.337199,
       "polygon": [
         [
           2471,
@@ -41,6 +50,7 @@
         ]
       ],
       "diningHallIds": [
+        "74ed9519-f3e3-5ce8-a89c-a353e2892edd",
         "f158d27a-329c-57ec-978a-22ed9e6a447b",
         "bb05ca8f-2544-5e2a-a7e1-151a8b3e0e8f",
         "d4fb48b3-a92d-5e93-a4f3-4ab3f210118d"
@@ -48,7 +58,16 @@
     },
     {
       "id": "xuehuo",
-      "name": "学活／清真／西餐厅",
+      "name": "学活食堂",
+      "shortName": "学活",
+      "subtitle": "学活一/二楼 · 清真餐厅 · 西餐厅",
+      "pin": [
+        1060,
+        1685
+      ],
+      "entryNodeId": "hall-xuehuo",
+      "lat": 39.949319,
+      "lng": 116.331862,
       "polygon": [
         [
           963,
@@ -100,6 +119,7 @@
         ]
       ],
       "diningHallIds": [
+        "315086d7-f339-5d26-a030-b3d7ffe7cde1",
         "af829558-1410-503a-a426-e1d7ba2a399d",
         "9bc79377-bb58-54ff-8b51-4cfb67411d37"
       ]
@@ -107,6 +127,15 @@
     {
       "id": "liuyuan",
       "name": "留园餐厅",
+      "shortName": "留园",
+      "subtitle": "主校区 · 留园餐厅",
+      "pin": [
+        2770,
+        1895
+      ],
+      "entryNodeId": "hall-liuyuan",
+      "lat": 39.948899,
+      "lng": 116.337405,
       "polygon": [
         [
           2735,
@@ -140,6 +169,15 @@
     {
       "id": "xuesi",
       "name": "学四食堂",
+      "shortName": "学四",
+      "subtitle": "主校区 · 第四食堂",
+      "pin": [
+        2815,
+        2005
+      ],
+      "entryNodeId": "hall-xuesi",
+      "lat": 39.94833,
+      "lng": 116.338208,
       "polygon": [
         [
           2808,
@@ -193,6 +231,15 @@
     {
       "id": "east-canteen",
       "name": "东区学生餐厅",
+      "shortName": "东区餐厅",
+      "subtitle": "东校区 · 学生餐厅",
+      "pin": [
+        3078,
+        2400
+      ],
+      "entryNodeId": "hall-east",
+      "lat": 39.94712,
+      "lng": 116.339981,
       "polygon": [
         [
           2984,
@@ -260,8 +307,59 @@
       ]
     },
     {
+      "id": "xueyuan",
+      "name": "学苑餐厅",
+      "shortName": "学苑",
+      "subtitle": "学苑公寓区 · 交大东路东侧",
+      "pin": [
+        3810,
+        588
+      ],
+      "entryNodeId": "hall-xueyuan",
+      "lat": 39.953199,
+      "lng": 116.341662,
+      "polygon": [
+        [
+          3748,
+          562
+        ],
+        [
+          3820,
+          545
+        ],
+        [
+          3868,
+          595
+        ],
+        [
+          3868,
+          632
+        ],
+        [
+          3788,
+          646
+        ],
+        [
+          3748,
+          598
+        ]
+      ],
+      "diningHallIds": [
+        "78fa7f63-f52f-524f-9b28-f55fb441a1f0"
+      ]
+    },
+    {
       "id": "yimin",
       "name": "益民餐厅",
+      "shortName": "益民",
+      "subtitle": "明湖东侧（待补充菜单）",
+      "pin": [
+        2632,
+        835
+      ],
+      "entryNodeId": "hall-yimin",
+      "lat": 39.95177,
+      "lng": 116.337643,
       "polygon": [
         [
           2608,
