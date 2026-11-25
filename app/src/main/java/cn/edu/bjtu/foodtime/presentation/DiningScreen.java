@@ -172,12 +172,8 @@ final class DiningScreen {
       if (name.contains("一楼")) location = "学活 · 1层";
       else if (name.contains("二楼")) location = "学活 · 2层";
       else location = "学生活动中心";
-    } else if (name.contains("学四")) {
-      location = "主区核心";
-    } else if (name.contains("学苑")) {
+    } else if (name.contains("学四") || name.contains("学苑") || name.contains("留园")) {
       location = "主校区";
-    } else if (name.contains("留园")) {
-      location = "留学生区";
     }
 
     List<Stall> stalls = (a != null && a.repo != null) ? a.repo.stalls(hall.id()) : null;
