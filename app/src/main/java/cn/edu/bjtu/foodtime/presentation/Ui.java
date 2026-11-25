@@ -298,7 +298,7 @@ public final class Ui {
             .create();
     dialog.setOnShowListener(
         d -> {
-          dialog.getWindow().setBackgroundDrawable(shape(a, Design.PAPER, Design.INK, 10));
+          dialog.getWindow().setBackgroundDrawable(shape(a, Design.PAPER, Design.BORDER, 20));
           dialog.getButton(-1).setTextColor(Design.RED);
           dialog.getButton(-2).setTextColor(Design.MUTED);
         });

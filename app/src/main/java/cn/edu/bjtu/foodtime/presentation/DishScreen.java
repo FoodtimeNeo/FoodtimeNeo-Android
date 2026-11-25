@@ -36,16 +36,18 @@ final class DishScreen {
   }
 
   private static void dishCard(MainActivity a,LinearLayout column,Dish dish) {
-    LinearLayout card=Ui.col(a);card.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,20));
-    card.setClipToOutline(true);card.setElevation(Ui.dp(a,2));
-    LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,12),Ui.dp(a,11),Ui.dp(a,12),Ui.dp(a,13));
-    TextView name=Ui.title(a,dish.name(),18);name.setMaxLines(2);body.addView(name);Ui.gap(body,7);
-    LinearLayout meta=Ui.row(a);TextView price=Ui.title(a,cn.edu.bjtu.foodtime.domain.model.PriceHistory.price(dish.price(),dish.priceUnit()),17);
-    price.setTextColor(Design.RED);meta.addView(price,new LinearLayout.LayoutParams(0,-2,1));
+    LinearLayout card=Ui.col(a);card.setBackground(Ui.ripple(a,Design.PAPER,Design.BORDER,16));
+    card.setClipToOutline(true);card.setElevation(Ui.dp(a,1));
+    LinearLayout body=Ui.col(a);body.setPadding(Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,12));
+    TextView name=Ui.title(a,dish.name(),16);name.setMaxLines(2);body.addView(name);Ui.gap(body,8);
+    LinearLayout meta=Ui.row(a);
+    TextView price=Ui.text(a,cn.edu.bjtu.foodtime.domain.model.PriceHistory.price(dish.price(),dish.priceUnit()),16,Design.RED);
+    price.setTypeface(Design.body(),android.graphics.Typeface.BOLD);
+    meta.addView(price,new LinearLayout.LayoutParams(0,-2,1));
     body.addView(meta);card.addView(body);
     card.setClickable(true);card.setFocusable(true);card.setContentDescription(dish.name()+"，查看详情");
     card.setOnClickListener(v -> a.go("detail",dish.id()));
-    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=Ui.dp(a,12);column.addView(card,lp);
+    LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(-1,-2);lp.bottomMargin=Ui.dp(a,10);column.addView(card,lp);
   }
 
   static void detail(MainActivity a, LinearLayout page, MainActivity.Route route) {
@@ -57,38 +59,67 @@ final class DishScreen {
     a.heading(page, "01.3", d.name(), h.name() + " · " + s.name());
     CatalogQuickActions.show(a,page,"dishes",d.id());
     LinearLayout hero = Ui.card(page);
-    hero.setPadding(0, 0, 0, Ui.dp(a, 4));
+    hero.setPadding(0, 0, 0, Ui.dp(a, 14));
     FrameLayout photo = detailPhoto(a,d);
     hero.addView(photo);
-    LinearLayout photoActions=Ui.row(a);photoActions.setPadding(Ui.dp(a,12),Ui.dp(a,12),Ui.dp(a,12),0);
+    LinearLayout heroText = Ui.row(a);
+    heroText.setPadding(Ui.dp(a, 16), Ui.dp(a, 14), Ui.dp(a, 16), Ui.dp(a, 8));
+    TextView priceView = Ui.text(a, cn.edu.bjtu.foodtime.domain.model.PriceHistory.price(d.price(), d.priceUnit()), 24, Design.RED);
+    priceView.setTypeface(Design.title());
+    heroText.addView(priceView, new LinearLayout.LayoutParams(0, -2, 1));
+    TextView history = Ui.button(a, "价格变化", false, () -> a.go("price-history", d.id()));
+    history.setTag("dish-price-history");
+    history.setTextSize(13);
+    history.setTextColor(Design.MUTED);
+    history.setMinHeight(Ui.dp(a, 46));
+    history.setPadding(Ui.dp(a, 14), Ui.dp(a, 8), Ui.dp(a, 14), Ui.dp(a, 8));
+    history.setBackground(Ui.ripple(a, Design.ALT, Design.BORDER, 999));
+    heroText.addView(history, new LinearLayout.LayoutParams(-2, -2));
+    hero.setOnClickListener(v -> a.go("gallery", d.id()));
+    hero.addView(heroText);
+    if(!d.description().isBlank()) {
+      TextView description=Ui.text(a,d.description(),15,Design.MUTED);
+      description.setPadding(Ui.dp(a,16),0,Ui.dp(a,16),Ui.dp(a,10));hero.addView(description);
+    }
+    LinearLayout photoActions=Ui.row(a);photoActions.setPadding(Ui.dp(a,16),Ui.dp(a,4),Ui.dp(a,16),0);
     TextView upload = Ui.button(a, "上传图片", false, () -> a.go("upload-photo", d.id()));
     upload.setContentDescription("上传菜品图片");
+    upload.setBackground(Ui.ripple(a, Design.ALT, Design.BORDER, 10));
     photoActions.addView(upload,new LinearLayout.LayoutParams(0,-2,1));
     TextView album = Ui.button(a, "查看图册", false, () -> a.go("gallery", d.id()));
     album.setContentDescription("查看菜品图册");
-    LinearLayout.LayoutParams albumLayout=new LinearLayout.LayoutParams(0,-2,1);albumLayout.leftMargin=Ui.dp(a,8);
+    album.setBackground(Ui.ripple(a, Design.ALT, Design.BORDER, 10));
+    LinearLayout.LayoutParams albumLayout=new LinearLayout.LayoutParams(0,-2,1);albumLayout.leftMargin=Ui.dp(a,10);
     photoActions.addView(album,albumLayout);hero.addView(photoActions);
-    LinearLayout heroText = Ui.row(a);
-    heroText.setPadding(Ui.dp(a, 16), Ui.dp(a, 12), Ui.dp(a, 16), Ui.dp(a, 8));
-    heroText.addView(
-        Ui.title(a, cn.edu.bjtu.foodtime.domain.model.PriceHistory.price(d.price(),d.priceUnit()), 25), new LinearLayout.LayoutParams(0, -2, 1));
-    hero.setOnClickListener(v -> a.go("gallery", d.id()));
-    hero.addView(heroText);
-    TextView history=Ui.button(a,"价格变化",false,()->a.go("price-history",d.id()));history.setTag("dish-price-history");hero.addView(history);
-    if(!d.description().isBlank()) {
-      TextView description=Ui.text(a,d.description(),16,Design.MUTED);
-      description.setPadding(Ui.dp(a,16),0,Ui.dp(a,16),Ui.dp(a,16));hero.addView(description);
-    }
+
     LinearLayout score = Ui.card(page);
-    score.addView(Ui.title(a, "评分", 22));
-    Ui.gap(score, 8);
-    TextView scoreValue=Ui.text(a,"",22,Design.RED),scoreCount=Ui.text(a,"",14,Design.MUTED);
-    score.addView(scoreValue);score.addView(scoreCount);
+    LinearLayout scoreRow = Ui.row(a);
+    TextView scoreBadge = Ui.text(a, "—", 18, Design.RED);
+    scoreBadge.setTypeface(Design.title());
+    scoreBadge.setGravity(Gravity.CENTER);
+    scoreBadge.setBackground(Ui.shape(a, Design.RED_SOFT, 0, 14));
+    LinearLayout.LayoutParams badgeLp = new LinearLayout.LayoutParams(Ui.dp(a, 52), Ui.dp(a, 52));
+    badgeLp.rightMargin = Ui.dp(a, 14);
+    scoreRow.addView(scoreBadge, badgeLp);
+    LinearLayout scoreMeta = Ui.col(a);
+    TextView scoreTitle = Ui.text(a, "综合评分", 13, Design.MUTED);
+    TextView scoreValue = Ui.text(a, "", 16, Design.GOLD);
+    scoreValue.setTypeface(Design.body(), android.graphics.Typeface.BOLD);
+    TextView scoreCount = Ui.text(a, "", 13, Design.MUTED);
+    scoreMeta.addView(scoreTitle);
+    Ui.gap(scoreMeta, 2);
+    scoreMeta.addView(scoreValue);
+    Ui.gap(scoreMeta, 2);
+    scoreMeta.addView(scoreCount);
+    scoreRow.addView(scoreMeta, new LinearLayout.LayoutParams(0, -2, 1));
+    score.addView(scoreRow);
     Runnable paintRating=() -> {
       RatingSummary summary=a.repo.rating(d.id());
       float average=summary.averageScore()==null?0:summary.averageScore().floatValue();
-      scoreValue.setText(summary.averageScore()==null?"暂无评分":"★".repeat(Math.round(average))+"  "+String.format(Locale.ROOT,"%.1f / 5",average));
-      scoreValue.setTextColor(summary.averageScore()==null?Design.MUTED:Design.RED);
+      scoreBadge.setText(summary.averageScore()==null?"—":String.format(Locale.ROOT,"%.1f",average));
+      scoreBadge.setTextColor(summary.averageScore()==null?Design.MUTED:Design.RED);
+      scoreValue.setText(summary.averageScore()==null?"暂无评分":"★".repeat(Math.max(1,Math.round(average)))+"  "+String.format(Locale.ROOT,"%.1f / 5",average));
+      scoreValue.setTextColor(summary.averageScore()==null?Design.MUTED:Design.GOLD);
       scoreCount.setText(summary.reviewCount()+" 条评价");
     };
     paintRating.run();
@@ -110,8 +141,8 @@ final class DishScreen {
     }
     page.addView(action);
     Ui.gap(page, 20);
-    page.addView(Ui.title(a, "评论", 25));
-    Ui.gap(page, 12);
+    page.addView(Ui.title(a, "同学真实点评", 22));
+    Ui.gap(page, 10);
     new DishReviewSection(a,page,d.id(),paintRating);
   }
 
@@ -121,6 +152,9 @@ final class DishScreen {
     Runnable paint = () -> {
       button.setText(saved[0] ? "已想吃" : "想吃");
       button.setSelected(saved[0]);
+      button.setTextColor(saved[0] ? Design.RED : Design.INK);
+      button.setBackground(Ui.ripple(activity, saved[0] ? Design.RED_SOFT : Design.PAPER,
+          saved[0] ? Design.RED : Design.BORDER, 12));
     };
     Runnable load = () -> {
       if (!button.isAttachedToWindow()) return;
