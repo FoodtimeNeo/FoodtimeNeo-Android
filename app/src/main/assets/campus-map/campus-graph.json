@@ -1,0 +1,1092 @@
+{
+  "version": "2026-11-26-nav-v1",
+  "walkSpeedMetersPerMin": 75,
+  "nodes": [
+    {
+      "id": "gate-west",
+      "name": "西门",
+      "kind": "gate",
+      "x": 740,
+      "y": 1290,
+      "lat": 39.949969,
+      "lng": 116.330681,
+      "presetOrder": 2
+    },
+    {
+      "id": "gate-south",
+      "name": "南门",
+      "kind": "gate",
+      "x": 1950,
+      "y": 2170,
+      "lat": 39.947861,
+      "lng": 116.335309,
+      "presetOrder": 1
+    },
+    {
+      "id": "gate-east",
+      "name": "东门",
+      "kind": "gate",
+      "x": 3590,
+      "y": 990,
+      "lat": 39.951878,
+      "lng": 116.341316,
+      "presetOrder": 3
+    },
+    {
+      "id": "gate-east-west",
+      "name": "东区西门",
+      "kind": "gate",
+      "x": 2890,
+      "y": 2415,
+      "lat": 39.947109,
+      "lng": 116.339193,
+      "presetOrder": 4
+    },
+    {
+      "id": "gate-east-south",
+      "name": "东区南门",
+      "kind": "gate",
+      "x": 3320,
+      "y": 3175,
+      "lat": 39.944655,
+      "lng": 116.341705
+    },
+    {
+      "id": "landmark-siyuan",
+      "name": "思源楼广场",
+      "kind": "landmark",
+      "x": 1930,
+      "y": 1650,
+      "lat": 39.949343,
+      "lng": 116.334838,
+      "presetOrder": 5
+    },
+    {
+      "id": "hall-minghu",
+      "name": "明湖餐厅入口",
+      "kind": "hall",
+      "x": 2465,
+      "y": 865,
+      "lat": 39.951828,
+      "lng": 116.337199
+    },
+    {
+      "id": "hall-yimin",
+      "name": "益民餐厅入口",
+      "kind": "hall",
+      "x": 2660,
+      "y": 865,
+      "lat": 39.95177,
+      "lng": 116.337643
+    },
+    {
+      "id": "hall-xuehuo",
+      "name": "学活食堂入口",
+      "kind": "hall",
+      "x": 1155,
+      "y": 1690,
+      "lat": 39.949319,
+      "lng": 116.331862
+    },
+    {
+      "id": "hall-liuyuan",
+      "name": "留园餐厅入口",
+      "kind": "hall",
+      "x": 2730,
+      "y": 1895,
+      "lat": 39.948899,
+      "lng": 116.337405
+    },
+    {
+      "id": "hall-xuesi",
+      "name": "学四食堂入口",
+      "kind": "hall",
+      "x": 2755,
+      "y": 2005,
+      "lat": 39.94833,
+      "lng": 116.338208
+    },
+    {
+      "id": "hall-east",
+      "name": "东区学生餐厅入口",
+      "kind": "hall",
+      "x": 3000,
+      "y": 2425,
+      "lat": 39.94712,
+      "lng": 116.339981
+    },
+    {
+      "id": "hall-xueyuan",
+      "name": "学苑餐厅入口",
+      "kind": "hall",
+      "x": 3868,
+      "y": 608,
+      "lat": 39.953199,
+      "lng": 116.341662
+    },
+    {
+      "id": "zx-1",
+      "name": "西门内路口",
+      "kind": "junction",
+      "x": 920,
+      "y": 1265,
+      "lat": 39.950217,
+      "lng": 116.33132
+    },
+    {
+      "id": "zx-2",
+      "name": "知行大道-鲲鹏路口",
+      "kind": "junction",
+      "x": 1190,
+      "y": 1210,
+      "lat": 39.950582,
+      "lng": 116.332284
+    },
+    {
+      "id": "zx-3",
+      "name": "知行大道-积秀路口",
+      "kind": "junction",
+      "x": 1545,
+      "y": 1140,
+      "lat": 39.950832,
+      "lng": 116.333579
+    },
+    {
+      "id": "zx-4",
+      "name": "知行大道-思源北口",
+      "kind": "junction",
+      "x": 1845,
+      "y": 1085,
+      "lat": 39.950969,
+      "lng": 116.334704
+    },
+    {
+      "id": "zx-5",
+      "name": "知行大道-明湖西口",
+      "kind": "junction",
+      "x": 2145,
+      "y": 1025,
+      "lat": 39.951122,
+      "lng": 116.335869
+    },
+    {
+      "id": "zx-6",
+      "name": "明湖南口",
+      "kind": "junction",
+      "x": 2425,
+      "y": 980,
+      "lat": 39.95125,
+      "lng": 116.336951
+    },
+    {
+      "id": "zx-7",
+      "name": "知行大道-芳华北口",
+      "kind": "junction",
+      "x": 2685,
+      "y": 935,
+      "lat": 39.951409,
+      "lng": 116.337897
+    },
+    {
+      "id": "zx-8",
+      "name": "东操场北口",
+      "kind": "junction",
+      "x": 3160,
+      "y": 880,
+      "lat": 39.951815,
+      "lng": 116.339506
+    },
+    {
+      "id": "zx-9",
+      "name": "东门北侧路口",
+      "kind": "junction",
+      "x": 3525,
+      "y": 805,
+      "lat": 39.952393,
+      "lng": 116.340885
+    },
+    {
+      "id": "yx-1",
+      "name": "鲲鹏路中段",
+      "kind": "junction",
+      "x": 1290,
+      "y": 1465,
+      "lat": 39.949877,
+      "lng": 116.332669
+    },
+    {
+      "id": "yx-2",
+      "name": "积秀路-银杏路口",
+      "kind": "junction",
+      "x": 1595,
+      "y": 1410,
+      "lat": 39.950013,
+      "lng": 116.333763
+    },
+    {
+      "id": "yx-3",
+      "name": "思源楼前路口",
+      "kind": "junction",
+      "x": 1880,
+      "y": 1365,
+      "lat": 39.950112,
+      "lng": 116.334786
+    },
+    {
+      "id": "yx-4",
+      "name": "银杏大道-明湖路",
+      "kind": "junction",
+      "x": 2180,
+      "y": 1315,
+      "lat": 39.950252,
+      "lng": 116.335918
+    },
+    {
+      "id": "yx-5",
+      "name": "银杏大道-红果北口",
+      "kind": "junction",
+      "x": 2445,
+      "y": 1270,
+      "lat": 39.950388,
+      "lng": 116.33694
+    },
+    {
+      "id": "yx-6",
+      "name": "银杏大道-芳华路口",
+      "kind": "junction",
+      "x": 2705,
+      "y": 1225,
+      "lat": 39.950528,
+      "lng": 116.337837
+    },
+    {
+      "id": "yx-7",
+      "name": "东操场南侧路口",
+      "kind": "junction",
+      "x": 3180,
+      "y": 1145,
+      "lat": 39.950969,
+      "lng": 116.339538
+    },
+    {
+      "id": "yx-8",
+      "name": "东门内广场",
+      "kind": "junction",
+      "x": 3545,
+      "y": 1085,
+      "lat": 39.951517,
+      "lng": 116.341143
+    },
+    {
+      "id": "wt-1",
+      "name": "学活东侧路口",
+      "kind": "junction",
+      "x": 1360,
+      "y": 1740,
+      "lat": 39.949145,
+      "lng": 116.332985
+    },
+    {
+      "id": "wt-2",
+      "name": "积秀路南段",
+      "kind": "junction",
+      "x": 1640,
+      "y": 1695,
+      "lat": 39.949162,
+      "lng": 116.333986
+    },
+    {
+      "id": "wt-4",
+      "name": "梧桐大道-明湖路",
+      "kind": "junction",
+      "x": 2245,
+      "y": 1600,
+      "lat": 39.94948,
+      "lng": 116.335846
+    },
+    {
+      "id": "wt-5",
+      "name": "红果路中段",
+      "kind": "junction",
+      "x": 2490,
+      "y": 1560,
+      "lat": 39.949706,
+      "lng": 116.336564
+    },
+    {
+      "id": "wt-6",
+      "name": "芳华路中段",
+      "kind": "junction",
+      "x": 2770,
+      "y": 1515,
+      "lat": 39.949905,
+      "lng": 116.337546
+    },
+    {
+      "id": "wt-7",
+      "name": "逸夫楼南侧路口",
+      "kind": "junction",
+      "x": 3240,
+      "y": 1435,
+      "lat": 39.95021,
+      "lng": 116.339632
+    },
+    {
+      "id": "wt-8",
+      "name": "交大东路西侧辅路",
+      "kind": "junction",
+      "x": 3620,
+      "y": 1375,
+      "lat": 39.950552,
+      "lng": 116.341443
+    },
+    {
+      "id": "sn-1",
+      "name": "鲲鹏路南口",
+      "kind": "junction",
+      "x": 1505,
+      "y": 2120,
+      "lat": 39.948039,
+      "lng": 116.333709
+    },
+    {
+      "id": "sn-2",
+      "name": "南门内广场",
+      "kind": "junction",
+      "x": 1950,
+      "y": 2090,
+      "lat": 39.948073,
+      "lng": 116.335231
+    },
+    {
+      "id": "sn-3",
+      "name": "南区东侧天桥北口",
+      "kind": "junction",
+      "x": 2320,
+      "y": 2065,
+      "lat": 39.948175,
+      "lng": 116.336378
+    },
+    {
+      "id": "sn-4",
+      "name": "留园西侧路口",
+      "kind": "junction",
+      "x": 2610,
+      "y": 2025,
+      "lat": 39.948323,
+      "lng": 116.337318
+    },
+    {
+      "id": "sn-5",
+      "name": "学四南侧通道",
+      "kind": "junction",
+      "x": 2850,
+      "y": 1945,
+      "lat": 39.94862,
+      "lng": 116.338057
+    },
+    {
+      "id": "sn-6",
+      "name": "主校区东南角路口",
+      "kind": "junction",
+      "x": 3320,
+      "y": 1865,
+      "lat": 39.948821,
+      "lng": 116.340238
+    },
+    {
+      "id": "rd-west-1",
+      "name": "高粱桥斜街西门外",
+      "kind": "junction",
+      "x": 695,
+      "y": 1345,
+      "lat": 39.949794,
+      "lng": 116.330527
+    },
+    {
+      "id": "rd-west-2",
+      "name": "大柳树南站",
+      "kind": "junction",
+      "x": 920,
+      "y": 1825,
+      "lat": 39.94888,
+      "lng": 116.331413
+    },
+    {
+      "id": "rd-west-3",
+      "name": "高粱桥斜街转角",
+      "kind": "junction",
+      "x": 1280,
+      "y": 2325,
+      "lat": 39.947455,
+      "lng": 116.333018
+    },
+    {
+      "id": "rd-south",
+      "name": "南门外交通大学路",
+      "kind": "junction",
+      "x": 1965,
+      "y": 2275,
+      "lat": 39.947571,
+      "lng": 116.335461
+    },
+    {
+      "id": "bridge-mid",
+      "name": "交通大学路过街天桥",
+      "kind": "bridge",
+      "x": 2345,
+      "y": 2190,
+      "lat": 39.947795,
+      "lng": 116.336697
+    },
+    {
+      "id": "rd-bridge-s",
+      "name": "天桥南口",
+      "kind": "junction",
+      "x": 2360,
+      "y": 2250,
+      "lat": 39.947618,
+      "lng": 116.33685
+    },
+    {
+      "id": "rd-east-nw",
+      "name": "上园村路-交通大学路口",
+      "kind": "junction",
+      "x": 2810,
+      "y": 2210,
+      "lat": 39.947657,
+      "lng": 116.338666
+    },
+    {
+      "id": "rd-east-ne",
+      "name": "交大东路-交通大学路口",
+      "kind": "junction",
+      "x": 3960,
+      "y": 2090,
+      "lat": 39.947907,
+      "lng": 116.343704
+    },
+    {
+      "id": "rd-east-mid",
+      "name": "交大东路中段",
+      "kind": "junction",
+      "x": 3845,
+      "y": 1525,
+      "lat": 39.950066,
+      "lng": 116.342537
+    },
+    {
+      "id": "rd-east-gate",
+      "name": "交大东路东门外",
+      "kind": "junction",
+      "x": 3745,
+      "y": 1025,
+      "lat": 39.951842,
+      "lng": 116.34195
+    },
+    {
+      "id": "rd-east-north",
+      "name": "交大东路东门站",
+      "kind": "junction",
+      "x": 3690,
+      "y": 520,
+      "lat": 39.953353,
+      "lng": 116.341142
+    },
+    {
+      "id": "xy-north",
+      "name": "学苑公寓北路口",
+      "kind": "junction",
+      "x": 3855,
+      "y": 510,
+      "lat": 39.953455,
+      "lng": 116.341745
+    },
+    {
+      "id": "xy-south",
+      "name": "学苑公寓南入口",
+      "kind": "junction",
+      "x": 3960,
+      "y": 895,
+      "lat": 39.952326,
+      "lng": 116.342657
+    },
+    {
+      "id": "xy-mid",
+      "name": "学苑公寓中轴路",
+      "kind": "junction",
+      "x": 3885,
+      "y": 760,
+      "lat": 39.952717,
+      "lng": 116.342191
+    },
+    {
+      "id": "ec-west-road",
+      "name": "上园村路中段",
+      "kind": "junction",
+      "x": 2875,
+      "y": 2660,
+      "lat": 39.946407,
+      "lng": 116.339305
+    },
+    {
+      "id": "ec-sw",
+      "name": "上园村路南口",
+      "kind": "junction",
+      "x": 2955,
+      "y": 3150,
+      "lat": 39.944848,
+      "lng": 116.340109
+    },
+    {
+      "id": "ec-canteen-e",
+      "name": "东区餐厅东侧广场",
+      "kind": "junction",
+      "x": 3165,
+      "y": 2440,
+      "lat": 39.946966,
+      "lng": 116.340398
+    },
+    {
+      "id": "ec-track-n",
+      "name": "东区操场北路",
+      "kind": "junction",
+      "x": 3315,
+      "y": 2410,
+      "lat": 39.946952,
+      "lng": 116.341099
+    }
+  ],
+  "edges": [
+    {
+      "from": "gate-west",
+      "to": "zx-1",
+      "roadName": "知行大道",
+      "distanceMeters": 61.1
+    },
+    {
+      "from": "zx-1",
+      "to": "zx-2",
+      "roadName": "知行大道",
+      "distanceMeters": 91.7
+    },
+    {
+      "from": "zx-2",
+      "to": "zx-3",
+      "roadName": "知行大道",
+      "distanceMeters": 113.8
+    },
+    {
+      "from": "zx-3",
+      "to": "zx-4",
+      "roadName": "知行大道",
+      "distanceMeters": 97.1
+    },
+    {
+      "from": "zx-4",
+      "to": "zx-5",
+      "roadName": "知行大道",
+      "distanceMeters": 100.8
+    },
+    {
+      "from": "zx-5",
+      "to": "zx-6",
+      "roadName": "知行大道",
+      "distanceMeters": 93.3
+    },
+    {
+      "from": "zx-6",
+      "to": "zx-7",
+      "roadName": "知行大道",
+      "distanceMeters": 82.6
+    },
+    {
+      "from": "zx-7",
+      "to": "zx-8",
+      "roadName": "知行大道",
+      "distanceMeters": 144.4
+    },
+    {
+      "from": "zx-8",
+      "to": "zx-9",
+      "roadName": "知行大道",
+      "distanceMeters": 134.0
+    },
+    {
+      "from": "zx-9",
+      "to": "gate-east",
+      "roadName": "东门通道",
+      "distanceMeters": 68.0
+    },
+    {
+      "from": "zx-6",
+      "to": "hall-minghu",
+      "roadName": "明湖路",
+      "distanceMeters": 67.7
+    },
+    {
+      "from": "zx-7",
+      "to": "hall-yimin",
+      "roadName": "芳华路",
+      "distanceMeters": 45.6
+    },
+    {
+      "from": "hall-minghu",
+      "to": "hall-yimin",
+      "roadName": "明湖餐厅北通道",
+      "distanceMeters": 38.4
+    },
+    {
+      "from": "zx-1",
+      "to": "yx-1",
+      "roadName": "西区步行道",
+      "distanceMeters": 121.0
+    },
+    {
+      "from": "yx-1",
+      "to": "yx-2",
+      "roadName": "银杏大道",
+      "distanceMeters": 94.5
+    },
+    {
+      "from": "yx-2",
+      "to": "yx-3",
+      "roadName": "银杏大道",
+      "distanceMeters": 87.9
+    },
+    {
+      "from": "yx-3",
+      "to": "yx-4",
+      "roadName": "银杏大道",
+      "distanceMeters": 97.7
+    },
+    {
+      "from": "yx-4",
+      "to": "yx-5",
+      "roadName": "银杏大道",
+      "distanceMeters": 88.4
+    },
+    {
+      "from": "yx-5",
+      "to": "yx-6",
+      "roadName": "银杏大道",
+      "distanceMeters": 78.0
+    },
+    {
+      "from": "yx-6",
+      "to": "yx-7",
+      "roadName": "银杏大道",
+      "distanceMeters": 153.1
+    },
+    {
+      "from": "yx-7",
+      "to": "yx-8",
+      "roadName": "银杏大道",
+      "distanceMeters": 149.8
+    },
+    {
+      "from": "yx-8",
+      "to": "gate-east",
+      "roadName": "东门通道",
+      "distanceMeters": 42.8
+    },
+    {
+      "from": "hall-xuehuo",
+      "to": "wt-1",
+      "roadName": "学活通道",
+      "distanceMeters": 97.7
+    },
+    {
+      "from": "yx-1",
+      "to": "hall-xuehuo",
+      "roadName": "学活北通道",
+      "distanceMeters": 92.6
+    },
+    {
+      "from": "wt-1",
+      "to": "wt-2",
+      "roadName": "梧桐大道",
+      "distanceMeters": 85.3
+    },
+    {
+      "from": "wt-2",
+      "to": "landmark-siyuan",
+      "roadName": "思源大道",
+      "distanceMeters": 75.4
+    },
+    {
+      "from": "landmark-siyuan",
+      "to": "wt-4",
+      "roadName": "思源大道",
+      "distanceMeters": 87.3
+    },
+    {
+      "from": "wt-4",
+      "to": "wt-5",
+      "roadName": "梧桐大道",
+      "distanceMeters": 66.2
+    },
+    {
+      "from": "wt-5",
+      "to": "wt-6",
+      "roadName": "梧桐大道",
+      "distanceMeters": 86.6
+    },
+    {
+      "from": "wt-6",
+      "to": "wt-7",
+      "roadName": "梧桐大道",
+      "distanceMeters": 181.0
+    },
+    {
+      "from": "wt-7",
+      "to": "wt-8",
+      "roadName": "梧桐大道",
+      "distanceMeters": 159.0
+    },
+    {
+      "from": "sn-1",
+      "to": "sn-2",
+      "roadName": "南区步道",
+      "distanceMeters": 129.8
+    },
+    {
+      "from": "sn-2",
+      "to": "sn-3",
+      "roadName": "南区步道",
+      "distanceMeters": 98.4
+    },
+    {
+      "from": "sn-3",
+      "to": "sn-4",
+      "roadName": "红果南路",
+      "distanceMeters": 81.8
+    },
+    {
+      "from": "sn-4",
+      "to": "hall-liuyuan",
+      "roadName": "留园通道",
+      "distanceMeters": 64.5
+    },
+    {
+      "from": "sn-4",
+      "to": "hall-xuesi",
+      "roadName": "学四通道",
+      "distanceMeters": 75.9
+    },
+    {
+      "from": "hall-liuyuan",
+      "to": "hall-xuesi",
+      "roadName": "留园-学四步道",
+      "distanceMeters": 93.2
+    },
+    {
+      "from": "hall-xuesi",
+      "to": "sn-5",
+      "roadName": "学四通道",
+      "distanceMeters": 34.7
+    },
+    {
+      "from": "sn-5",
+      "to": "sn-6",
+      "roadName": "南区步道",
+      "distanceMeters": 187.3
+    },
+    {
+      "from": "zx-2",
+      "to": "yx-1",
+      "roadName": "鲲鹏路",
+      "distanceMeters": 85.0
+    },
+    {
+      "from": "yx-1",
+      "to": "wt-1",
+      "roadName": "鲲鹏路",
+      "distanceMeters": 85.7
+    },
+    {
+      "from": "wt-1",
+      "to": "sn-1",
+      "roadName": "鲲鹏路",
+      "distanceMeters": 137.6
+    },
+    {
+      "from": "zx-3",
+      "to": "yx-2",
+      "roadName": "积秀路",
+      "distanceMeters": 92.4
+    },
+    {
+      "from": "yx-2",
+      "to": "wt-2",
+      "roadName": "积秀路",
+      "distanceMeters": 96.5
+    },
+    {
+      "from": "zx-4",
+      "to": "yx-3",
+      "roadName": "思源路",
+      "distanceMeters": 95.6
+    },
+    {
+      "from": "yx-3",
+      "to": "landmark-siyuan",
+      "roadName": "思源路",
+      "distanceMeters": 85.6
+    },
+    {
+      "from": "landmark-siyuan",
+      "to": "sn-2",
+      "roadName": "思源路",
+      "distanceMeters": 145.1
+    },
+    {
+      "from": "sn-2",
+      "to": "gate-south",
+      "roadName": "南门通道",
+      "distanceMeters": 24.5
+    },
+    {
+      "from": "zx-5",
+      "to": "yx-4",
+      "roadName": "明湖路",
+      "distanceMeters": 96.8
+    },
+    {
+      "from": "yx-4",
+      "to": "wt-4",
+      "roadName": "明湖路",
+      "distanceMeters": 86.1
+    },
+    {
+      "from": "zx-6",
+      "to": "yx-5",
+      "roadName": "红果路",
+      "distanceMeters": 95.9
+    },
+    {
+      "from": "yx-5",
+      "to": "wt-5",
+      "roadName": "红果路",
+      "distanceMeters": 82.3
+    },
+    {
+      "from": "wt-5",
+      "to": "sn-4",
+      "roadName": "红果路",
+      "distanceMeters": 166.7
+    },
+    {
+      "from": "zx-7",
+      "to": "yx-6",
+      "roadName": "芳华路",
+      "distanceMeters": 98.1
+    },
+    {
+      "from": "yx-6",
+      "to": "wt-6",
+      "roadName": "芳华路",
+      "distanceMeters": 73.6
+    },
+    {
+      "from": "wt-6",
+      "to": "hall-liuyuan",
+      "roadName": "芳华路",
+      "distanceMeters": 112.5
+    },
+    {
+      "from": "zx-8",
+      "to": "yx-7",
+      "roadName": "东区连廊",
+      "distanceMeters": 94.1
+    },
+    {
+      "from": "yx-7",
+      "to": "wt-7",
+      "roadName": "逸夫路",
+      "distanceMeters": 84.8
+    },
+    {
+      "from": "wt-7",
+      "to": "sn-6",
+      "roadName": "逸夫路",
+      "distanceMeters": 162.9
+    },
+    {
+      "from": "yx-8",
+      "to": "wt-8",
+      "roadName": "东侧步行道",
+      "distanceMeters": 110.3
+    },
+    {
+      "from": "wt-8",
+      "to": "sn-6",
+      "roadName": "东侧步行道",
+      "distanceMeters": 218.2
+    },
+    {
+      "from": "gate-south",
+      "to": "rd-south",
+      "roadName": "交通大学路",
+      "distanceMeters": 34.8,
+      "note": "出南门"
+    },
+    {
+      "from": "sn-3",
+      "to": "bridge-mid",
+      "roadName": "交通大学路过街天桥",
+      "distanceMeters": 50.2,
+      "note": "上过街天桥"
+    },
+    {
+      "from": "bridge-mid",
+      "to": "rd-bridge-s",
+      "roadName": "交通大学路过街天桥",
+      "distanceMeters": 23.6,
+      "note": "下过街天桥"
+    },
+    {
+      "from": "rd-south",
+      "to": "rd-bridge-s",
+      "roadName": "交通大学路",
+      "distanceMeters": 118.5
+    },
+    {
+      "from": "rd-bridge-s",
+      "to": "rd-east-nw",
+      "roadName": "交通大学路",
+      "distanceMeters": 154.9
+    },
+    {
+      "from": "rd-east-nw",
+      "to": "gate-east-west",
+      "roadName": "上园村路",
+      "distanceMeters": 75.7,
+      "note": "经东区西门进入东校区"
+    },
+    {
+      "from": "gate-east-west",
+      "to": "hall-east",
+      "roadName": "东区步行道",
+      "distanceMeters": 67.2
+    },
+    {
+      "from": "hall-east",
+      "to": "ec-canteen-e",
+      "roadName": "东区步行道",
+      "distanceMeters": 39.5
+    },
+    {
+      "from": "ec-canteen-e",
+      "to": "ec-track-n",
+      "roadName": "东区操场北路",
+      "distanceMeters": 59.8
+    },
+    {
+      "from": "gate-east-west",
+      "to": "ec-west-road",
+      "roadName": "上园村路",
+      "distanceMeters": 78.6
+    },
+    {
+      "from": "ec-west-road",
+      "to": "ec-sw",
+      "roadName": "上园村路",
+      "distanceMeters": 186.4
+    },
+    {
+      "from": "ec-sw",
+      "to": "gate-east-south",
+      "roadName": "东校区南路",
+      "distanceMeters": 137.7
+    },
+    {
+      "from": "rd-east-nw",
+      "to": "rd-east-ne",
+      "roadName": "交通大学路",
+      "distanceMeters": 430.4
+    },
+    {
+      "from": "gate-west",
+      "to": "rd-west-1",
+      "roadName": "高粱桥斜街",
+      "distanceMeters": 23.5,
+      "note": "出西门"
+    },
+    {
+      "from": "rd-west-1",
+      "to": "rd-west-2",
+      "roadName": "高粱桥斜街",
+      "distanceMeters": 126.6
+    },
+    {
+      "from": "rd-west-2",
+      "to": "rd-west-3",
+      "roadName": "高粱桥斜街",
+      "distanceMeters": 209.3
+    },
+    {
+      "from": "rd-west-3",
+      "to": "rd-south",
+      "roadName": "交通大学路",
+      "distanceMeters": 208.7
+    },
+    {
+      "from": "gate-east",
+      "to": "rd-east-gate",
+      "roadName": "交大东路",
+      "distanceMeters": 54.2,
+      "note": "出东门过交大东路"
+    },
+    {
+      "from": "rd-east-gate",
+      "to": "rd-east-mid",
+      "roadName": "交大东路",
+      "distanceMeters": 203.7
+    },
+    {
+      "from": "rd-east-mid",
+      "to": "rd-east-ne",
+      "roadName": "交大东路",
+      "distanceMeters": 259.9
+    },
+    {
+      "from": "rd-east-gate",
+      "to": "rd-east-north",
+      "roadName": "交大东路",
+      "distanceMeters": 181.6
+    },
+    {
+      "from": "rd-east-gate",
+      "to": "xy-south",
+      "roadName": "学苑公寓南路",
+      "distanceMeters": 80.8,
+      "note": "过交大东路进入学苑公寓区"
+    },
+    {
+      "from": "xy-south",
+      "to": "xy-mid",
+      "roadName": "学苑公寓步道",
+      "distanceMeters": 58.9
+    },
+    {
+      "from": "xy-mid",
+      "to": "hall-xueyuan",
+      "roadName": "学苑公寓步道",
+      "distanceMeters": 70.0
+    },
+    {
+      "from": "rd-east-north",
+      "to": "xy-north",
+      "roadName": "学苑公寓北步道",
+      "distanceMeters": 52.6,
+      "note": "从东门站旁进入学苑公寓区"
+    },
+    {
+      "from": "xy-north",
+      "to": "hall-xueyuan",
+      "roadName": "学苑公寓步道",
+      "distanceMeters": 29.3
+    }
+  ]
+}

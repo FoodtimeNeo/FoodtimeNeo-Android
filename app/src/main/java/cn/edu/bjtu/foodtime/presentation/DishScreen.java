@@ -12,6 +12,12 @@ final class DishScreen {
     if (stall == null || !stall.active()) throw new IllegalArgumentException("档口不存在或已停用");
     a.heading(page, "01.2", stall.name(), "");
     CatalogQuickActions.show(a,page,"stalls",stall.id());
+    Hall parentHall = a.repo.hall(stall.diningHallId());
+    if (parentHall != null) {
+      page.addView(DiningScreen.navigationBar(a, parentHall, parentHall.name()),
+          new LinearLayout.LayoutParams(-1, -2));
+      Ui.gap(page, 10);
+    }
     VenueScreen.summary(a,page,"stall",stall.id());
     List<Dish> all = a.repo.dishes(stall.id());
     if (all.isEmpty()) Ui.empty(page, "还没有菜品", "");

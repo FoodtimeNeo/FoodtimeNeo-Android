@@ -137,10 +137,16 @@ final class AdminScreen {
     description.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});
     EditText price=table.equals("dishes")?Ui.field(form,"价格（元）",false,false):null;
     if(price!=null) price.setInputType(8194);
+    EditText latitudeField=table.equals("halls")?Ui.field(form,"纬度（WGS84，可选，如 39.951828）",false,false):null;
+    EditText longitudeField=table.equals("halls")?Ui.field(form,"经度（WGS84，可选，如 116.337199）",false,false):null;
+    if(latitudeField!=null) latitudeField.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
+    if(longitudeField!=null) longitudeField.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
     Spinner priceUnit=price==null?null:PriceUnits.field(a,form,a.drafts.getString(a.draftKey("price-unit"),item==null?"unspecified":item.priceUnit()));
     if(priceUnit!=null)priceUnit.setOnItemSelectedListener(new android.widget.AdapterView.OnItemSelectedListener(){public void onItemSelected(android.widget.AdapterView<?> parent,android.view.View view,int position,long id){a.drafts.putString(a.draftKey("price-unit"),PriceUnits.value(priceUnit));}public void onNothingSelected(android.widget.AdapterView<?> parent){}});
     if(item!=null&&!a.drafts.containsKey(a.draftKey("loaded"))) {
       name.setText(item.name());description.setText(item.description());if(price!=null) price.setText(item.price());
+      if(latitudeField!=null) latitudeField.setText(item.latitude()==null?"":item.latitude());
+      if(longitudeField!=null) longitudeField.setText(item.longitude()==null?"":item.longitude());
       a.drafts.putBoolean(a.draftKey("loaded"),true);
     }
     Switch enabled=new Switch(a);enabled.setText("启用");enabled.setMinHeight(Ui.dp(a,48));enabled.setTextColor(Design.INK);
@@ -155,7 +161,23 @@ final class AdminScreen {
     Ui.submit(form,"保存",error,() -> {
       String title=Validation.text(name.getText().toString(),table.equals("dishes")?120:100,"名称"),body=description.getText().toString();
       String amount=price==null?"":price.getText().toString();if(price!=null) Validation.price(amount);boolean active=enabled.isChecked();String selectedUnit=priceUnit==null?null:PriceUnits.value(priceUnit);
-      return () -> a.repo.editEntity(table,creating?"":value,creating?value:"",title,body,amount,image,active,selectedUnit);
+      Double parsedLat=null, parsedLng=null;
+      boolean clearCoords=false;
+      if(table.equals("halls")&&latitudeField!=null&&longitudeField!=null) {
+        String latStr=latitudeField.getText().toString().strip(), lngStr=longitudeField.getText().toString().strip();
+        if(!latStr.isEmpty()||!lngStr.isEmpty()) {
+          if(latStr.isEmpty()||lngStr.isEmpty()) throw new IllegalArgumentException("经纬度需同时填写或同时留空");
+          try {
+            parsedLat=Double.parseDouble(latStr);
+            parsedLng=Double.parseDouble(lngStr);
+          } catch(NumberFormatException ex) { throw new IllegalArgumentException("请输入合法的 WGS84 经纬度数字"); }
+          if(parsedLat<-90||parsedLat>90||parsedLng<-180||parsedLng>180) throw new IllegalArgumentException("经纬度超出合法范围");
+        } else if(!creating && item!=null && ((item.latitude()!=null&&!item.latitude().isBlank())||(item.longitude()!=null&&!item.longitude().isBlank()))) {
+          clearCoords=true;
+        }
+      }
+      final Double fLat=parsedLat, fLng=parsedLng; final boolean fClear=clearCoords;
+      return () -> a.repo.editEntity(table,creating?"":value,creating?value:"",title,body,amount,image,active,selectedUnit,fLat,fLng,fClear);
     },() -> {a.clearDraft(route);a.message("已保存");a.back();});
     if(!creating) {
       Ui.gap(form,12);Ui.action(form,"删除",false,() -> Ui.confirm(a,"删除这条记录？","存在关联记录时只能停用",
