@@ -28,7 +28,7 @@ public class CommunityUiRunner extends Instrumentation {
  private void field(String label,String value){main(()->{View found=find(activity.root,label,true);if(!(found instanceof EditText edit))throw new AssertionError("Missing field "+label);edit.setText(value);});}
  private boolean hasButton(View root,String value){if(root instanceof TextView t&&t.getText().toString().equals(value)&&root.isClickable())return true;if(root instanceof ViewGroup group)for(int i=0;i<group.getChildCount();i++)if(hasButton(group.getChildAt(i),value))return true;return false;}
  private void cardButton(String content,String button){main(()->{View scope=text(content);while(scope!=null&&!hasButton(scope,button))scope=scope.getParent() instanceof View parent?parent:null;if(scope==null)throw new AssertionError("Missing scoped button "+button);View target=find(scope,button,false);target.performClick();});}
- private void dialog(String label)throws Exception{long end=System.currentTimeMillis()+5000;while(System.currentTimeMillis()<end){AccessibilityNodeInfo root=getUiAutomation().getRootInActiveWindow();if(root!=null)for(var node:root.findAccessibilityNodeInfosByText(label))if(node.isClickable()&&label.contentEquals(node.getText())&&node.performAction(AccessibilityNodeInfo.ACTION_CLICK))return;Thread.sleep(80);}throw new AssertionError("Missing dialog button "+label);}
+ private void dialog(String label)throws Exception{long end=System.currentTimeMillis()+5000;while(System.currentTimeMillis()<end){AccessibilityNodeInfo root=getUiAutomation().getRootInActiveWindow();if(root!=null)for(var node:root.findAccessibilityNodeInfosByText(label))if(node.isClickable()&&(label.contentEquals(node.getText())||label.contentEquals(node.getContentDescription()))&&node.performAction(AccessibilityNodeInfo.ACTION_CLICK))return;Thread.sleep(80);}throw new AssertionError("Missing dialog button "+label);}
  private void sheetField(String label,String value)throws Exception {
    long end=System.currentTimeMillis()+5000;
    while(System.currentTimeMillis()<end){
@@ -53,7 +53,7 @@ public class CommunityUiRunner extends Instrumentation {
    if(sample.imageUrls().size()>1){
     click("›");check(find(activity.root,"第2张，共"+sample.imageUrls().size()+"张",true)!=null,"Native gallery advances to the next image");
     main(()->{View target=find(activity.root,"食记图片 2 / "+sample.imageUrls().size()+"，点击放大",true);while(target!=null&&!target.isClickable())target=target.getParent() instanceof View parent?parent:null;if(target==null)throw new AssertionError("Missing gallery image");target.performClick();});
-    dialog("⋮");dialog("放大");dialog("⋮");dialog("缩小");dialog("×");check(true,"Full-screen zoom controls and close are usable");click("‹");
+    dialog("看图选项");dialog("放大");dialog("看图选项");dialog("缩小");dialog("关闭看图");check(true,"Full-screen zoom controls and close are usable");click("‹");
    }
    capture("sample-detail");main(()->activity.scroll.fullScroll(View.FOCUS_DOWN));capture("sample-replies");
   }
@@ -95,7 +95,7 @@ public class CommunityUiRunner extends Instrumentation {
    sheetField("回复 @"+adminName,"页面互相回复 "+run);dialog("发送");loaded("community-detail");
    CommunityComment nested=real.communityReplies(root.id()).items().stream().filter(c->c.content().equals("页面互相回复 "+run)).findFirst().orElseThrow();check(nested.replyToUserId().equals(administrator.currentUser().id()),"Reply targets the other author on the server");administrator.moderateCommunity("comments",nested.id(),"approve","");main(activity::render);loaded("community-detail");
    int[] firstPosition={0,0},nestedPosition={0,0};main(()->{text(otherText).getLocationOnScreen(firstPosition);text("回复 "+adminName+"：页面互相回复 "+run).getLocationOnScreen(nestedPosition);});check(firstPosition[0]==nestedPosition[0],"Both replies have exactly one UI indentation level");
-   cardButton(otherText,"♡ 0");await(()->real.communityReplies(root.id()).items().stream().anyMatch(c->c.id().equals(other.id())&&c.likedByMe()&&c.likeCount()==1),"native reply like");check(true,"Reply like updates from server count");capture("replies");
+   cardButton(otherText,"0");await(()->real.communityReplies(root.id()).items().stream().anyMatch(c->c.id().equals(other.id())&&c.likedByMe()&&c.likeCount()==1),"native reply like");check(true,"Reply like updates from server count");capture("replies");
    cardButton("页面一级评论 "+run,"删除");dialog("删除");loaded("community-detail");check(real.communityRoots(id).items().stream().anyMatch(c->c.id().equals(root.id())&&c.deleted()&&c.replyCount()==2),"Root deletion keeps tombstone and children in native screen");capture("deleted-root");
    real.logout();real.login(adminAccount,testPassword);main(activity::restore);await(()->activity.repo.currentUser()!=null&&activity.repo.currentUser().isAdmin()&&text("正在连接…")==null,"admin session");
    main(()->activity.selectTab("admin"));loaded("admin");main(()->activity.go("admin-community","posts~approved~1"));loaded("admin-community");

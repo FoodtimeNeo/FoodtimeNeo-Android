@@ -3,6 +3,9 @@ package cn.edu.bjtu.foodtime.presentation;
 import android.annotation.SuppressLint;
 import android.animation.ValueAnimator;
 import android.os.Bundle;
+import android.text.SpannableStringBuilder;
+import android.text.Spanned;
+import android.text.style.ForegroundColorSpan;
 import android.view.animation.PathInterpolator;
 import android.view.*;
 import android.widget.*;
@@ -91,8 +94,9 @@ final class CommunityGallery extends LinearLayout {
       strip.addView(frame,new LinearLayout.LayoutParams(1,-2));
     }
     LinearLayout controls=Ui.row(activity);
-    dots=Ui.text(activity,"",12,Design.RED);dots.setGravity(Gravity.CENTER);dots.setSingleLine(true);
-    dots.setMinHeight(Ui.dp(activity,44));dots.setFocusable(true);dots.setClickable(true);
+    dots=Ui.text(activity,"",8,Design.RED);dots.setGravity(Gravity.CENTER);dots.setSingleLine(true);
+    dots.setMinHeight(Ui.dp(activity,28));dots.setPadding(0,Ui.dp(activity,4),0,Ui.dp(activity,2));
+    dots.setFocusable(true);dots.setClickable(true);
     dots.setOnClickListener(view->{
       PopupMenu menu=new PopupMenu(activity,dots);
       for(int i=0;i<images.size();i++){
@@ -134,8 +138,14 @@ final class CommunityGallery extends LinearLayout {
     update();
   }
   private void update(){
-    StringBuilder value=new StringBuilder();for(int i=0;i<images.size();i++)value.append(i==index?"● ":"○ ");
-    dots.setText(value.toString().trim());dots.setContentDescription("第"+(index+1)+"张，共"+images.size()+"张，点按选择图片");
+    SpannableStringBuilder value=new SpannableStringBuilder();
+    for(int i=0;i<images.size();i++){
+      if(i>0)value.append("  ");
+      int start=value.length();
+      value.append("●");
+      value.setSpan(new ForegroundColorSpan(i==index?Design.RED:Design.BORDER),start,value.length(),Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+    }
+    dots.setText(value);dots.setContentDescription("第"+(index+1)+"张，共"+images.size()+"张，点按选择图片");
   }
   private void open(int page) {
     show(page);
