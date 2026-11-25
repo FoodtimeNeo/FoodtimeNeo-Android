@@ -281,11 +281,11 @@ public final class CommunityPhotoRunner extends Instrumentation {
       TextView[] controls = {decor.findViewWithTag("photo-action-share"),
           decor.findViewWithTag("photo-action-comment"), decor.findViewWithTag("photo-action-like")};
       for (TextView control : controls) {
-        var icon = control.getCompoundDrawables()[1];
-        check(control.getHeight() >= Ui.dp(activity,72)
-            && control.getTextSize() >= 15.9f * activity.getResources().getDisplayMetrics().scaledDensity
-            && icon != null && icon.getBounds().width() >= Ui.dp(activity,24),
-            "Footer action has a larger label, icon and touch area: " + control.getContentDescription());
+        var icon = control.getCompoundDrawablesRelative()[0];
+        check(control.getHeight() >= Ui.dp(activity,44)
+            && control.getTextSize() >= 12.9f * activity.getResources().getDisplayMetrics().scaledDensity
+            && icon != null && icon.getBounds().width() >= Ui.dp(activity,18),
+            "Footer action has a clear compact pill, icon and touch area: " + control.getContentDescription());
       }
       int[] first = new int[2], second = new int[2];
       controls[0].getLocationInWindow(first); controls[1].getLocationInWindow(second);

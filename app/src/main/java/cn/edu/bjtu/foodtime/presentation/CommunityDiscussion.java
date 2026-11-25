@@ -6,6 +6,7 @@ import android.view.Gravity;
 import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.TextView;
+import cn.edu.bjtu.foodtime.R;
 import cn.edu.bjtu.foodtime.domain.model.CommunityText;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityAction;
 import cn.edu.bjtu.foodtime.domain.model.Models.CommunityComment;
@@ -22,6 +23,8 @@ final class CommunityDiscussion {
   private final CommunityPost post;
   private final TextView heading, count;
   private final CommunityCommentComposer composer;
+  private LinearLayout groupBanner;
+  private Runnable hideGroupBanner;
 
   CommunityDiscussion(MainActivity activity, LinearLayout page, CommunityPost post) {
     this.activity = activity;
@@ -34,7 +37,7 @@ final class CommunityDiscussion {
     rows = Ui.col(activity);
     heading = Ui.text(activity, "", 16, Design.INK);
     heading.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
-    count = action(activity, "", this::scrollToComments);
+    count = dockAction(activity, "", R.drawable.ic_photo_comment, 21, Design.INK, this::scrollToComments);
   }
 
   TextView show() {
@@ -63,34 +66,76 @@ final class CommunityDiscussion {
   private TextView buildDock() {
     LinearLayout dock = Ui.col(activity);
     dock.setTag("community-discussion-dock");
+    groupBanner = Ui.row(activity);
+    groupBanner.setGravity(Gravity.CENTER_VERTICAL);
+    groupBanner.setPadding(dp(14), dp(8), dp(10), dp(8));
+    groupBanner.setBackgroundColor(Design.ALT);
+    groupBanner.setVisibility(View.GONE);
+    groupBanner.addView(Ui.text(activity, "已收藏至默认分组", 13, Design.INK),
+        new LinearLayout.LayoutParams(0, -2, 1));
+    TextView pickGroup = Ui.text(activity, "选择分组 ›", 13, Design.RED);
+    pickGroup.setTypeface(android.graphics.Typeface.DEFAULT_BOLD);
+    pickGroup.setPadding(dp(10), dp(6), dp(6), dp(6));
+    pickGroup.setClickable(true);
+    pickGroup.setFocusable(true);
+    pickGroup.setOnClickListener(v -> {
+      hideFavoriteGroupBanner();
+      chooseGroups();
+    });
+    groupBanner.addView(pickGroup);
+    dock.addView(groupBanner, new LinearLayout.LayoutParams(-1, -2));
     dock.addView(divider());
     LinearLayout actions = Ui.row(activity);
     actions.setGravity(Gravity.CENTER_VERTICAL);
-    actions.setPadding(dp(12), dp(4), dp(8), dp(4));
+    actions.setPadding(dp(12), dp(6), dp(8), dp(6));
     var entry = entryPill("说点什么…", "community-comment-dock-entry");
-    actions.addView(entry, new LinearLayout.LayoutParams(0, -2, 1));
-    var like = toggle("community-post-like", post.likedByMe(), post.likeCount(), "♡", "♥", "点赞",
-        Design.RED, next -> activity.repo.setCommunityLike("post", post.id(), next));
-    var favorite = toggle("community-post-favorite", post.favoritedByMe(), post.favoriteCount(), "☆", "★", "收藏",
-        Design.GOLD, next -> activity.repo.setCommunityFavorite(post.id(), next));
+    LinearLayout.LayoutParams entryLp = new LinearLayout.LayoutParams(0, dp(38), 1);
+    entryLp.rightMargin = dp(6);
+    actions.addView(entry, entryLp);
+    var like = toggle("community-post-like", post.likedByMe(), post.likeCount(),
+        R.drawable.ic_photo_like, R.drawable.ic_photo_liked, 22, 14, "点赞",
+        Design.RED, Design.INK, next -> activity.repo.setCommunityLike("post", post.id(), next), null);
+    var favorite = toggle("community-post-favorite", post.favoritedByMe(), post.favoriteCount(),
+        R.drawable.ic_star_outline, R.drawable.ic_star_filled, 22, 14, "收藏",
+        Design.GOLD, Design.INK, next -> activity.repo.setCommunityFavorite(post.id(), next),
+        active -> {
+          if (active) showFavoriteGroupBanner();
+          else hideFavoriteGroupBanner();
+        });
+    favorite.setOnLongClickListener(v -> {
+      chooseGroups();
+      return true;
+    });
     actions.addView(like);
     actions.addView(favorite);
-    TextView group = action(activity, "分组", this::chooseGroups);
-    group.setTextColor(Design.MUTED);
-    actions.addView(group);
     actions.addView(count);
     dock.addView(actions);
     activity.setDetailBottomBar(dock);
     return like;
   }
 
+  private void showFavoriteGroupBanner() {
+    if (groupBanner == null) return;
+    if (hideGroupBanner != null) groupBanner.removeCallbacks(hideGroupBanner);
+    groupBanner.setVisibility(View.VISIBLE);
+    hideGroupBanner = this::hideFavoriteGroupBanner;
+    groupBanner.postDelayed(hideGroupBanner, 4500);
+  }
+
+  private void hideFavoriteGroupBanner() {
+    if (groupBanner == null) return;
+    if (hideGroupBanner != null) groupBanner.removeCallbacks(hideGroupBanner);
+    groupBanner.setVisibility(View.GONE);
+  }
+
   private TextView entryPill(String label, String tag) {
     TextView entry = action(activity, label, () -> composer.open(null, null));
     entry.setTag(tag);
+    entry.setMinHeight(dp(38));
     entry.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
-    entry.setPadding(dp(14), 0, dp(8), 0);
+    entry.setPadding(dp(14), 0, dp(10), 0);
     entry.setTextColor(Design.MUTED);
-    entry.setBackground(Ui.ripple(activity, Design.ALT, Color.TRANSPARENT, 24));
+    entry.setBackground(Ui.ripple(activity, Design.ALT, Color.TRANSPARENT, 20));
     return entry;
   }
 
@@ -102,7 +147,7 @@ final class CommunityDiscussion {
     CommunityPost current = activity.repo.communityPost(post.id());
     long total = (current == null ? post.commentCount() : current.commentCount()) + 1;
     heading.setText("共 " + total + " 条评论");
-    count.setText("评论 " + total);
+    count.setText(compactCount(total));
     count.setContentDescription("查看评论，共 " + total + " 条");
     // Replies keep the existing floor layout; the approval watcher refreshes the thread later.
     if (!rootId.isBlank()) return;
@@ -115,9 +160,13 @@ final class CommunityDiscussion {
   }
 
   private void chooseGroups() {
+    openFavoriteGroups(activity, post);
+  }
+
+  static void openFavoriteGroups(MainActivity activity, CommunityPost post) {
     CommunityPost current=activity.repo.communityPost(post.id());
     if(!(current==null?post:current).favoritedByMe()){
-      activity.message("请先点击 ☆ 收藏；未选择分组时会保存在默认分组。");return;
+      activity.message("请先点击星标收藏；未选择分组时会保存在默认分组。");return;
     }
     FavoriteGroupTools.choose(activity,"post",post.id(),()->activity.message("收藏分组已更新"));
   }
@@ -127,7 +176,7 @@ final class CommunityDiscussion {
     CommunityPost updated = activity.repo.communityPost(post.id());
     long total = updated == null ? post.commentCount() : updated.commentCount();
     heading.setText("共 " + total + " 条评论");
-    count.setText("评论 " + total);
+    count.setText(compactCount(total));
     count.setContentDescription("查看评论，共 " + total + " 条");
     rows.removeAllViews();
     var roots = activity.repo.communityRoots(post.id());
@@ -194,13 +243,10 @@ final class CommunityDiscussion {
         new LinearLayout.LayoutParams(0, -2, 1));
 
     if (canRemove || canReport) {
-      TextView moreBtn = action(activity, "···", () -> showCommentMenu(item));
-      moreBtn.setTextSize(14);
-      moreBtn.setTextColor(Design.MUTED);
-      moreBtn.setPadding(dp(6), 0, dp(6), 0);
+      android.widget.ImageView moreBtn = moreIconButton(activity, 36, 32, 18, Design.MUTED, () -> showCommentMenu(item));
       moreBtn.setContentDescription("评论操作菜单");
       moreBtn.setTag("community-comment-more:" + item.id());
-      nameRow.addView(moreBtn);
+      nameRow.addView(moreBtn, new LinearLayout.LayoutParams(dp(36), dp(32)));
     }
     body.addView(nameRow, new LinearLayout.LayoutParams(-1, -2));
     Ui.gap(body, 3);
@@ -238,13 +284,14 @@ final class CommunityDiscussion {
       respond.setTag("community-reply:" + item.id());
       respond.setContentDescription("回复 " + name);
       LinearLayout.LayoutParams replyLp = new LinearLayout.LayoutParams(-2, -2);
-      replyLp.rightMargin = dp(12);
+      replyLp.rightMargin = dp(4);
       meta.addView(respond, replyLp);
     }
 
     if (approved) {
       meta.addView(toggle("community-comment-like:" + item.id(), item.likedByMe(), item.likeCount(),
-          "♡", "♥", "点赞评论", Design.RED, next -> activity.repo.setCommunityLike("comment", item.id(), next)));
+          R.drawable.ic_photo_like, R.drawable.ic_photo_liked, 17, 13, "点赞评论",
+          Design.RED, Design.MUTED, next -> activity.repo.setCommunityLike("comment", item.id(), next), null));
     }
     return line;
   }
@@ -256,7 +303,10 @@ final class CommunityDiscussion {
     boolean canReport = approved && viewer != null && !viewer.id().equals(item.userId());
     if (!canRemove && !canReport) return;
 
-    android.app.Dialog dialog = new android.app.Dialog(activity, android.R.style.Theme_Material_Light_Dialog_NoActionBar);
+    int sheetTheme = AppTheme.dark(activity)
+        ? android.R.style.Theme_Material_Dialog_NoActionBar
+        : android.R.style.Theme_Material_Light_Dialog_NoActionBar;
+    android.app.Dialog dialog = new android.app.Dialog(activity, sheetTheme);
     dialog.setCanceledOnTouchOutside(true);
     android.view.Window window = dialog.getWindow();
     if (window != null) {
@@ -270,7 +320,7 @@ final class CommunityDiscussion {
     panel.setPadding(dp(20), dp(12), dp(20), dp(20));
 
     View handle = new View(activity);
-    handle.setBackground(Ui.shape(activity, 0x33000000, 0, 4));
+    handle.setBackground(Ui.shape(activity, Design.BORDER, 0, 4));
     LinearLayout.LayoutParams handleLp = new LinearLayout.LayoutParams(dp(36), dp(4));
     handleLp.gravity = Gravity.CENTER_HORIZONTAL;
     handleLp.bottomMargin = dp(14);
@@ -331,14 +381,21 @@ final class CommunityDiscussion {
     }
   }
 
-  private TextView toggle(String tag, boolean active, long total, String off, String on, String label,
-      int activeColor, java.util.function.Function<Boolean, CommunityAction> write) {
+  private TextView toggle(String tag, boolean active, long total, int offIcon, int onIcon,
+      int iconDp, int textSp, String label, int activeColor, int idleColor,
+      java.util.function.Function<Boolean, CommunityAction> write,
+      java.util.function.Consumer<Boolean> onToggled) {
     TextView button = action(activity, "", () -> {});
     button.setTag(tag);
+    button.setTextSize(textSp);
+    button.setCompoundDrawablePadding(dp(5));
+    button.setPadding(dp(10), 0, dp(10), 0);
     java.util.function.BiConsumer<TextView, CommunityAction> paint = (view, state) -> {
       view.setSelected(state.active());
-      view.setText((state.active() ? on : off) + " " + state.count());
-      view.setTextColor(state.active() ? activeColor : Design.INK);
+      int tint = state.active() ? activeColor : idleColor;
+      setStartIcon(activity, view, state.active() ? onIcon : offIcon, iconDp, tint);
+      view.setText(compactCount(state.count()));
+      view.setTextColor(tint);
       view.setContentDescription((state.active() ? "取消" : "") + label + "，当前 " + state.count());
     };
     paint.accept(button, new CommunityAction(active, total));
@@ -349,8 +406,48 @@ final class CommunityDiscussion {
         // An approval refresh can replace the comment row while this write is in flight.
         TextView current = activity.root.findViewWithTag(tag);
         if (current != null) paint.accept(current, result[0]);
+        if (onToggled != null && result[0] != null) onToggled.accept(result[0].active());
       });
     });
+    return button;
+  }
+
+  static void setStartIcon(MainActivity activity, TextView view, int res, int sizeDp, int tint) {
+    var drawable = activity.getDrawable(res).mutate();
+    drawable.setTint(tint);
+    int size = Ui.dp(activity, sizeDp);
+    drawable.setBounds(0, 0, size, size);
+    view.setCompoundDrawablesRelative(drawable, null, null, null);
+  }
+
+  static TextView dockAction(MainActivity activity, String label, int iconRes, int iconDp, int tint, Runnable run) {
+    TextView button = action(activity, label, run);
+    button.setTextSize(14);
+    button.setTextColor(tint);
+    button.setCompoundDrawablePadding(Ui.dp(activity, 5));
+    button.setPadding(Ui.dp(activity, 10), 0, Ui.dp(activity, 10), 0);
+    setStartIcon(activity, button, iconRes, iconDp, tint);
+    return button;
+  }
+
+  static String compactCount(long count) {
+    return count > 99 ? "99+" : String.valueOf(Math.max(0, count));
+  }
+
+  static android.widget.ImageView moreIconButton(MainActivity activity, int widthDp, int heightDp,
+      int iconDp, int tint, Runnable run) {
+    android.widget.ImageView button = new android.widget.ImageView(activity);
+    var drawable = activity.getDrawable(R.drawable.ic_more_horiz).mutate();
+    drawable.setTint(tint);
+    button.setImageDrawable(drawable);
+    button.setScaleType(android.widget.ImageView.ScaleType.CENTER_INSIDE);
+    int padX = Math.max(0, (Ui.dp(activity, widthDp) - Ui.dp(activity, iconDp)) / 2);
+    int padY = Math.max(0, (Ui.dp(activity, heightDp) - Ui.dp(activity, iconDp)) / 2);
+    button.setPadding(padX, padY, padX, padY);
+    button.setClickable(true);
+    button.setFocusable(true);
+    button.setBackground(Ui.ripple(activity, Color.TRANSPARENT, Color.TRANSPARENT, 16));
+    button.setOnClickListener(v -> run.run());
     return button;
   }
 
