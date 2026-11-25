@@ -206,6 +206,7 @@ public interface FoodtimeRepository extends AuthRepository, CatalogRepository, V
 
   AdminEntity entity(String table, String id);
 
+  default void editEntity(String type,String id,String parent,String name,String description,String price,String image,boolean active,String unit,Double latitude,Double longitude,boolean clearCoordinates){editEntity(type,id,parent,name,description,price,image,active,unit);}
   default void editEntity(String type,String id,String parent,String name,String description,String price,String image,boolean active,String unit){editEntity(type,id,parent,name,description,price,image,active);}
   void editEntity(
       String table,

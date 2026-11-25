@@ -35,11 +35,11 @@ public final class CampusMapRunner extends Instrumentation {
     ui(()->{
       var map=(CampusMapScreen.MapView)a.root.findViewWithTag("campus-map-canvas");
       check(map.getWidth()>0&&map.getHeight()>0,"Measured map viewport");
-      check(CampusMapScreen.regions(a).size()==6,"Six mapped regions only");
+      check(CampusMapScreen.regions(a).size()==7,"Seven mapped regions including xueyuan and yimin");
       map.zoomBy(1.5f);check(map.zoomLevel()>1,"Zoom button changes actual transform");map.reset();check(map.zoomLevel()==1,"Reset restores overview");
       var button=(TextView)a.root.findViewWithTag("map-region:minghu");button.performClick();
-      var details=(LinearLayout)a.root.findViewWithTag("campus-map-selection");check(details.getChildCount()>=7,"Minghu exposes all three floor destinations");
-      ((TextView)a.root.findViewWithTag("map-region:yimin")).performClick();check(details.getChildCount()==3,"Unmapped region has name and a clear unavailable message");
+      var details=(LinearLayout)a.root.findViewWithTag("campus-map-selection");check(details.getChildCount()>=6,"Minghu exposes navigation and floor destinations");
+      ((TextView)a.root.findViewWithTag("map-region:yimin")).performClick();check(details.getChildCount()>=3,"Unmapped region has name, navigation, and a clear unavailable message");
     });
     ui(()->{var map=(CampusMapScreen.MapView)a.root.findViewWithTag("campus-map-canvas");map.requestRectangleOnScreen(new android.graphics.Rect(0,0,map.getWidth(),map.getHeight()),true);});
     waitForIdleSync();SystemClock.sleep(300);

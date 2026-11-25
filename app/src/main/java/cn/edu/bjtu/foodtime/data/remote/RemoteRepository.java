@@ -486,7 +486,9 @@ public final class RemoteRepository implements FoodtimeRepository {
     }
   }
   private void fetchHalls() {
-    var items=list("dining-halls",j -> new Hall(text(j,"id"),text(j,"name"),text(j,"coverImageUrl"),true,j.isNull("averageScore")?null:new BigDecimal(j.opt("averageScore").toString()),j.optLong("reviewCount")));
+    var items=list("dining-halls",j -> new Hall(text(j,"id"),text(j,"name"),text(j,"coverImageUrl"),true,
+        j.isNull("averageScore")?null:new BigDecimal(j.opt("averageScore").toString()),j.optLong("reviewCount"),
+        j.isNull("latitude")?null:j.optDouble("latitude"),j.isNull("longitude")?null:j.optDouble("longitude")));
     halls.clear(); for(Hall h:items) halls.put(h.id(),h); hallList=items;
   }
   private void fetchStalls(String id) {
@@ -1040,7 +1042,11 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private AdminEntity cacheEntity(String type,JSONObject j) {
     BigDecimal amount=decimal(j,"price");String price=amount==null?"":amount.setScale(2).toPlainString();
-    AdminEntity e=new AdminEntity(text(j,"id"),text(j,"name"),text(j,"description"),price,text(j,"coverImageUrl"),text(j,"status").equals("active"),text(j,"priceUnit"));
+    String lat=j.isNull("latitude")?"":String.valueOf(j.optDouble("latitude"));
+    String lng=j.isNull("longitude")?"":String.valueOf(j.optDouble("longitude"));
+    if("NaN".equals(lat))lat="";
+    if("NaN".equals(lng))lng="";
+    AdminEntity e=new AdminEntity(text(j,"id"),text(j,"name"),text(j,"description"),price,text(j,"coverImageUrl"),text(j,"status").equals("active"),text(j,"priceUnit"),lat,lng);
     String key=type+":"+e.id(); entities.put(key,e); parents.put(key,text(j,"parentId")); return e;
   }
 
@@ -1852,13 +1858,23 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public void correctPriceHistory(String dish,String entry,BigDecimal price,String unit,long revision){accountCall("PUT","admin/dishes/"+encode(dish)+"/price-history/"+encode(entry),json("price",price,"priceUnit",unit,"expectedRevision",revision));}
   @Override public void deletePriceHistory(String dish,String entry,long revision){accountCall("DELETE","admin/dishes/"+encode(dish)+"/price-history/"+encode(entry)+"?expectedRevision="+revision,null);}
   @Override public void editEntity(String type,String id,String parent,String name,String description,String price,String image,boolean active) {
-    editEntity(type,id,parent,name,description,price,image,active,null);
+    editEntity(type,id,parent,name,description,price,image,active,null,null,null,false);
   }
   @Override public void editEntity(String type,String id,String parent,String name,String description,String price,String image,boolean active,String unit) {
+    editEntity(type,id,parent,name,description,price,image,active,unit,null,null,false);
+  }
+  @Override public void editEntity(String type,String id,String parent,String name,String description,String price,String image,boolean active,String unit,Double latitude,Double longitude,boolean clearCoordinates) {
     String reference=image==null||image.isBlank()?null:image.startsWith("file:")?upload(image):image;
     String path="admin/catalog/"+table(type)+(id.isBlank()?"":"/"+id);
-    call(id.isBlank()?"POST":"PUT",path,json("parentId",parent.isBlank()?null:parent,"name",name,"description",description,
-        "price",type.equals("dishes")?Validation.price(price):null,"priceUnit",unit,"coverImageUrl",reference,"status",active?"active":"inactive"));
+    JSONObject payload=json("parentId",parent.isBlank()?null:parent,"name",name,"description",description,
+        "price",type.equals("dishes")?Validation.price(price):null,"priceUnit",unit,"coverImageUrl",reference,"status",active?"active":"inactive");
+    if(type.equals("halls")) {
+      try {
+        if(latitude!=null&&longitude!=null){payload.put("latitude",latitude);payload.put("longitude",longitude);}
+        else if(clearCoordinates){payload.put("clearCoordinates",true);}
+      } catch(JSONException ignored) {}
+    }
+    call(id.isBlank()?"POST":"PUT",path,payload);
   }
   @Override public void removeEntity(String type,String id) { call("DELETE","admin/catalog/"+table(type)+"/"+id,null); }
   @Override public long recordCommunityPostView(String postId,String requestId) {
