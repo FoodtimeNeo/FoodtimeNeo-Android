@@ -249,7 +249,8 @@ final class CommunityScreen {
     TextView name=Ui.text(a,"@"+author,12,Design.MUTED);name.setSingleLine(true);name.setEllipsize(TextUtils.TruncateAt.END);
     meta.addView(name,new LinearLayout.LayoutParams(0,-2,1));
     int likeColor=post.likedByMe()?Design.RED:Design.MUTED;
-    TextView like=Ui.text(a,String.valueOf(post.likeCount()),12,likeColor);
+    TextView like=Ui.text(a,CommunityDiscussion.compactCount(post.likeCount()),12,likeColor);
+    like.setLineSpacing(0,1);
     like.setGravity(Gravity.CENTER_VERTICAL);
     like.setCompoundDrawablePadding(Ui.dp(a,4));
     CommunityDiscussion.setStartIcon(a,like,post.likedByMe()?R.drawable.ic_photo_liked:R.drawable.ic_photo_like,15,likeColor);
@@ -386,10 +387,10 @@ final class CommunityScreen {
     }
 
     // 右上角更多操作按钮（紧凑三点矢量图标）
-    TextView more = CommunityDiscussion.moreIconButton(a, 20, Design.INK, () -> showPostMenu(a, post));
+    ImageView more = CommunityDiscussion.moreIconButton(a, 44, 44, 20, Design.INK, () -> showPostMenu(a, post));
     more.setTag("post-more-actions");
     more.setContentDescription("食记更多操作");
-    bar.addView(more);
+    bar.addView(more, new LinearLayout.LayoutParams(Ui.dp(a, 44), Ui.dp(a, 44)));
 
     // 代理锚点放在标题栏之外，避免占用标题栏空间把“···”挤离最右侧。
     if (CommunityPinScreen.allowed(a)) {

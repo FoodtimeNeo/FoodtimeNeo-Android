@@ -114,6 +114,7 @@ public final class Ui {
   public static TextView button(Context c, String label, boolean primary, Runnable action) {
     TextView v = text(c, label, 15, primary ? Design.ON_RED : Design.INK);
     v.setTypeface(primary ? Typeface.create(Design.body(), Typeface.BOLD) : Design.body());
+    v.setLineSpacing(0, 1);
     v.setGravity(Gravity.CENTER);
     v.setMinHeight(dp(c, 46));
     v.setPadding(dp(c, 16), dp(c, 8), dp(c, 16), dp(c, 8));
@@ -146,6 +147,7 @@ public final class Ui {
 
   public static TextView stamp(Context c, String label, int color) {
     TextView v = text(c, label, 12, color);
+    v.setLineSpacing(0, 1);
     v.setGravity(Gravity.CENTER);
     v.setPadding(dp(c, 8), dp(c, 4), dp(c, 8), dp(c, 4));
     v.setBackground(shape(c, Design.PAPER, color, 12));

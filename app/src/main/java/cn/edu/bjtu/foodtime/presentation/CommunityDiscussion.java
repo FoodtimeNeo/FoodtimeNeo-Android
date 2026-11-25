@@ -147,7 +147,7 @@ final class CommunityDiscussion {
     CommunityPost current = activity.repo.communityPost(post.id());
     long total = (current == null ? post.commentCount() : current.commentCount()) + 1;
     heading.setText("共 " + total + " 条评论");
-    count.setText(String.valueOf(total));
+    count.setText(compactCount(total));
     count.setContentDescription("查看评论，共 " + total + " 条");
     // Replies keep the existing floor layout; the approval watcher refreshes the thread later.
     if (!rootId.isBlank()) return;
@@ -176,7 +176,7 @@ final class CommunityDiscussion {
     CommunityPost updated = activity.repo.communityPost(post.id());
     long total = updated == null ? post.commentCount() : updated.commentCount();
     heading.setText("共 " + total + " 条评论");
-    count.setText(String.valueOf(total));
+    count.setText(compactCount(total));
     count.setContentDescription("查看评论，共 " + total + " 条");
     rows.removeAllViews();
     var roots = activity.repo.communityRoots(post.id());
@@ -243,12 +243,10 @@ final class CommunityDiscussion {
         new LinearLayout.LayoutParams(0, -2, 1));
 
     if (canRemove || canReport) {
-      TextView moreBtn = moreIconButton(activity, 18, Design.MUTED, () -> showCommentMenu(item));
-      moreBtn.setMinWidth(dp(36));
-      moreBtn.setMinHeight(dp(32));
+      android.widget.ImageView moreBtn = moreIconButton(activity, 36, 32, 18, Design.MUTED, () -> showCommentMenu(item));
       moreBtn.setContentDescription("评论操作菜单");
       moreBtn.setTag("community-comment-more:" + item.id());
-      nameRow.addView(moreBtn);
+      nameRow.addView(moreBtn, new LinearLayout.LayoutParams(dp(36), dp(32)));
     }
     body.addView(nameRow, new LinearLayout.LayoutParams(-1, -2));
     Ui.gap(body, 3);
@@ -396,7 +394,7 @@ final class CommunityDiscussion {
       view.setSelected(state.active());
       int tint = state.active() ? activeColor : idleColor;
       setStartIcon(activity, view, state.active() ? onIcon : offIcon, iconDp, tint);
-      view.setText(String.valueOf(state.count()));
+      view.setText(compactCount(state.count()));
       view.setTextColor(tint);
       view.setContentDescription((state.active() ? "取消" : "") + label + "，当前 " + state.count());
     };
@@ -432,14 +430,24 @@ final class CommunityDiscussion {
     return button;
   }
 
-  static TextView moreIconButton(MainActivity activity, int iconDp, int tint, Runnable run) {
-    TextView button = action(activity, "", run);
-    button.setMinWidth(Ui.dp(activity, 44));
-    button.setMinHeight(Ui.dp(activity, 44));
-    int size = Ui.dp(activity, iconDp);
-    int pad = Math.max(0, (Ui.dp(activity, 44) - size) / 2);
-    button.setPadding(pad, 0, pad, 0);
-    setStartIcon(activity, button, R.drawable.ic_more_horiz, iconDp, tint);
+  static String compactCount(long count) {
+    return count > 99 ? "99+" : String.valueOf(Math.max(0, count));
+  }
+
+  static android.widget.ImageView moreIconButton(MainActivity activity, int widthDp, int heightDp,
+      int iconDp, int tint, Runnable run) {
+    android.widget.ImageView button = new android.widget.ImageView(activity);
+    var drawable = activity.getDrawable(R.drawable.ic_more_horiz).mutate();
+    drawable.setTint(tint);
+    button.setImageDrawable(drawable);
+    button.setScaleType(android.widget.ImageView.ScaleType.CENTER_INSIDE);
+    int padX = Math.max(0, (Ui.dp(activity, widthDp) - Ui.dp(activity, iconDp)) / 2);
+    int padY = Math.max(0, (Ui.dp(activity, heightDp) - Ui.dp(activity, iconDp)) / 2);
+    button.setPadding(padX, padY, padX, padY);
+    button.setClickable(true);
+    button.setFocusable(true);
+    button.setBackground(Ui.ripple(activity, Color.TRANSPARENT, Color.TRANSPARENT, 16));
+    button.setOnClickListener(v -> run.run());
     return button;
   }
 

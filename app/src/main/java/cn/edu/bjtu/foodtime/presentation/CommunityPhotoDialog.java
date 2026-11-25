@@ -97,14 +97,15 @@ final class CommunityPhotoDialog {
     FrameLayout top = new FrameLayout(activity);
     top.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
         new int[]{0xcc000000, Color.TRANSPARENT}));
-    TextView close = control("×", "关闭看图", dialog::dismiss);
-    close.setTextSize(22);
-    top.addView(close, position(Gravity.START | Gravity.TOP));
+    ImageView close = circleIcon(R.drawable.ic_close, "关闭看图", dialog::dismiss);
+    top.addView(close, position(Gravity.START | Gravity.TOP, dp(42), dp(42)));
     original = control("加载原图", "加载原图", this::loadOriginal);
     original.setTextSize(13);
+    original.setPadding(dp(16), 0, dp(16), 0);
     original.setTag("photo-original");
     top.addView(original, position(Gravity.TOP | Gravity.CENTER_HORIZONTAL));
     counter = Ui.text(activity, "", 13, 0xe6ffffff);
+    counter.setLineSpacing(0, 1);
     counter.setGravity(Gravity.CENTER);
     counter.setMinHeight(dp(42));
     counter.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -113,8 +114,7 @@ final class CommunityPhotoDialog {
     LinearLayout.LayoutParams counterLp = new LinearLayout.LayoutParams(-2, -2);
     counterLp.rightMargin = dp(8);
     topEnd.addView(counter, counterLp);
-    TextView options = control("⋮", "看图选项", () -> {});
-    options.setTextSize(20);
+    ImageView options = circleIcon(R.drawable.ic_more_vert, "看图选项", () -> {});
     options.setOnClickListener(view -> {
       PopupMenu menu = new PopupMenu(activity, options);
       if (page > 0) menu.getMenu().add("上一张图片").setOnMenuItemClickListener(item -> {
@@ -135,7 +135,7 @@ final class CommunityPhotoDialog {
       });
       menu.show();
     });
-    topEnd.addView(options);
+    topEnd.addView(options, new LinearLayout.LayoutParams(dp(42), dp(42)));
     top.addView(topEnd, position(Gravity.END | Gravity.TOP));
     screen.addView(top, new FrameLayout.LayoutParams(-1, -2, Gravity.TOP));
 
@@ -171,14 +171,32 @@ final class CommunityPhotoDialog {
   private int dp(int value) { return Ui.dp(activity, value); }
 
   private FrameLayout.LayoutParams position(int gravity) {
-    FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(-2, -2, gravity);
+    return position(gravity, -2, -2);
+  }
+
+  private FrameLayout.LayoutParams position(int gravity, int width, int height) {
+    FrameLayout.LayoutParams params = new FrameLayout.LayoutParams(width, height, gravity);
     params.setMargins(dp(10), dp(8), dp(10), dp(8));
     return params;
+  }
+
+  private ImageView circleIcon(int iconRes, String description, Runnable action) {
+    ImageView button = new ImageView(activity);
+    button.setImageResource(iconRes);
+    button.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+    button.setPadding(dp(11), dp(11), dp(11), dp(11));
+    button.setClickable(true);
+    button.setFocusable(true);
+    button.setContentDescription(description);
+    button.setBackground(Ui.ripple(activity, 0x99262626, 0x26FFFFFF, 21));
+    button.setOnClickListener(v -> action.run());
+    return button;
   }
 
   private TextView control(String label, String description, Runnable action) {
     TextView button = Ui.button(activity, label, false, action);
     button.setTextColor(Color.WHITE);
+    button.setLineSpacing(0, 1);
     button.setMinWidth(dp(42));
     button.setMinHeight(dp(42));
     button.setGravity(Gravity.CENTER);
@@ -196,7 +214,7 @@ final class CommunityPhotoDialog {
     button.setMaxLines(1);
     button.setSingleLine(true);
     button.setEllipsize(TextUtils.TruncateAt.END);
-    button.setPadding(dp(8), 0, dp(8), 0);
+    button.setPadding(0, 0, 0, 0);
     button.setCompoundDrawablePadding(dp(6));
     button.setBackground(null);
     setPhotoActionIcon(button, icon, Color.WHITE);
@@ -206,12 +224,27 @@ final class CommunityPhotoDialog {
   private FrameLayout wrapPhotoAction(TextView button) {
     FrameLayout pill = new FrameLayout(activity);
     pill.setMinimumHeight(dp(44));
+    pill.setPadding(dp(10), 0, dp(10), 0);
     pill.setBackground(Ui.ripple(activity, 0x66222222, 0x29FFFFFF, 22));
     pill.setClickable(true);
     pill.setFocusable(false);
     pill.setOnClickListener(v -> button.performClick());
     pill.addView(button, new FrameLayout.LayoutParams(-2, -1, Gravity.CENTER));
     return pill;
+  }
+
+  private static String formatBadgeCount(long count) {
+    return CommunityDiscussion.compactCount(count);
+  }
+
+  private static String formatBadgeCount(String raw) {
+    String clean = raw == null ? "" : raw.strip();
+    if (clean.endsWith("+")) return clean;
+    try {
+      return formatBadgeCount(Long.parseLong(clean));
+    } catch (NumberFormatException ignored) {
+      return clean;
+    }
   }
 
   private void setPhotoActionIcon(TextView button, int resource, int color) {
@@ -224,11 +257,12 @@ final class CommunityPhotoDialog {
   private void bindPhotoLike(TextView button, TextView source, CharSequence label) {
     String value = label == null ? "" : label.toString();
     boolean liked = value.contains("♥") || (!value.contains("♡") && source != null && source.isSelected());
-    String count = value.replace("♡", "").replace("♥", "").strip();
-    button.setText((liked ? "已赞 " : "点赞 ") + count);
+    String rawCount = value.replace("♡", "").replace("♥", "").strip();
+    String shown = formatBadgeCount(rawCount);
+    button.setText((liked ? "已赞 " : "点赞 ") + shown);
     button.setSelected(liked);
     button.setTextColor(liked ? 0xffff8a90 : Color.WHITE);
-    button.setContentDescription((liked ? "已点赞，" : "点赞帖子，") + count + "个赞");
+    button.setContentDescription((liked ? "已点赞，" : "点赞帖子，") + rawCount + "个赞");
     setPhotoActionIcon(button, liked ? R.drawable.ic_photo_liked : R.drawable.ic_photo_like,
         liked ? 0xffff8a90 : Color.WHITE);
   }
@@ -289,7 +323,7 @@ final class CommunityPhotoDialog {
       LinearLayout row = Ui.row(activity);
       TextView share = photoAction("分享", "分享帖子", actions.share(), R.drawable.ic_photo_share);
       share.setTag("photo-action-share");
-      TextView comment = photoAction("评论 " + post.commentCount(), "查看评论", () -> {
+      TextView comment = photoAction("评论 " + formatBadgeCount(post.commentCount()), "查看评论", () -> {
         dialog.dismiss();
         actions.comment().run();
       }, R.drawable.ic_photo_comment);
