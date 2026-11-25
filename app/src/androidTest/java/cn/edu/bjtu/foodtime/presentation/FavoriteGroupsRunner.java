@@ -53,16 +53,19 @@ public final class FavoriteGroupsRunner extends Instrumentation {
       });
     }
   }
+  private AccessibilityNodeInfo desc(AccessibilityNodeInfo node,String value){if(node==null)return null;if(value.contentEquals(node.getContentDescription())&&node.isVisibleToUser())return node;for(int i=0;i<node.getChildCount();i++){var found=desc(node.getChild(i),value);if(found!=null)return found;}return null;}
+  private void clickDesc(String label){long end=SystemClock.uptimeMillis()+10000;AccessibilityNodeInfo node=null;while(SystemClock.uptimeMillis()<end&&(node=desc(getUiAutomation().getRootInActiveWindow(),label))==null)SystemClock.sleep(70);if(node==null)throw new AssertionError("Missing control: "+label);Rect box=new Rect();node.getBoundsInScreen(box);long time=SystemClock.uptimeMillis();sendPointerSync(MotionEvent.obtain(time,time,MotionEvent.ACTION_DOWN,box.centerX(),box.centerY(),0));sendPointerSync(MotionEvent.obtain(time,SystemClock.uptimeMillis()+30,MotionEvent.ACTION_UP,box.centerX(),box.centerY(),0));waitForIdleSync();}
+  private void openGroups(){clickDesc("食记更多操作");click("设置收藏分组");}
   private void favorites(){
     ui(()->{activity.selectTab("community");activity.go("community-favorites","");});
     await("favorites entry",()->text("+ 新建分组")!=null);check(text("默认分组")!=null,"Default group exists without custom groups");
     click("默认分组");click("+ 新建分组");name("午饭食记");click("新建");await("created post group",()->text("午饭食记 (0)")!=null);checks++;
     ui(()->activity.go("community-detail",postId));await("post detail",()->find(activity.content,CommunityGallery.class)!=null);
-    click("分组");await("membership dialog",()->text("设置收藏分组")!=null);check(text("默认分组（未加入自建分组）")!=null,"Default membership is selectable");
+    openGroups();await("membership dialog",()->text("设置收藏分组")!=null);check(text("默认分组（未加入自建分组）")!=null,"Default membership is selectable");
     click("午饭食记");click("保存");await("membership saved",()->text("设置收藏分组")==null);
-    click("分组");await("persisted choice",()->text("午饭食记")!=null);check(text("午饭食记").isChecked(),"Custom membership persisted after save and reopen");
+    openGroups();await("persisted choice",()->text("午饭食记")!=null);check(text("午饭食记").isChecked(),"Custom membership persisted after save and reopen");
     click("默认分组（未加入自建分组）");click("保存");await("default saved",()->text("设置收藏分组")==null);
-    click("分组");await("default persisted",()->text("午饭食记")!=null);check(!text("午饭食记").isChecked(),"Moving to default removes the custom relation");
+    openGroups();await("default persisted",()->text("午饭食记")!=null);check(!text("午饭食记").isChecked(),"Moving to default removes the custom relation");
     check(text("默认分组（未加入自建分组）").isChecked(),"Default selected after reopen");
     click("+ 新建分组");name("晚饭食记");click("新建");await("created inline",()->text("晚饭食记")!=null);checks++;
     click("取消");ui(()->activity.go("favorite-dishes",""));

@@ -96,22 +96,25 @@ final class CommunityPhotoDialog {
 
     FrameLayout top = new FrameLayout(activity);
     top.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-        new int[]{0xdd000000, Color.TRANSPARENT}));
+        new int[]{0xcc000000, Color.TRANSPARENT}));
     TextView close = control("×", "关闭看图", dialog::dismiss);
-    close.setTextSize(25);
+    close.setTextSize(22);
     top.addView(close, position(Gravity.START | Gravity.TOP));
     original = control("加载原图", "加载原图", this::loadOriginal);
+    original.setTextSize(13);
     original.setTag("photo-original");
     top.addView(original, position(Gravity.TOP | Gravity.CENTER_HORIZONTAL));
-    counter = Ui.text(activity, "", 14, Color.WHITE);
+    counter = Ui.text(activity, "", 13, 0xe6ffffff);
     counter.setGravity(Gravity.CENTER);
-    counter.setMinHeight(dp(48));
+    counter.setMinHeight(dp(42));
     counter.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
     LinearLayout topEnd = Ui.row(activity);
     topEnd.setGravity(Gravity.CENTER_VERTICAL);
-    topEnd.addView(counter);
+    LinearLayout.LayoutParams counterLp = new LinearLayout.LayoutParams(-2, -2);
+    counterLp.rightMargin = dp(8);
+    topEnd.addView(counter, counterLp);
     TextView options = control("⋮", "看图选项", () -> {});
-    options.setTextSize(22);
+    options.setTextSize(20);
     options.setOnClickListener(view -> {
       PopupMenu menu = new PopupMenu(activity, options);
       if (page > 0) menu.getMenu().add("上一张图片").setOnMenuItemClickListener(item -> {
@@ -176,23 +179,25 @@ final class CommunityPhotoDialog {
   private TextView control(String label, String description, Runnable action) {
     TextView button = Ui.button(activity, label, false, action);
     button.setTextColor(Color.WHITE);
-    button.setMinWidth(dp(48));
-    button.setMinHeight(dp(48));
+    button.setMinWidth(dp(42));
+    button.setMinHeight(dp(42));
     button.setGravity(Gravity.CENTER);
     button.setPadding(dp(12), 0, dp(12), 0);
     button.setContentDescription(description);
-    button.setBackground(Ui.ripple(activity, 0xdd303030, Color.TRANSPARENT, 24));
+    button.setBackground(Ui.ripple(activity, 0x99262626, 0x26FFFFFF, 21));
     return button;
   }
 
   private TextView photoAction(String label, String description, Runnable action, int icon) {
     TextView button = control(label, description, action);
-    button.setTextSize(16);
-    button.setMinHeight(dp(76));
-    button.setMaxLines(2);
-    button.setPadding(dp(8), dp(8), dp(8), dp(8));
+    button.setTextSize(13);
+    button.setMinHeight(dp(44));
+    button.setMaxLines(1);
+    button.setSingleLine(true);
+    button.setEllipsize(TextUtils.TruncateAt.END);
+    button.setPadding(dp(10), 0, dp(10), 0);
     button.setCompoundDrawablePadding(dp(6));
-    button.setBackground(Ui.ripple(activity, 0xdd303030, Color.TRANSPARENT, 16));
+    button.setBackground(Ui.ripple(activity, 0x66222222, 0x29FFFFFF, 22));
     setPhotoActionIcon(button, icon, Color.WHITE);
     return button;
   }
@@ -200,57 +205,65 @@ final class CommunityPhotoDialog {
   private void setPhotoActionIcon(TextView button, int resource, int color) {
     var drawable = activity.getDrawable(resource).mutate();
     drawable.setTint(color);
-    drawable.setBounds(0, 0, dp(28), dp(28));
-    button.setCompoundDrawables(null, drawable, null, null);
+    drawable.setBounds(0, 0, dp(18), dp(18));
+    button.setCompoundDrawablesRelative(drawable, null, null, null);
   }
 
-  private void bindPhotoLike(TextView button, CharSequence label) {
-    String value = label.toString();
-    boolean liked = value.contains("♥");
+  private void bindPhotoLike(TextView button, TextView source, CharSequence label) {
+    String value = label == null ? "" : label.toString();
+    boolean liked = value.contains("♥") || (!value.contains("♡") && source != null && source.isSelected());
     String count = value.replace("♡", "").replace("♥", "").strip();
     button.setText((liked ? "已赞 " : "点赞 ") + count);
     button.setSelected(liked);
-    button.setTextColor(liked ? 0xffff999c : Color.WHITE);
+    button.setTextColor(liked ? 0xffff8a90 : Color.WHITE);
     button.setContentDescription((liked ? "已点赞，" : "点赞帖子，") + count + "个赞");
     setPhotoActionIcon(button, liked ? R.drawable.ic_photo_liked : R.drawable.ic_photo_like,
-        liked ? 0xffff999c : Color.WHITE);
+        liked ? 0xffff8a90 : Color.WHITE);
   }
 
   private FrameLayout footer(CommunityPost post, PostActions actions) {
     FrameLayout shell = new FrameLayout(activity);
     LinearLayout details = Ui.col(activity);
-    details.setPadding(dp(16), dp(16), dp(16), dp(10));
+    details.setPadding(dp(14), dp(22), dp(14), dp(10));
     details.setBackground(new GradientDrawable(GradientDrawable.Orientation.TOP_BOTTOM,
-        new int[]{0x88000000, Color.BLACK}));
+        new int[]{0x00000000, 0xA6000000, 0xE6000000}));
     details.setTag("photo-context");
     shell.addView(details, new FrameLayout.LayoutParams(-1, -2, Gravity.BOTTOM));
 
     String author = post.userDisplayName().isBlank() ? "同学" : post.userDisplayName();
     LinearLayout byline = Ui.row(activity);
     byline.setGravity(Gravity.CENTER_VERTICAL);
-    byline.setPadding(0, 0, dp(58), 0);
+    byline.setPadding(0, 0, dp(48), 0);
     View avatar = Ui.image(activity, Ui.thumb(post.userAvatarUrl()),
         new String(Character.toChars(author.codePointAt(0))), false);
-    avatar.setBackground(Ui.shape(activity, 0xff303030, Color.TRANSPARENT, 20));
+    avatar.setBackground(Ui.shape(activity, 0xff303030, Color.TRANSPARENT, 14));
     avatar.setClipToOutline(true);
     avatar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-    byline.addView(avatar, new LinearLayout.LayoutParams(dp(40), dp(40)));
+    byline.addView(avatar, new LinearLayout.LayoutParams(dp(28), dp(28)));
     LinearLayout identity = Ui.col(activity);
-    identity.setPadding(dp(10), 0, 0, 0);
-    identity.addView(Ui.text(activity, author, 16, Color.WHITE));
-    identity.addView(Ui.text(activity, CommunityText.publishedAt(post.createdAt()), 12, 0xffcccccc));
+    identity.setPadding(dp(8), 0, 0, 0);
+    TextView authorName = Ui.text(activity, author, 14, Color.WHITE);
+    authorName.setTypeface(android.graphics.Typeface.create(Design.body(), android.graphics.Typeface.BOLD));
+    authorName.setSingleLine(true);
+    authorName.setEllipsize(TextUtils.TruncateAt.END);
+    identity.addView(authorName);
+    identity.addView(Ui.text(activity, CommunityText.publishedAt(post.createdAt()), 11, 0xb3ffffff));
     byline.addView(identity, new LinearLayout.LayoutParams(0, -2, 1));
     details.addView(byline);
 
-    TextView summary = Ui.text(activity, post.title() + " " + post.content(), 14, Color.WHITE);
+    TextView summary = Ui.text(activity, post.title() + " " + post.content(), 13, 0xe6ffffff);
     summary.setMaxLines(2);
     summary.setEllipsize(TextUtils.TruncateAt.END);
-    summary.setPadding(0, dp(8), 0, 0);
+    summary.setLineSpacing(dp(2), 1f);
+    summary.setPadding(0, dp(6), 0, 0);
     details.addView(summary);
-    TextView postLink = control("查看帖子", "查看帖子", dialog::dismiss);
-    postLink.setPadding(0, 0, dp(10), 0);
-    postLink.setTextSize(14);
-    postLink.setTextColor(0xffabd9f3);
+    TextView postLink = control("查看帖子 ›", "查看帖子", dialog::dismiss);
+    postLink.setMinWidth(dp(44));
+    postLink.setMinHeight(dp(34));
+    postLink.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
+    postLink.setPadding(0, dp(4), dp(12), dp(4));
+    postLink.setTextSize(13);
+    postLink.setTextColor(0xff9fd2f4);
     postLink.setBackground(Ui.ripple(activity, Color.TRANSPARENT, Color.TRANSPARENT, 8));
     details.addView(postLink, new LinearLayout.LayoutParams(-2, -2));
     if (actions != null) {
@@ -266,11 +279,11 @@ final class CommunityPhotoDialog {
         if (actions.like().isEnabled()) actions.like().performClick();
       }, R.drawable.ic_photo_like);
       like.setTag("photo-action-like");
-      bindPhotoLike(like, actions.like().getText());
+      bindPhotoLike(like, actions.like(), actions.like().getText());
       TextWatcher mirror = new TextWatcher() {
         @Override public void beforeTextChanged(CharSequence value, int start, int count, int after) {}
         @Override public void onTextChanged(CharSequence value, int start, int before, int count) {
-          bindPhotoLike(like, value);
+          bindPhotoLike(like, actions.like(), value);
         }
         @Override public void afterTextChanged(Editable value) {}
       };
@@ -280,17 +293,25 @@ final class CommunityPhotoDialog {
         canvas.stopZoomAnimation();
       });
       for (TextView action : List.of(share, comment, like)) {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -1, 1);
-        params.setMargins(dp(6), 0, dp(6), 0);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
+        params.setMargins(dp(5), 0, dp(5), 0);
         row.addView(action, params);
       }
-      details.addView(row);
+      LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, -2);
+      rowLp.topMargin = dp(6);
+      details.addView(row, rowLp);
     }
 
     TextView toggle = control("⌄", "收起帖子信息", () -> {});
     toggle.setTag("photo-context-toggle");
-    toggle.setTextSize(23);
-    shell.addView(toggle, position(Gravity.END | Gravity.TOP));
+    toggle.setMinWidth(dp(36));
+    toggle.setMinHeight(dp(36));
+    toggle.setPadding(0, 0, 0, 0);
+    toggle.setTextSize(19);
+    toggle.setBackground(Ui.ripple(activity, 0x80262626, 0x26FFFFFF, 18));
+    FrameLayout.LayoutParams toggleLp = new FrameLayout.LayoutParams(dp(36), dp(36), Gravity.END | Gravity.TOP);
+    toggleLp.setMargins(dp(14), dp(16), dp(14), dp(8));
+    shell.addView(toggle, toggleLp);
     toggle.setOnClickListener(view -> {
       boolean collapse = details.getVisibility() == View.VISIBLE;
       details.setVisibility(collapse ? View.GONE : View.VISIBLE);
@@ -628,7 +649,7 @@ final class CommunityPhotoDialog {
     }
 
     private float fit(int width, int height) {
-      int margin = Math.min(dp(hasPost ? 166 : 58), getHeight() / 5);
+      int margin = Math.min(dp(hasPost ? 108 : 58), getHeight() / 5);
       return Math.min((float) getWidth() / width, (float) (getHeight() - 2 * margin) / height) * scale;
     }
 

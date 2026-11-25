@@ -244,10 +244,18 @@ final class CommunityScreen {
     body.addView(title,new LinearLayout.LayoutParams(-1,-2));Ui.gap(body,7);
     if(!post.status().equals("approved")){body.addView(Ui.text(a,post.status().equals("rejected")?"未通过："+post.reviewReason():post.reviewStage().equals("manual_pending")?"待人工审核":"AI审核中",12,Design.RED));Ui.gap(body,6);}
     LinearLayout meta=Ui.row(a);
+    meta.setGravity(Gravity.CENTER_VERTICAL);
     String author=post.userDisplayName().isBlank()?"校园干饭人":post.userDisplayName();
-    TextView name=Ui.text(a,"@"+author,11,Design.MUTED);name.setSingleLine(true);name.setEllipsize(TextUtils.TruncateAt.END);
+    TextView name=Ui.text(a,"@"+author,12,Design.MUTED);name.setSingleLine(true);name.setEllipsize(TextUtils.TruncateAt.END);
     meta.addView(name,new LinearLayout.LayoutParams(0,-2,1));
-    meta.addView(Ui.text(a,"♡ "+post.likeCount(),11,Design.MUTED));body.addView(meta);
+    int likeColor=post.likedByMe()?Design.RED:Design.MUTED;
+    TextView like=Ui.text(a,String.valueOf(post.likeCount()),12,likeColor);
+    like.setGravity(Gravity.CENTER_VERTICAL);
+    like.setCompoundDrawablePadding(Ui.dp(a,4));
+    CommunityDiscussion.setStartIcon(a,like,post.likedByMe()?R.drawable.ic_photo_liked:R.drawable.ic_photo_like,15,likeColor);
+    LinearLayout.LayoutParams likeLp=new LinearLayout.LayoutParams(-2,-2);
+    likeLp.leftMargin=Ui.dp(a,6);
+    meta.addView(like,likeLp);body.addView(meta);
     card.addView(body,new LinearLayout.LayoutParams(-1,-2));
     card.setClickable(true);card.setFocusable(true);
     card.setContentDescription(post.title()+"，作者"+author+"，查看详情");
@@ -365,20 +373,21 @@ final class CommunityScreen {
     if (viewer != null && !post.userId().isBlank() && !post.userId().equals(viewer.id())) {
       FollowState state = a.repo.followState(post.userId());
       TextView follow = CommunityDiscussion.action(a, "", () -> {});
-      paintFollow(follow, state != null && state.followed());
+      paintFollow(a, follow, state != null && state.followed());
       follow.setOnClickListener(v -> {
         boolean next = !follow.isSelected();
         FollowState[] result = {null};
         a.request(follow, null, () -> result[0] = a.repo.setFollow(post.userId(), next),
-            () -> paintFollow(follow, result[0].followed()));
+            () -> paintFollow(a, follow, result[0].followed()));
       });
-      bar.addView(follow);
+      LinearLayout.LayoutParams followLp = new LinearLayout.LayoutParams(-2, -2);
+      followLp.rightMargin = Ui.dp(a, 4);
+      bar.addView(follow, followLp);
     }
 
-    // 右上角 "···" 更多操作按钮
-    TextView more = CommunityDiscussion.action(a, "···", () -> showPostMenu(a, post));
+    // 右上角更多操作按钮（紧凑三点矢量图标）
+    TextView more = CommunityDiscussion.moreIconButton(a, 20, Design.INK, () -> showPostMenu(a, post));
     more.setTag("post-more-actions");
-    more.setTextSize(18);
     more.setContentDescription("食记更多操作");
     bar.addView(more);
 
@@ -410,7 +419,10 @@ final class CommunityScreen {
 
   static void showPostMenu(MainActivity a, CommunityPost post) {
     User viewer = a.repo.currentUser();
-    android.app.Dialog sheet = new android.app.Dialog(a, android.R.style.Theme_Material_Light_Dialog_NoActionBar);
+    int sheetTheme = AppTheme.dark(a)
+        ? android.R.style.Theme_Material_Dialog_NoActionBar
+        : android.R.style.Theme_Material_Light_Dialog_NoActionBar;
+    android.app.Dialog sheet = new android.app.Dialog(a, sheetTheme);
     sheet.setCanceledOnTouchOutside(true);
     android.view.Window window = sheet.getWindow();
     if (window != null) {
@@ -424,7 +436,7 @@ final class CommunityScreen {
     panel.setPadding(Ui.dp(a, 20), Ui.dp(a, 12), Ui.dp(a, 20), Ui.dp(a, 20));
 
     View handle = new View(a);
-    handle.setBackground(Ui.shape(a, 0x33000000, 0, 4));
+    handle.setBackground(Ui.shape(a, Design.BORDER, 0, 4));
     LinearLayout.LayoutParams handleLp = new LinearLayout.LayoutParams(Ui.dp(a, 36), Ui.dp(a, 4));
     handleLp.gravity = Gravity.CENTER_HORIZONTAL;
     handleLp.bottomMargin = Ui.dp(a, 14);
@@ -434,6 +446,14 @@ final class CommunityScreen {
     title.setGravity(Gravity.CENTER);
     panel.addView(title);
     Ui.gap(panel, 14);
+
+    // 0. 设置收藏分组
+    if (post.status().equals("approved")) {
+      addMenuItem(a, panel, "设置收藏分组", Design.INK, () -> {
+        sheet.dismiss();
+        CommunityDiscussion.openFavoriteGroups(a, post);
+      });
+    }
 
     // 1. 置顶管理
     if (CommunityPinScreen.allowed(a)) {
@@ -516,10 +536,16 @@ final class CommunityScreen {
     parent.addView(item, lp);
   }
 
-  private static void paintFollow(TextView button, boolean followed) {
+  private static void paintFollow(MainActivity a, TextView button, boolean followed) {
     button.setSelected(followed);
     button.setText(followed ? "已关注" : "关注");
+    button.setTextSize(13);
+    button.setTypeface(followed ? Design.body() : android.graphics.Typeface.create(Design.body(), android.graphics.Typeface.BOLD));
     button.setTextColor(followed ? Design.MUTED : Design.RED);
+    button.setMinWidth(Ui.dp(a, 56));
+    button.setMinHeight(Ui.dp(a, 32));
+    button.setPadding(Ui.dp(a, 12), Ui.dp(a, 4), Ui.dp(a, 12), Ui.dp(a, 4));
+    button.setBackground(Ui.ripple(a, followed ? Design.ALT : Design.RED_SOFT, followed ? Design.BORDER : 0, 16));
     button.setContentDescription(followed ? "已关注作者，点击取消" : "关注作者");
   }
 
