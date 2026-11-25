@@ -29,7 +29,7 @@ final class LoginNoticeDialog {
     dialog.setOnCancelListener(d->controller.close());
     dialog.setOnShowListener(d->{dialog.getButton(-1).setOnClickListener(v->activity.confirmLoginNotice());update();});
   }
-  void show(){dialog.show();dialog.getWindow().setBackgroundDrawable(Ui.shape(dialog.getContext(),Design.PAPER,Design.INK,10));}
+  void show(){dialog.show();dialog.getWindow().setBackgroundDrawable(Ui.shape(dialog.getContext(),Design.PAPER,Design.BORDER,20));}
   void update(){
     choice.setEnabled(!controller.saving);
     failure.setText(controller.error);

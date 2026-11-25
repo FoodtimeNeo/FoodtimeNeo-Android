@@ -97,11 +97,11 @@ public final class Ui {
     Context c = parent.getContext();
     LinearLayout card = col(c);
     card.setPadding(dp(c, 16), dp(c, 16), dp(c, 16), dp(c, 16));
-    card.setBackground(ripple(c, Design.PAPER, Design.BORDER, 20));
+    card.setBackground(ripple(c, Design.PAPER, Design.BORDER, 16));
     card.setClipToOutline(true);
-    card.setElevation(dp(c, 2));
+    card.setElevation(dp(c, 1));
     LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(-1, -2);
-    lp.bottomMargin = dp(c, 14);
+    lp.bottomMargin = dp(c, 12);
     parent.addView(card, lp);
     return card;
   }
@@ -112,11 +112,12 @@ public final class Ui {
   }
 
   public static TextView button(Context c, String label, boolean primary, Runnable action) {
-    TextView v = text(c, label, 16, primary ? Design.ON_RED : Design.INK);
+    TextView v = text(c, label, 15, primary ? Design.ON_RED : Design.INK);
+    v.setTypeface(primary ? Typeface.create(Design.body(), Typeface.BOLD) : Design.body());
     v.setGravity(Gravity.CENTER);
-    v.setMinHeight(dp(c, 48));
+    v.setMinHeight(dp(c, 46));
     v.setPadding(dp(c, 16), dp(c, 8), dp(c, 16), dp(c, 8));
-    v.setBackground(ripple(c, primary ? Design.RED : Design.PAPER, Design.INK, 16));
+    v.setBackground(ripple(c, primary ? Design.RED : Design.PAPER, primary ? 0 : Design.BORDER, 12));
     v.setFocusable(true);
     v.setClickable(true);
     v.setOnClickListener(x -> action.run());
@@ -297,7 +298,7 @@ public final class Ui {
             .create();
     dialog.setOnShowListener(
         d -> {
-          dialog.getWindow().setBackgroundDrawable(shape(a, Design.PAPER, Design.INK, 10));
+          dialog.getWindow().setBackgroundDrawable(shape(a, Design.PAPER, Design.BORDER, 20));
           dialog.getButton(-1).setTextColor(Design.RED);
           dialog.getButton(-2).setTextColor(Design.MUTED);
         });

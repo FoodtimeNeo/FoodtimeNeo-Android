@@ -119,35 +119,85 @@ final class UnifiedSearchScreen {
   private void paintStalls(){
     results.removeAllViews();if(stallPage==null)return;
     for(Stall stall:stallPage.items()){
-      LinearLayout group=Ui.col(a);group.setPadding(0,Ui.dp(a,10),0,Ui.dp(a,10));group.setTag("search-stall:"+stall.id());results.addView(group);
-      LinearLayout identity=Ui.row(a);group.addView(identity);View cover=Ui.image(a,Ui.thumb(stall.imageUrl()),stall.name(),false);identity.addView(cover,new LinearLayout.LayoutParams(Ui.dp(a,44),Ui.dp(a,44)));LinearLayout copy=Ui.col(a);copy.setPadding(Ui.dp(a,8),0,0,0);identity.addView(copy,new LinearLayout.LayoutParams(0,-2,1));TextView name=Ui.text(a,stall.name()+"（"+stall.hallName()+"）",15,Design.INK);name.setSingleLine(true);name.setEllipsize(TextUtils.TruncateAt.END);name.setText(SearchText.highlight(stall.name()+"（"+stall.hallName()+"）",submitted));copy.addView(name);copy.addView(Ui.text(a,(stall.averageScore()==null?"暂无评分":"★ "+stall.averageScore().stripTrailingZeros().toPlainString())+" · "+stall.reviewCount()+"条点评",12,Design.MUTED));identity.setOnClickListener(v->a.go("dishes",stall.id()));identity.setContentDescription(stall.name()+"（"+stall.hallName()+"）");
+      LinearLayout group=Ui.col(a);group.setPadding(0,Ui.dp(a,12),0,Ui.dp(a,10));group.setTag("search-stall:"+stall.id());results.addView(group);
+      LinearLayout identity=Ui.row(a);group.addView(identity);
+      View cover=Ui.image(a,Ui.thumb(stall.imageUrl()),stall.name(),false);
+      cover.setBackground(Ui.shape(a,Design.ALT,0,10));cover.setClipToOutline(true);
+      identity.addView(cover,new LinearLayout.LayoutParams(Ui.dp(a,44),Ui.dp(a,44)));
+      LinearLayout copy=Ui.col(a);copy.setPadding(Ui.dp(a,10),0,0,0);identity.addView(copy,new LinearLayout.LayoutParams(0,-2,1));
+      TextView name=Ui.text(a,stall.name()+"（"+stall.hallName()+"）",15,Design.INK);name.setTypeface(android.graphics.Typeface.create(Design.body(),android.graphics.Typeface.BOLD));name.setSingleLine(true);name.setEllipsize(TextUtils.TruncateAt.END);name.setText(SearchText.highlight(stall.name()+"（"+stall.hallName()+"）",submitted));copy.addView(name);
+      LinearLayout ratingMeta=Ui.row(a);
+      if(stall.averageScore()!=null){
+        TextView scoreView=Ui.text(a,"★ "+stall.averageScore().stripTrailingZeros().toPlainString(),12,Design.GOLD);
+        scoreView.setTypeface(android.graphics.Typeface.create(Design.body(),android.graphics.Typeface.BOLD));
+        ratingMeta.addView(scoreView);
+        ratingMeta.addView(Ui.text(a," · "+stall.reviewCount()+"条点评",12,Design.MUTED));
+      }else{
+        ratingMeta.addView(Ui.text(a,"暂无评分 · "+stall.reviewCount()+"条点评",12,Design.MUTED));
+      }
+      copy.addView(ratingMeta);
+      identity.setOnClickListener(v->a.go("dishes",stall.id()));identity.setContentDescription(stall.name()+"（"+stall.hallName()+"）");
       if(stall.distanceMeters()!=null)identity.addView(Ui.text(a,SearchModels.distance(stall.distanceMeters()),11,Design.MUTED));
-      Ui.gap(group,8);HorizontalScrollView strip=new HorizontalScrollView(a);strip.setHorizontalScrollBarEnabled(false);LinearLayout row=Ui.row(a);row.setGravity(Gravity.TOP);strip.addView(row);group.addView(strip);
-      int available=page.getWidth()>0?page.getWidth()-page.getPaddingLeft()-page.getPaddingRight():Ui.dp(a,a.getResources().getConfiguration().screenWidthDp-28);int width=Math.max(Ui.dp(a,64),(available-Ui.dp(a,8)*(columns-1))/columns);
-      for(Dish dish:stall.dishes())appendDish(row,dish,width);
-      final int[] next={2};final boolean[] pending={false};final long[] total={stall.matchCount()};final int[] count={stall.dishes().size()};long groupRevision=revision;Query snapshot=query();
-      strip.setOnScrollChangeListener((v,x,y,oldX,oldY)->{
-        if(pending[0]||count[0]>=total[0]||x+strip.getWidth()<row.getWidth()-Ui.dp(a,36)||groupRevision!=revision)return;
-        pending[0]=true;var response=new AtomicReference<Page<Dish>>();TextView requestError=new TextView(a);
-        a.read(requestKey+":strip:"+stall.id()+":"+next[0],null,requestError,()->response.set(a.repo.searchStallDishes(snapshot,stall.id(),next[0])),()->{
-          if(groupRevision!=revision||!row.isAttachedToWindow())return;var data=response.get();var seen=new HashSet<String>();for(int i=0;i<row.getChildCount();i++)seen.add(String.valueOf(row.getChildAt(i).getTag()));
-          for(Dish dish:data.items())if(!seen.contains("search-dish:"+dish.id())){appendDish(row,dish,width);count[0]++;}next[0]++;total[0]=data.items().isEmpty()?count[0]:data.total();
-        },()->{pending[0]=false;if(groupRevision==revision&&requestError.length()>0)error.setText(requestError.getText());});
-      });
+      Ui.gap(group,10);
+      boolean singleMatch=stall.dishes().size()==1&&stall.matchCount()<=1;
+      if(singleMatch){
+        appendSingleDish(group,stall.dishes().get(0));
+      }else{
+        HorizontalScrollView strip=new HorizontalScrollView(a);strip.setHorizontalScrollBarEnabled(false);LinearLayout row=Ui.row(a);row.setGravity(Gravity.TOP);strip.addView(row);group.addView(strip);
+        int available=page.getWidth()>0?page.getWidth()-page.getPaddingLeft()-page.getPaddingRight():Ui.dp(a,a.getResources().getConfiguration().screenWidthDp-28);int width=Math.max(Ui.dp(a,64),(available-Ui.dp(a,8)*(columns-1))/columns);
+        for(Dish dish:stall.dishes())appendDish(row,dish,width);
+        final int[] next={2};final boolean[] pending={false};final long[] total={stall.matchCount()};final int[] count={stall.dishes().size()};long groupRevision=revision;Query snapshot=query();
+        strip.setOnScrollChangeListener((v,x,y,oldX,oldY)->{
+          if(pending[0]||count[0]>=total[0]||x+strip.getWidth()<row.getWidth()-Ui.dp(a,36)||groupRevision!=revision)return;
+          pending[0]=true;var response=new AtomicReference<Page<Dish>>();TextView requestError=new TextView(a);
+          a.read(requestKey+":strip:"+stall.id()+":"+next[0],null,requestError,()->response.set(a.repo.searchStallDishes(snapshot,stall.id(),next[0])),()->{
+            if(groupRevision!=revision||!row.isAttachedToWindow())return;var data=response.get();var seen=new HashSet<String>();for(int i=0;i<row.getChildCount();i++)seen.add(String.valueOf(row.getChildAt(i).getTag()));
+            for(Dish dish:data.items())if(!seen.contains("search-dish:"+dish.id())){appendDish(row,dish,width);count[0]++;}next[0]++;total[0]=data.items().isEmpty()?count[0]:data.total();
+          },()->{pending[0]=false;if(groupRevision==revision&&requestError.length()>0)error.setText(requestError.getText());});
+        });
+      }
+      Ui.gap(group,8);
       View divider=new View(a);divider.setBackgroundColor(Design.BORDER);group.addView(divider,new LinearLayout.LayoutParams(-1,Ui.dp(a,1)));
     }
   }
+  private void appendSingleDish(LinearLayout group,Dish dish){
+    LinearLayout card=Ui.row(a);card.setTag("search-dish:"+dish.id());card.setGravity(Gravity.CENTER_VERTICAL);
+    card.setPadding(Ui.dp(a,10),Ui.dp(a,10),Ui.dp(a,10),Ui.dp(a,10));
+    card.setBackground(Ui.ripple(a,Design.ALT,0,12));
+    View image=Ui.image(a,Ui.thumb(dish.imageUrl()),dish.name(),false);
+    image.setBackground(Ui.shape(a,Design.PAPER,0,9));image.setClipToOutline(true);
+    card.addView(image,new LinearLayout.LayoutParams(Ui.dp(a,68),Ui.dp(a,68)));
+    LinearLayout copy=Ui.col(a);LinearLayout.LayoutParams clp=new LinearLayout.LayoutParams(0,-2,1);clp.leftMargin=Ui.dp(a,12);
+    TextView title=Ui.text(a,dish.name(),15,Design.INK);title.setTypeface(android.graphics.Typeface.create(Design.body(),android.graphics.Typeface.BOLD));title.setSingleLine(true);title.setEllipsize(TextUtils.TruncateAt.END);title.setText(SearchText.highlight(dish.name(),submitted));copy.addView(title);
+    Ui.gap(copy,4);
+    LinearLayout meta=Ui.row(a);meta.setGravity(Gravity.CENTER_VERTICAL);
+    TextView price=Ui.text(a,dish.price()==null?"价格未知":"¥"+dish.price().stripTrailingZeros().toPlainString()+(dish.priceUnit().equals("unspecified")?"":"/"+cn.edu.bjtu.foodtime.domain.model.PriceHistory.unit(dish.priceUnit())),15,Design.RED);
+    price.setTypeface(android.graphics.Typeface.create(Design.body(),android.graphics.Typeface.BOLD));
+    meta.addView(price);
+    if(dish.averageScore()!=null){
+      TextView score=Ui.text(a," · ★ "+dish.averageScore().stripTrailingZeros().toPlainString()+"分",12,Design.GOLD);
+      score.setTypeface(android.graphics.Typeface.create(Design.body(),android.graphics.Typeface.BOLD));
+      meta.addView(score);
+    }
+    copy.addView(meta);
+    card.addView(copy,clp);
+    card.setContentDescription(dish.name());card.setOnClickListener(v->a.go("detail",dish.id()));
+    group.addView(card,new LinearLayout.LayoutParams(-1,-2));
+  }
   private void appendDish(LinearLayout row,Dish dish,int width){
     LinearLayout card=Ui.col(a);card.setTag("search-dish:"+dish.id());LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(width,-2);lp.rightMargin=Ui.dp(a,8);row.addView(card,lp);
-    card.addView(Ui.image(a,Ui.thumb(dish.imageUrl()),dish.name(),false),new LinearLayout.LayoutParams(-1,width));TextView title=Ui.text(a,dish.name(),13,Design.INK);title.setSingleLine(true);title.setText(SearchText.highlight(dish.name(),submitted));title.setLineSpacing(0,1);title.setPadding(0,Ui.dp(a,2),0,0);title.setEllipsize(TextUtils.TruncateAt.END);card.addView(title);
-    TextView price=Ui.text(a,dish.price()==null?"价格未知":"¥"+dish.price().stripTrailingZeros().toPlainString()+(dish.priceUnit().equals("unspecified")?"":"/"+cn.edu.bjtu.foodtime.domain.model.PriceHistory.unit(dish.priceUnit())),13,Design.RED);price.setLineSpacing(0,1);card.addView(price);
-    if(dish.averageScore()!=null){TextView score=Ui.text(a,dish.averageScore().stripTrailingZeros().toPlainString()+"分",11,Design.MUTED);score.setLineSpacing(0,1);card.addView(score);}
+    View image=Ui.image(a,Ui.thumb(dish.imageUrl()),dish.name(),false);
+    image.setBackground(Ui.shape(a,Design.ALT,0,8));image.setClipToOutline(true);
+    card.addView(image,new LinearLayout.LayoutParams(-1,width));
+    TextView title=Ui.text(a,dish.name(),13,Design.INK);title.setSingleLine(true);title.setText(SearchText.highlight(dish.name(),submitted));title.setLineSpacing(0,1);title.setPadding(0,Ui.dp(a,4),0,0);title.setEllipsize(TextUtils.TruncateAt.END);card.addView(title);
+    TextView price=Ui.text(a,dish.price()==null?"价格未知":"¥"+dish.price().stripTrailingZeros().toPlainString()+(dish.priceUnit().equals("unspecified")?"":"/"+cn.edu.bjtu.foodtime.domain.model.PriceHistory.unit(dish.priceUnit())),13,Design.RED);price.setTypeface(android.graphics.Typeface.create(Design.body(),android.graphics.Typeface.BOLD));price.setLineSpacing(0,1);card.addView(price);
+    if(dish.averageScore()!=null){TextView score=Ui.text(a,"★ "+dish.averageScore().stripTrailingZeros().toPlainString()+"分",11,Design.GOLD);score.setLineSpacing(0,1);card.addView(score);}
     card.setContentDescription(dish.name());card.setOnClickListener(v->a.go("detail",dish.id()));
   }
   private void paintNotes(){
     results.removeAllViews();if(notePage==null)return;LinearLayout row=Ui.row(a);row.setGravity(Gravity.TOP);results.addView(row);
     LinearLayout left=Ui.col(a),right=Ui.col(a);LinearLayout.LayoutParams lp=new LinearLayout.LayoutParams(0,-2,1);lp.rightMargin=Ui.dp(a,5);row.addView(left,lp);LinearLayout.LayoutParams rp=new LinearLayout.LayoutParams(0,-2,1);rp.leftMargin=Ui.dp(a,5);row.addView(right,rp);
-    int i=0;for(Note note:notePage.items()){LinearLayout column=i++%2==0?left:right;CommunityScreen.postCard(a,column,note.post(),submitted);if(!note.hallName().isBlank())column.addView(Ui.text(a,note.hallName()+" "+SearchModels.distance(note.distanceMeters()),11,Design.MUTED));}
+    int i=0;for(Note note:notePage.items()){LinearLayout column=i++%2==0?left:right;CommunityScreen.postCard(a,column,note.post(),submitted);if(!note.hallName().isBlank()){TextView venue=Ui.text(a,(note.hallName()+" "+SearchModels.distance(note.distanceMeters())).trim(),11,Design.MUTED);venue.setPadding(Ui.dp(a,8),Ui.dp(a,3),Ui.dp(a,8),Ui.dp(a,3));venue.setBackground(Ui.shape(a,Design.ALT,0,10));LinearLayout.LayoutParams vlp=new LinearLayout.LayoutParams(-2,-2);vlp.topMargin=Ui.dp(a,-6);vlp.bottomMargin=Ui.dp(a,10);column.addView(venue,vlp);}}
   }
   private void showSort(){if(popup!=null)popup.dismiss();LinearLayout choices=Ui.col(a);String[] values=tab.equals("notes")?new String[]{"relevance","latest","likes","distance"}:new String[]{"relevance","rating_desc","price_asc","price_desc","distance"};for(String value:values){TextView item=small(label(value)+(sort.equals(value)?" ✓":""),()->{popup.dismiss();if(value.equals("distance"))locate();else{sort=value;sortButton.setText(label(value));load(1);}});choices.addView(item,new LinearLayout.LayoutParams(-1,Ui.dp(a,44)));}popup=new PopupWindow(choices,Ui.dp(a,230),-2,true);popup.setBackgroundDrawable(Ui.shape(a,Design.PAPER,Design.BORDER,12));popup.setOutsideTouchable(true);popup.showAsDropDown(sortButton);}
   private String label(String value){return switch(value){case "price_asc"->"价格从低到高";case "price_desc"->"价格从高到低";case "rating_desc"->"评分优先";case "latest"->"最新发布";case "likes"->"最多点赞";case "distance"->"距离最近";default->"综合排序";};}
