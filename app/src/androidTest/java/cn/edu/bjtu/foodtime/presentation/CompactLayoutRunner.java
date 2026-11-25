@@ -224,8 +224,8 @@ public final class CompactLayoutRunner extends Instrumentation {
     int red=Design.RED;
     changeTheme(AppTheme.DARK);
     ui(()->{
-      check(Design.PAPER==0xff141414&&Design.INK==0xfff5f2ed,"Dark palette uses dark paper and readable ink");
-      check(Design.RED==red,"Red icon color stays unchanged");
+      check(Design.PAPER==0xff1a1613&&Design.INK==0xfff3ede4,"Dark palette uses dark paper and readable ink");
+      check(Design.RED==0xffe5563e&&Design.RED!=red,"Dark mode uses brightened readable accent red");
       check(tag("appearance-setting")!=null,"Appearance entry remains available in dark mode");
       activity.scroll.fullScroll(View.FOCUS_DOWN);
       for(int icon:new int[]{cn.edu.bjtu.foodtime.R.drawable.ic_hub_lock,cn.edu.bjtu.foodtime.R.drawable.ic_hub_settings}){
