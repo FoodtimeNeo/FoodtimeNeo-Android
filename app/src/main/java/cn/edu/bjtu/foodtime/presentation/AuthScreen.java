@@ -13,8 +13,12 @@ import java.util.Locale;
 
 final class AuthScreen {
   static void show(MainActivity a,LinearLayout page,boolean register) {
-    page.addView(Ui.title(a,"北交干饭吧",32));Ui.gap(page,24);
-    LinearLayout card=Ui.card(page);card.addView(Ui.title(a,register?"注册":"登录",24));Ui.gap(card,20);
+    Ui.gap(page,8);
+    page.addView(Ui.title(a,"北交干饭吧",30));
+    Ui.gap(page,4);
+    page.addView(Ui.text(a,"校园食堂真实评价与干饭手账",14,Design.MUTED));
+    Ui.gap(page,20);
+    LinearLayout card=Ui.card(page);card.addView(Ui.title(a,register?"注册账号":"欢迎回来",22));Ui.gap(card,16);
     EditText email=Ui.field(card,"邮箱",false,false);
     email.setInputType(InputType.TYPE_CLASS_TEXT|InputType.TYPE_TEXT_VARIATION_EMAIL_ADDRESS);
     email.setHint("QQ/163/Gmail/Outlook 或学校邮箱");
@@ -88,8 +92,21 @@ final class AuthScreen {
           loginButton,captchaArea,captchaImageView,captchaStatusView));
       card.addView(loginButton,new LinearLayout.LayoutParams(-1,-2));
     }
-    Ui.gap(card,12);Ui.link(card,register?"去登录":"注册账号",() -> a.showAuth(!register));
-    if(!register){Ui.gap(card,12);Ui.link(card,"忘记密码？",a::showPasswordRecovery);}
+    Ui.gap(card,12);
+    if(register) {
+      Ui.link(card,"已有账号？去登录",() -> a.showAuth(false));
+    } else {
+      LinearLayout links=Ui.row(a);
+      TextView goRegister=Ui.button(a,"注册账号",false,() -> a.showAuth(true));
+      goRegister.setTextColor(Design.RED);
+      goRegister.setBackground(Ui.ripple(a,Design.PAPER,0,10));
+      TextView goRecovery=Ui.button(a,"忘记密码？",false,a::showPasswordRecovery);
+      goRecovery.setTextColor(Design.MUTED);
+      goRecovery.setBackground(Ui.ripple(a,Design.PAPER,0,10));
+      links.addView(goRegister,new LinearLayout.LayoutParams(0,-2,1));
+      links.addView(goRecovery,new LinearLayout.LayoutParams(0,-2,1));
+      card.addView(links,new LinearLayout.LayoutParams(-1,-2));
+    }
     if(register) loadPolicy(a,policyStatus,invitationBox,invitation,ready,closed,invitationRequired,canSend);
   }
 

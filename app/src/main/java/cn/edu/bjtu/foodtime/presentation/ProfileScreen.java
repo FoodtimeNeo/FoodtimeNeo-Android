@@ -20,23 +20,23 @@ final class ProfileScreen {
     // 1. 顶部身份卡片瘦身与去测试态
     LinearLayout identity = Ui.col(a);
     identity.setPadding(Ui.dp(a, 16), Ui.dp(a, 16), Ui.dp(a, 16), Ui.dp(a, 16));
-    identity.setBackground(Ui.shape(a, Design.ALT, 0, 20));
+    identity.setBackground(Ui.shape(a, Design.ALT, Design.BORDER, 16));
 
     LinearLayout person = Ui.row(a);
     person.setGravity(Gravity.CENTER_VERTICAL);
     View avatar = Ui.image(a, Ui.thumb(user.avatarUrl()), user.displayName().isEmpty() ? "用户" : user.displayName().substring(0, 1), false);
-    avatar.setBackground(Ui.shape(a, Design.ALT, Design.RED, 999));
+    avatar.setBackground(Ui.shape(a, Design.PAPER, Design.RED, 999));
     avatar.setClipToOutline(true);
     avatar.setContentDescription("个人头像");
-    person.addView(avatar, new LinearLayout.LayoutParams(Ui.dp(a, 64), Ui.dp(a, 64)));
+    person.addView(avatar, new LinearLayout.LayoutParams(Ui.dp(a, 62), Ui.dp(a, 62)));
 
     LinearLayout copy = Ui.col(a);
     LinearLayout.LayoutParams copyLp = new LinearLayout.LayoutParams(0, -2, 1);
     copyLp.leftMargin = Ui.dp(a, 14);
 
-    copy.addView(Ui.title(a, user.displayName(), 22));
+    copy.addView(Ui.title(a, user.displayName(), 21));
     Ui.gap(copy, 3);
-    copy.addView(Ui.text(a, user.email(), 12, Design.MUTED));
+    copy.addView(Ui.text(a, "认真吃饭，也认真生活", 12, Design.MUTED));
     Ui.gap(copy, 8);
 
     // 关注、粉丝轻量数字排布与“编辑资料”紧凑排列
@@ -118,7 +118,7 @@ final class ProfileScreen {
     GridGroup records = new GridGroup(a, page, "我的记录");
     records.add("我的食记", "community-mine", "", R.drawable.ic_hub_note, "");
     records.add("菜品点评", "mine-reviews", "", R.drawable.ic_hub_comment, reviewsCount);
-    records.add("餐厅点评", "venue-mine", "", R.drawable.ic_hub_dish, "");
+    records.add("餐厅点评", "venue-mine", "", R.drawable.ic_hub_store, "");
     records.add("我的回复", "mine-review-replies", "1", R.drawable.ic_hub_reply, "");
     records.add("我的提交", "mine-submissions", "", R.drawable.ic_hub_upload, "");
 
@@ -133,16 +133,16 @@ final class ProfileScreen {
     GroupBuilder account = new GroupBuilder(a, page, "账号与隐私");
     account.addRow(R.drawable.ic_hub_lock, false, 0, "修改密码", "password", "", "");
     account.addRow(R.drawable.ic_hub_block, false, 0, "黑名单", "blocked-users", "", "");
-    account.addRow(R.drawable.ic_hub_settings, false, 0, "提醒设置", "notification-settings", "", "");
-    TextView appearance = account.addCustomRow(R.drawable.ic_hub_settings, false, 0, "外观", () -> AppTheme.choose(a));
+    account.addRow(R.drawable.ic_hub_bell, false, 0, "提醒设置", "notification-settings", "", "");
+    TextView appearance = account.addCustomRow(R.drawable.ic_hub_palette, false, 0, "外观", () -> AppTheme.choose(a));
     appearance.setText(switch(AppTheme.mode(a)){case AppTheme.LIGHT -> "浅色";case AppTheme.DARK -> "深色";default -> "跟随系统";});
     appearance.setTag("appearance-setting");
     if (!user.isAdmin()) {
-      account.addRow(R.drawable.ic_photo_share, false, 0, "账号安全与注销", "account-lifecycle", "", "");
+      account.addRow(R.drawable.ic_hub_key, false, 0, "账号安全与注销", "account-lifecycle", "", "");
     }
 
     // 图片缓存清理行
-    TextView cacheSize = account.addCustomRow(R.drawable.food_tray, true, 1, "清理图片缓存", () -> {
+    TextView cacheSize = account.addCustomRow(R.drawable.ic_hub_trash, false, 0, "清理图片缓存", () -> {
       Ui.confirm(a, "清理图片缓存？", "仅清理本地图片缓存，不影响账号数据。", () -> {
         a.request(null, null, a.repo::clearImageCache, () -> {
           Ui.clearImages();
@@ -310,22 +310,24 @@ final class ProfileScreen {
 
     GridGroup(MainActivity a, LinearLayout page, String title) {
       this.a = a;
-      View divider = new View(a);
-      divider.setBackgroundColor(Design.BORDER);
-      page.addView(divider, new LinearLayout.LayoutParams(-1, Ui.dp(a, 1)));
-      Ui.gap(page, 20);
-      TextView heading = Ui.title(a, title, 23);
+      LinearLayout container = Ui.col(a);
+      container.setPadding(Ui.dp(a, 12), Ui.dp(a, 14), Ui.dp(a, 12), Ui.dp(a, 8));
+      container.setBackground(Ui.shape(a, Design.ALT, Design.BORDER, 16));
+      TextView heading = Ui.title(a, title, 17);
+      heading.setPadding(Ui.dp(a, 4), 0, Ui.dp(a, 4), 0);
       heading.setTag("profile-group:" + title);
-      page.addView(heading);
-      Ui.gap(page, 16);
+      container.addView(heading);
+      Ui.gap(container, 10);
       var config = a.getResources().getConfiguration();
-      float available = Math.max(240, config.screenWidthDp - 32) / Math.max(1, config.fontScale);
+      float available = Math.max(240, config.screenWidthDp - 56) / Math.max(1, config.fontScale);
       columns = available >= 320 ? 4 : available >= 240 ? 3 : 2;
       grid = new GridLayout(a);
       grid.setColumnCount(columns);
       grid.setTag("profile-grid:" + title);
-      page.addView(grid, new LinearLayout.LayoutParams(-1, -2));
-      Ui.gap(page, 20);
+      container.addView(grid, new LinearLayout.LayoutParams(-1, -2));
+      LinearLayout.LayoutParams cardLp = new LinearLayout.LayoutParams(-1, -2);
+      cardLp.bottomMargin = Ui.dp(a, 12);
+      page.addView(container, cardLp);
     }
 
     void add(String label, String route, String id, int iconRes, String count) {
@@ -393,7 +395,7 @@ final class ProfileScreen {
                 String label, String kind, String id, String countText) {
       if (itemCount > 0) {
         View divider = new View(a);
-        divider.setBackgroundColor(0x14000000); // 1dp 细浅色分割线
+        divider.setBackgroundColor(Design.BORDER); // 1dp 细浅色分割线
         LinearLayout.LayoutParams divLp = new LinearLayout.LayoutParams(-1, Ui.dp(a, 1));
         divLp.leftMargin = Ui.dp(a, 48);
         divLp.rightMargin = Ui.dp(a, 16);
@@ -465,7 +467,7 @@ final class ProfileScreen {
                           String label, Runnable onClick) {
       if (itemCount > 0) {
         View divider = new View(a);
-        divider.setBackgroundColor(0x14000000);
+        divider.setBackgroundColor(Design.BORDER);
         LinearLayout.LayoutParams divLp = new LinearLayout.LayoutParams(-1, Ui.dp(a, 1));
         divLp.leftMargin = Ui.dp(a, 48);
         divLp.rightMargin = Ui.dp(a, 16);
@@ -523,7 +525,10 @@ final class ProfileScreen {
 
   private static void roundedAction(MainActivity a, LinearLayout panel, String label, boolean primary, Runnable run) {
     TextView button = Ui.button(a, label, primary, run);
-    button.setBackground(Ui.ripple(a, primary ? Design.RED : Design.PAPER, Design.INK, 18));
+    if (!primary) {
+      button.setTextColor(Design.RED);
+      button.setBackground(Ui.ripple(a, Design.PAPER, Design.BORDER, 14));
+    }
     panel.addView(button, new LinearLayout.LayoutParams(-1, -2));
   }
 

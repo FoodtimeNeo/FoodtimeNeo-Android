@@ -13,13 +13,13 @@
     <style name="Theme.Foodtime" parent="Theme.Foodtime.Base"/>
     <style name="Theme.Foodtime.Dark.Base" parent="android:style/Theme.Material.NoActionBar">
         <item name="android:fontFamily">sans</item>
-        <item name="android:colorAccent">#c9341e</item>
-        <item name="android:textColorPrimary">#f5f2ed</item>
-        <item name="android:textColorSecondary">#c3bcb3</item>
-        <item name="android:colorBackground">#141414</item>
-        <item name="android:windowBackground">#141414</item>
-        <item name="android:statusBarColor">#191919</item>
-        <item name="android:navigationBarColor">#191919</item>
+        <item name="android:colorAccent">#e5563e</item>
+        <item name="android:textColorPrimary">#f3ede4</item>
+        <item name="android:textColorSecondary">#b8aea2</item>
+        <item name="android:colorBackground">#1a1613</item>
+        <item name="android:windowBackground">#1a1613</item>
+        <item name="android:statusBarColor">#151210</item>
+        <item name="android:navigationBarColor">#151210</item>
         <item name="android:windowLightStatusBar">false</item>
         <item name="android:windowActionModeOverlay">true</item>
         <item name="android:windowDisablePreview">true</item>

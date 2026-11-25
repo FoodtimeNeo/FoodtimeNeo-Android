@@ -54,11 +54,28 @@ final class DishReviewSection {
   }
   private void card(Review r) {
     LinearLayout card=Ui.card(list),head=Ui.row(a);card.addView(head);
-    TextView author=Ui.text(a,r.userDisplayName().isEmpty()?"校园干饭人":r.userDisplayName(),16,Design.INK);
+    String name=r.userDisplayName().isEmpty()?"校园干饭人":r.userDisplayName();
+    TextView avatar=Ui.text(a,name.substring(0,1),13,Design.INK);
+    avatar.setTypeface(Design.body(),android.graphics.Typeface.BOLD);
+    avatar.setGravity(Gravity.CENTER);
+    avatar.setBackground(Ui.shape(a,Design.ALT,Design.BORDER,999));
+    LinearLayout.LayoutParams avatarLp=new LinearLayout.LayoutParams(Ui.dp(a,30),Ui.dp(a,30));
+    avatarLp.rightMargin=Ui.dp(a,10);
+    head.addView(avatar,avatarLp);
+    TextView author=Ui.text(a,name,15,Design.INK);
     author.setTypeface(Design.body(),android.graphics.Typeface.BOLD);head.addView(author,new LinearLayout.LayoutParams(0,-2,1));
-    head.addView(Ui.stamp(a,r.rating()+" / 5",Design.RED));Ui.gap(card,5);
-    card.addView(Ui.text(a,r.content(),16,Design.INK));Ui.gap(card,8);
-    if(!r.imageUrl().isBlank()){card.addView(Ui.image(a,r.imageUrl(),"点评图片",true));Ui.gap(card,8);}
+    TextView scorePill=Ui.text(a,"★ "+r.rating(),12,Design.GOLD);
+    scorePill.setTypeface(Design.body(),android.graphics.Typeface.BOLD);
+    scorePill.setPadding(Ui.dp(a,9),Ui.dp(a,4),Ui.dp(a,9),Ui.dp(a,4));
+    scorePill.setBackground(Ui.shape(a,Design.ALT,0,999));
+    head.addView(scorePill);Ui.gap(card,8);
+    card.addView(Ui.text(a,r.content(),15,Design.INK));Ui.gap(card,10);
+    if(!r.imageUrl().isBlank()){
+      View photo=Ui.image(a,r.imageUrl(),"点评图片",true);
+      photo.setBackground(Ui.shape(a,Design.ALT,0,12));
+      photo.setClipToOutline(true);
+      card.addView(photo);Ui.gap(card,10);
+    }
     EmbeddedReviewReplies.attach(a,card,r);
   }
 }

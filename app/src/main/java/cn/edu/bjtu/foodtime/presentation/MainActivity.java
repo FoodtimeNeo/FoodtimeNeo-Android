@@ -959,6 +959,14 @@ public class MainActivity extends Activity {
       case "reply-create" -> "回复点评";
       case "mine-reviews" -> "我的评论";
       case "mine-review-replies" -> "我的回复";
+      case "stalls" -> {
+        var hall = repo != null ? repo.hall(route.id()) : null;
+        yield hall != null && !hall.name().isBlank() ? hall.name() : "食堂菜单";
+      }
+      case "dishes" -> {
+        var stall = repo != null ? repo.stall(route.id()) : null;
+        yield stall != null && !stall.name().isBlank() ? stall.name() : "档口菜品";
+      }
       case "detail" -> "菜品详情";
       case "price-history" -> "价格变化";
       case "dish-search" -> "搜索";
@@ -993,18 +1001,29 @@ public class MainActivity extends Activity {
     }
     LinearLayout bar = Ui.row(this);
     header.addView(bar, new LinearLayout.LayoutParams(-1, -2));
-    TextView back = Ui.button(this, "←", false, this::back);
+    boolean nested = stacks.get(tab).size() > 1;
+    TextView back = Ui.text(this, "←", 22, Design.INK);
+    back.setGravity(Gravity.CENTER);
+    back.setBackground(Ui.ripple(this, 0, 0, 22));
+    back.setFocusable(true);
+    back.setClickable(true);
+    back.setOnClickListener(x -> back());
     back.setTag("app-header-back");
     back.setContentDescription("返回上一级");
-    if (stacks.get(tab).size() > 1)
-      bar.addView(back, new LinearLayout.LayoutParams(Ui.dp(this, 48), Ui.dp(this, 48)));
-    TextView brand = Ui.title(this, "北交干饭吧", 22);
+    if (nested)
+      bar.addView(back, new LinearLayout.LayoutParams(Ui.dp(this, 44), Ui.dp(this, 44)));
+    String headingText = "北交干饭吧";
+    if (nested) {
+      String mapped = routeTitle(route());
+      if (!"正在加载".equals(mapped)) headingText = mapped;
+    }
+    TextView brand = Ui.title(this, headingText, nested ? 19 : 21);
     brand.setTag("app-header-brand");
     brand.setSingleLine(true);
     brand.setEllipsize(android.text.TextUtils.TruncateAt.END);
     brand.setGravity(Gravity.CENTER_VERTICAL);
-    var brandLayout = new LinearLayout.LayoutParams(0, Ui.dp(this, 48), 1);
-    brandLayout.leftMargin = Ui.dp(this, 8);
+    var brandLayout = new LinearLayout.LayoutParams(0, Ui.dp(this, 44), 1);
+    brandLayout.leftMargin = Ui.dp(this, nested ? 8 : 4);
     brandLayout.rightMargin = Ui.dp(this, 8);
     bar.addView(brand, brandLayout);
     if (communityPager != null) {
@@ -1019,8 +1038,10 @@ public class MainActivity extends Activity {
         bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_search,
             "搜索菜品", () -> go("dish-search", "")), new LinearLayout.LayoutParams(Ui.dp(this,44),Ui.dp(this,44)));
       }
-      bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_home,
-          "回到食堂首页", this::home), new LinearLayout.LayoutParams(Ui.dp(this,44),Ui.dp(this,44)));
+      if (nested || tab.equals("dining")) {
+        bar.addView(CommunityScreen.iconButton(this, cn.edu.bjtu.foodtime.R.drawable.ic_community_home,
+            "回到食堂首页", this::home), new LinearLayout.LayoutParams(Ui.dp(this,44),Ui.dp(this,44)));
+      }
     }
   }
 
@@ -1095,8 +1116,8 @@ public class MainActivity extends Activity {
               WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
                   | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
     header = Ui.col(this);
-    header.setPadding(Ui.dp(this, post ? 4 : 14), Ui.dp(this, post ? 3 : 8),
-        Ui.dp(this, post ? 8 : 14), Ui.dp(this, post ? 3 : 8));
+    header.setPadding(Ui.dp(this, post ? 4 : 10), Ui.dp(this, post ? 3 : 4),
+        Ui.dp(this, post ? 8 : 10), Ui.dp(this, post ? 3 : 4));
     root.addView(header, new LinearLayout.LayoutParams(-1, -2));
     View rule = new View(this);
     rule.setBackgroundColor(Design.BORDER);
@@ -1138,8 +1159,12 @@ public class MainActivity extends Activity {
       root.addView(chatBar, new LinearLayout.LayoutParams(-1, -2));
     } else chatBar = null;
     if (navigation && !chat && !post) {
+      View navRule = new View(this);
+      navRule.setBackgroundColor(Design.BORDER);
+      root.addView(navRule, new LinearLayout.LayoutParams(-1, Ui.dp(this, 1)));
       LinearLayout nav = Ui.row(this);
-      nav.setBackground(Ui.shape(this, Design.PAPER, Design.BORDER, 0));
+      nav.setBackgroundColor(Design.BAR);
+      nav.setPadding(Ui.dp(this, 4), Ui.dp(this, 4), Ui.dp(this, 4), Ui.dp(this, 4));
       addTab(nav, "食堂", "dining");
       addTab(nav, "社区", "community");
       if (repo.currentUser().isAdmin()) addTab(nav, "管理", "admin");
@@ -1156,15 +1181,42 @@ public class MainActivity extends Activity {
   }
 
   private void addTab(LinearLayout nav, String label, String key) {
-    TextView b = Ui.button(this, label, false, () -> selectTab(key));
+    boolean selected = tab.equals(key);
+    int tint = selected ? Design.RED : Design.MUTED;
+    TextView b = Ui.text(this, label, 11, tint);
+    b.setTypeface(selected ? android.graphics.Typeface.create(Design.body(), android.graphics.Typeface.BOLD) : Design.body());
     b.setTag("main-nav:" + key);
-    b.setSelected(tab.equals(key));
-    b.setPadding(Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8));
-    b.setTextColor(tab.equals(key) ? Design.RED : Design.MUTED);
-    b.setBackground(Ui.ripple(this, tab.equals(key) ? Design.ALT : Design.PAPER, 0, 0));
-    b.setContentDescription(label + (tab.equals(key) ? "，已选中" : ""));
-    b.setMinHeight(Ui.dp(this, 56));
-    nav.addView(b, new LinearLayout.LayoutParams(0, -2, 1));
+    b.setSelected(selected);
+    b.setSingleLine(true);
+    b.setMaxLines(1);
+    b.setGravity(Gravity.CENTER);
+    b.setPadding(Ui.dp(this, 2), Ui.dp(this, 6), Ui.dp(this, 2), Ui.dp(this, 6));
+    b.setBackground(Ui.ripple(this, selected ? Design.RED_SOFT : android.graphics.Color.TRANSPARENT, 0, 14));
+    b.setContentDescription(label + (selected ? "，已选中" : ""));
+    b.setMinHeight(Ui.dp(this, 54));
+    b.setFocusable(true);
+    b.setClickable(true);
+    b.setOnClickListener(x -> selectTab(key));
+    int iconRes = switch (key) {
+      case "community" -> cn.edu.bjtu.foodtime.R.drawable.ic_nav_community;
+      case "admin" -> cn.edu.bjtu.foodtime.R.drawable.ic_nav_admin;
+      case "dashboard" -> cn.edu.bjtu.foodtime.R.drawable.ic_nav_dashboard;
+      case "profile" -> cn.edu.bjtu.foodtime.R.drawable.ic_nav_profile;
+      default -> cn.edu.bjtu.foodtime.R.drawable.ic_nav_dining;
+    };
+    android.graphics.drawable.Drawable icon = getDrawable(iconRes);
+    if (icon != null) {
+      icon = icon.mutate();
+      icon.setTint(tint);
+      int size = Ui.dp(this, 20);
+      icon.setBounds(0, 0, size, size);
+      b.setCompoundDrawables(null, icon, null, null);
+      b.setCompoundDrawablePadding(Ui.dp(this, 3));
+    }
+    LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1);
+    lp.leftMargin = Ui.dp(this, 2);
+    lp.rightMargin = Ui.dp(this, 2);
+    nav.addView(b, lp);
   }
 
   public void heading(LinearLayout page, String index, String title, String note) {

@@ -39,48 +39,124 @@ final class CampusMapScreen {
   }
 
   static void show(MainActivity a, LinearLayout page, MainActivity.Route route) {
-    a.heading(page, "", "食堂地图", "双指缩放 · 点选食堂");
+    page.setPadding(Ui.dp(a, 14), Ui.dp(a, 12), Ui.dp(a, 14), Ui.dp(a, 24));
+    TextView hint = Ui.text(a, "双指缩放拖动 · 点选建筑或下方标签查看食堂", 13, Design.MUTED);
+    page.addView(hint);
+    Ui.gap(page, 10);
+
     List<Region> regions = regions(a);
     String key = a.draftKey("selected");
     LinearLayout details = Ui.col(a);
+
+    FrameLayout mapCard = new FrameLayout(a);
+    mapCard.setBackground(Ui.shape(a, 0xffb3d38a, Design.BORDER, 16));
+    mapCard.setClipToOutline(true);
+    mapCard.setElevation(Ui.dp(a, 2));
+
     MapView map = new MapView(a, regions);
     map.setTag("campus-map-canvas");
-    page.addView(map, new LinearLayout.LayoutParams(-1, Ui.dp(a, 380)));
-    LinearLayout controls = Ui.row(a);
-    String[] labels = {"放大", "缩小", "全图"};
+    mapCard.addView(map, new FrameLayout.LayoutParams(-1, Ui.dp(a, 420)));
+
+    // 悬浮在地图右下角的紧凑缩放控件组
+    LinearLayout controls = Ui.col(a);
+    controls.setPadding(Ui.dp(a, 4), Ui.dp(a, 4), Ui.dp(a, 4), Ui.dp(a, 4));
+    controls.setBackground(Ui.shape(a, Design.PAPER, Design.BORDER, 14));
+    controls.setElevation(Ui.dp(a, 4));
+    String[] symbols = {"＋", "−", "全图"};
+    String[] descriptions = {"放大", "缩小", "全图"};
     Runnable[] actions = {() -> map.zoomBy(1.5f), () -> map.zoomBy(1 / 1.5f), map::reset};
-    for (int i = 0; i < labels.length; i++) {
-      LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, -2, 1);
-      if (i > 0) lp.leftMargin = Ui.dp(a, 10);
-      controls.addView(Ui.button(a, labels[i], false, actions[i]), lp);
+    for (int i = 0; i < symbols.length; i++) {
+      if (i > 0) {
+        View sep = new View(a);
+        sep.setBackgroundColor(Design.BORDER);
+        controls.addView(sep, new LinearLayout.LayoutParams(Ui.dp(a, 28), Ui.dp(a, 1)));
+      }
+      TextView btn = Ui.text(a, symbols[i], i == 2 ? 11 : 18, Design.INK);
+      btn.setTypeface(Typeface.create(Design.body(), Typeface.BOLD));
+      btn.setGravity(Gravity.CENTER);
+      btn.setContentDescription(descriptions[i]);
+      btn.setFocusable(true);
+      btn.setClickable(true);
+      btn.setBackground(Ui.ripple(a, Color.TRANSPARENT, 0, 10));
+      Runnable action = actions[i];
+      btn.setOnClickListener(v -> action.run());
+      controls.addView(btn, new LinearLayout.LayoutParams(Ui.dp(a, 40), Ui.dp(a, 40)));
     }
-    Ui.gap(page, 10); page.addView(controls); Ui.gap(page, 14);
-    TextView choose = Ui.text(a, "选择区域", 14, Design.MUTED);
-    page.addView(choose);
-    Map<String,TextView> buttons = new HashMap<>();
+    FrameLayout.LayoutParams ctrlLp = new FrameLayout.LayoutParams(-2, -2, Gravity.BOTTOM | Gravity.END);
+    ctrlLp.setMargins(0, 0, Ui.dp(a, 10), Ui.dp(a, 10));
+    mapCard.addView(controls, ctrlLp);
+    page.addView(mapCard, new LinearLayout.LayoutParams(-1, -2));
+
+    Ui.gap(page, 12);
+    HorizontalScrollView chipScroll = new HorizontalScrollView(a);
+    chipScroll.setHorizontalScrollBarEnabled(false);
+    chipScroll.setOverScrollMode(View.OVER_SCROLL_NEVER);
+    LinearLayout chipRow = Ui.row(a);
+    chipScroll.addView(chipRow);
+    page.addView(chipScroll, new LinearLayout.LayoutParams(-1, -2));
+
+    Map<String, TextView> buttons = new HashMap<>();
     Consumer<Region> selected = region -> {
-      a.drafts.putString(key, region.id()); map.select(region.id());
-      for (var entry : buttons.entrySet()) entry.getValue().setSelected(entry.getKey().equals(region.id()));
-      details.removeAllViews(); details.addView(Ui.title(a, region.name(), 22)); Ui.gap(details, 8);
+      a.drafts.putString(key, region.id());
+      map.select(region.id());
+      for (var entry : buttons.entrySet()) {
+        boolean active = entry.getKey().equals(region.id());
+        TextView chip = entry.getValue();
+        chip.setSelected(active);
+        chip.setTextColor(active ? Design.ON_RED : Design.INK);
+        chip.setTypeface(active ? Typeface.create(Design.body(), Typeface.BOLD) : Design.body());
+        chip.setBackground(Ui.ripple(a, active ? Design.RED : Design.ALT, active ? 0 : Design.BORDER, 18));
+      }
+      details.removeAllViews();
+      details.setVisibility(View.VISIBLE);
+      details.setPadding(Ui.dp(a, 14), Ui.dp(a, 14), Ui.dp(a, 14), Ui.dp(a, 14));
+      details.setBackground(Ui.shape(a, Design.ALT, Design.BORDER, 16));
+      details.addView(Ui.title(a, region.name(), 18));
+      Ui.gap(details, 10);
       int found = 0;
       for (var hall : a.repo.halls()) if (hall.active() && region.halls().contains(hall.id())) {
-        found++; Ui.action(details, hall.name(), false, () -> a.go("stalls", hall.id())); Ui.gap(details, 10);
+        found++;
+        String label = hall.name() + (hall.averageScore() != null
+            ? " · ★ " + hall.averageScore().stripTrailingZeros().toPlainString() : "");
+        TextView enter = Ui.button(a, label + "  →", true, () -> a.go("stalls", hall.id()));
+        LinearLayout.LayoutParams elp = new LinearLayout.LayoutParams(-1, -2);
+        if (found > 1) elp.topMargin = Ui.dp(a, 8);
+        details.addView(enter, elp);
       }
       if (found == 0) {
         details.addView(Ui.text(a, a.isPageLoading() ? "正在读取食堂入口…" :
-            a.pageFailed() ? "食堂入口读取失败，地图仍可使用。" : "此区域暂无可用的食堂详情入口。", 14, Design.MUTED));
-        if (a.pageFailed()) Ui.action(details, "重新读取食堂", false, a::render);
+            a.pageFailed() ? "食堂入口读取失败，地图仍可使用。" : "此区域暂无可用的食堂详情入口。", 13, Design.MUTED));
+        if (a.pageFailed()) {
+          Ui.gap(details, 8);
+          Ui.action(details, "重新读取食堂", false, a::render);
+        }
       }
     };
     map.listener = selected;
-    for (Region region : regions) {
-      Ui.gap(page, 8);
-      TextView button = Ui.button(a, region.name(), false, () -> selected.accept(region));
-      button.setTag("map-region:" + region.id()); buttons.put(region.id(), button); page.addView(button);
+    for (int i = 0; i < regions.size(); i++) {
+      Region region = regions.get(i);
+      TextView chip = Ui.text(a, region.name(), 13, Design.INK);
+      chip.setGravity(Gravity.CENTER);
+      chip.setMinHeight(Ui.dp(a, 38));
+      chip.setPadding(Ui.dp(a, 14), Ui.dp(a, 8), Ui.dp(a, 14), Ui.dp(a, 8));
+      chip.setBackground(Ui.ripple(a, Design.ALT, Design.BORDER, 18));
+      chip.setFocusable(true);
+      chip.setClickable(true);
+      chip.setTag("map-region:" + region.id());
+      chip.setOnClickListener(v -> selected.accept(region));
+      buttons.put(region.id(), chip);
+      LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(-2, -2);
+      if (i > 0) clp.leftMargin = Ui.dp(a, 8);
+      chipRow.addView(chip, clp);
     }
-    Ui.gap(page, 16); details.setTag("campus-map-selection"); details.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE); page.addView(details);
+
+    Ui.gap(page, 12);
+    details.setTag("campus-map-selection");
+    details.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+    details.setVisibility(View.GONE);
+    page.addView(details, new LinearLayout.LayoutParams(-1, -2));
     for (Region region : regions) if (region.id().equals(a.drafts.getString(key, ""))) selected.accept(region);
-    Ui.gap(page, 18);
+    Ui.gap(page, 14);
     page.addView(Ui.text(a, "校园示意图 · 2023 年版", 12, Design.MUTED));
   }
 
