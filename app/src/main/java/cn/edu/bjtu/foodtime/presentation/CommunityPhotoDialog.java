@@ -191,15 +191,27 @@ final class CommunityPhotoDialog {
   private TextView photoAction(String label, String description, Runnable action, int icon) {
     TextView button = control(label, description, action);
     button.setTextSize(13);
+    button.setMinWidth(0);
     button.setMinHeight(dp(44));
     button.setMaxLines(1);
     button.setSingleLine(true);
     button.setEllipsize(TextUtils.TruncateAt.END);
-    button.setPadding(dp(10), 0, dp(10), 0);
+    button.setPadding(dp(8), 0, dp(8), 0);
     button.setCompoundDrawablePadding(dp(6));
-    button.setBackground(Ui.ripple(activity, 0x66222222, 0x29FFFFFF, 22));
+    button.setBackground(null);
     setPhotoActionIcon(button, icon, Color.WHITE);
     return button;
+  }
+
+  private FrameLayout wrapPhotoAction(TextView button) {
+    FrameLayout pill = new FrameLayout(activity);
+    pill.setMinimumHeight(dp(44));
+    pill.setBackground(Ui.ripple(activity, 0x66222222, 0x29FFFFFF, 22));
+    pill.setClickable(true);
+    pill.setFocusable(false);
+    pill.setOnClickListener(v -> button.performClick());
+    pill.addView(button, new FrameLayout.LayoutParams(-2, -1, Gravity.CENTER));
+    return pill;
   }
 
   private void setPhotoActionIcon(TextView button, int resource, int color) {
@@ -234,9 +246,16 @@ final class CommunityPhotoDialog {
     LinearLayout byline = Ui.row(activity);
     byline.setGravity(Gravity.CENTER_VERTICAL);
     byline.setPadding(0, 0, dp(48), 0);
-    View avatar = Ui.image(activity, Ui.thumb(post.userAvatarUrl()),
-        new String(Character.toChars(author.codePointAt(0))), false);
-    avatar.setBackground(Ui.shape(activity, 0xff303030, Color.TRANSPARENT, 14));
+    String initial = new String(Character.toChars(author.codePointAt(0)));
+    View avatar;
+    if (post.userAvatarUrl().isBlank()) {
+      TextView fallback = Ui.text(activity, initial, 12, Color.WHITE);
+      fallback.setGravity(Gravity.CENTER);
+      avatar = fallback;
+    } else {
+      avatar = Ui.image(activity, Ui.thumb(post.userAvatarUrl()), initial, false);
+    }
+    avatar.setBackground(Ui.shape(activity, 0xff3a3a3a, 0x26FFFFFF, 14));
     avatar.setClipToOutline(true);
     avatar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
     byline.addView(avatar, new LinearLayout.LayoutParams(dp(28), dp(28)));
@@ -293,21 +312,23 @@ final class CommunityPhotoDialog {
         canvas.stopZoomAnimation();
       });
       for (TextView action : List.of(share, comment, like)) {
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, -2, 1);
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(44), 1);
         params.setMargins(dp(5), 0, dp(5), 0);
-        row.addView(action, params);
+        row.addView(wrapPhotoAction(action), params);
       }
       LinearLayout.LayoutParams rowLp = new LinearLayout.LayoutParams(-1, -2);
-      rowLp.topMargin = dp(6);
+      rowLp.topMargin = dp(8);
       details.addView(row, rowLp);
     }
 
-    TextView toggle = control("⌄", "收起帖子信息", () -> {});
+    ImageView toggle = new ImageView(activity);
     toggle.setTag("photo-context-toggle");
-    toggle.setMinWidth(dp(36));
-    toggle.setMinHeight(dp(36));
-    toggle.setPadding(0, 0, 0, 0);
-    toggle.setTextSize(19);
+    toggle.setImageResource(R.drawable.ic_chevron_down);
+    toggle.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+    toggle.setPadding(dp(8), dp(8), dp(8), dp(8));
+    toggle.setClickable(true);
+    toggle.setFocusable(true);
+    toggle.setContentDescription("收起帖子信息");
     toggle.setBackground(Ui.ripple(activity, 0x80262626, 0x26FFFFFF, 18));
     FrameLayout.LayoutParams toggleLp = new FrameLayout.LayoutParams(dp(36), dp(36), Gravity.END | Gravity.TOP);
     toggleLp.setMargins(dp(14), dp(16), dp(14), dp(8));
@@ -315,7 +336,7 @@ final class CommunityPhotoDialog {
     toggle.setOnClickListener(view -> {
       boolean collapse = details.getVisibility() == View.VISIBLE;
       details.setVisibility(collapse ? View.GONE : View.VISIBLE);
-      toggle.setText(collapse ? "⌃" : "⌄");
+      toggle.setRotation(collapse ? 180f : 0f);
       toggle.setContentDescription(collapse ? "展开帖子信息" : "收起帖子信息");
     });
     return shell;
