@@ -137,8 +137,8 @@ final class AdminScreen {
     description.setFilters(new android.text.InputFilter[]{new android.text.InputFilter.LengthFilter(500)});
     EditText price=table.equals("dishes")?Ui.field(form,"价格（元）",false,false):null;
     if(price!=null) price.setInputType(8194);
-    EditText latitudeField=table.equals("halls")?Ui.field(form,"纬度（WGS84，可选，如 39.951828）",false,false):null;
-    EditText longitudeField=table.equals("halls")?Ui.field(form,"经度（WGS84，可选，如 116.337199）",false,false):null;
+    EditText latitudeField=table.equals("halls")?Ui.field(form,"纬度（可选）",false,false):null;
+    EditText longitudeField=table.equals("halls")?Ui.field(form,"经度（可选）",false,false):null;
     if(latitudeField!=null) latitudeField.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
     if(longitudeField!=null) longitudeField.setInputType(android.text.InputType.TYPE_CLASS_NUMBER | android.text.InputType.TYPE_NUMBER_FLAG_DECIMAL | android.text.InputType.TYPE_NUMBER_FLAG_SIGNED);
     Spinner priceUnit=price==null?null:PriceUnits.field(a,form,a.drafts.getString(a.draftKey("price-unit"),item==null?"unspecified":item.priceUnit()));

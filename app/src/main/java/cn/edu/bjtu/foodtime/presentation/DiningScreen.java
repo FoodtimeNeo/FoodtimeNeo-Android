@@ -169,7 +169,7 @@ final class DiningScreen {
       }
       count.setText("全部食堂 (" + filtered.size() + ")");
       if (filtered.isEmpty()) {
-        Ui.empty(list, "该区域暂无食堂", "切换“全部”查看校内所有食堂。");
+        Ui.empty(list, "暂无食堂", "可切换“全部”查看");
       } else {
         hallGallery(a, list, filtered, fix);
       }
@@ -435,8 +435,8 @@ final class DiningScreen {
           : prefixLabel + " · " + summary;
     } else {
       distText = (prefixLabel == null || prefixLabel.isBlank())
-          ? "查看校园位置与校内步行路线"
-          : prefixLabel + " · 查看步行路线";
+          ? "查看地图与路线"
+          : prefixLabel;
     }
     TextView label = Ui.text(a, distText, 12, Design.INK);
     label.setMaxLines(1);

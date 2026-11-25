@@ -157,17 +157,13 @@ final class CampusMapScreen {
     CampusNavigator navigator = navigator(a);
     List<CampusNavigator.Node> presets = navigator.presetStartNodes();
 
-    TextView hint = Ui.text(a, "双指缩放清晰查看 · 点选地标或下方标签规划校内步行路线", 12, Design.MUTED);
-    page.addView(hint);
-    Ui.gap(page, 8);
-
     // Optional banner when user is tapping a custom start point on the map
     LinearLayout pickBanner = Ui.row(a);
     pickBanner.setGravity(Gravity.CENTER_VERTICAL);
     pickBanner.setPadding(Ui.dp(a, 12), Ui.dp(a, 8), Ui.dp(a, 10), Ui.dp(a, 8));
     pickBanner.setBackground(Ui.shape(a, Design.RED_SOFT, Design.RED, 12));
     pickBanner.setVisibility(View.GONE);
-    pickBanner.addView(Ui.text(a, "请在地图上点击任意出发位置", 13, Design.RED), new LinearLayout.LayoutParams(0, -2, 1));
+    pickBanner.addView(Ui.text(a, "点击地图选择起点", 13, Design.RED), new LinearLayout.LayoutParams(0, -2, 1));
     TextView cancelPick = Ui.text(a, "取消", 12, Design.RED);
     cancelPick.setTypeface(Typeface.create(Design.body(), Typeface.BOLD));
     cancelPick.setPadding(Ui.dp(a, 10), Ui.dp(a, 4), Ui.dp(a, 10), Ui.dp(a, 4));
@@ -284,7 +280,7 @@ final class CampusMapScreen {
           }
         } else {
           double km = projection.distanceToCampusCenter(loc.getLatitude(), loc.getLongitude()) / 1000.0;
-          a.message(String.format(Locale.ROOT, "当前距学校约 %.1fkm，可选择校门起点预览校内路线", km));
+          a.message(String.format(Locale.ROOT, "当前不在校内（距校约 %.1fkm），可切换校门出发", km));
         }
         renderDetails[0].run();
       }, msg -> {
@@ -393,7 +389,7 @@ final class CampusMapScreen {
       // Navigation action buttons
       LinearLayout navBtnRow = Ui.row(a);
       navBtnRow.setGravity(Gravity.CENTER_VERTICAL);
-      String navLabel = state.navigating ? "重新聚焦路线" : "校内步行导航";
+      String navLabel = state.navigating ? "查看路线" : "开始导航";
       TextView navBtn = Ui.button(a, navLabel, true, () -> {
         state.navigating = true;
         state.recomputeRoute(true);
@@ -459,8 +455,8 @@ final class CampusMapScreen {
         if (!state.userOnCampus) {
           Ui.gap(navCard, 4);
           String fallbackHint = state.userFix == null
-              ? "未开启定位，已从校门规划路线；点击“定位”或下方起点可切换"
-              : "当前不在校园内，已切换为校内起点预览（也可使用右上“外部地图”到校）";
+              ? "默认从校门出发，可切换起点"
+              : "当前不在校内，已从校门出发";
           navCard.addView(Ui.text(a, fallbackHint, 11, Design.MUTED));
         }
 
@@ -488,11 +484,11 @@ final class CampusMapScreen {
             renderDetails[0].run();
           });
         }
-        addStartChip(a, startRow, "图上选起点", "custom".equals(activeMode) || state.pickStartMode, () -> {
+        addStartChip(a, startRow, "图上选点", "custom".equals(activeMode) || state.pickStartMode, () -> {
           state.pickStartMode = true;
           map.setPickStartMode(true);
           pickBanner.setVisibility(View.VISIBLE);
-          a.message("请在上方地图上点击任意位置作为起点");
+          a.message("点击地图选择起点");
         });
         startScroll.addView(startRow);
         navCard.addView(startScroll, new LinearLayout.LayoutParams(-1, -2));
@@ -512,7 +508,7 @@ final class CampusMapScreen {
           if (steps.size() > 1) {
             Ui.gap(navCard, 6);
             TextView toggleSteps = Ui.text(a,
-                state.stepsExpanded ? "收起完整路线步骤 ⌃" : ("展开全部 " + steps.size() + " 步指引 ⌄"),
+                state.stepsExpanded ? "收起步骤 ⌃" : ("展开全部 " + steps.size() + " 步 ⌄"),
                 12, Design.MUTED);
             toggleSteps.setPadding(Ui.dp(a, 2), Ui.dp(a, 4), Ui.dp(a, 2), Ui.dp(a, 4));
             toggleSteps.setClickable(true);
@@ -552,10 +548,10 @@ final class CampusMapScreen {
       }
       if (found == 0) {
         details.addView(Ui.text(a, a.isPageLoading() ? "正在读取食堂入口…" :
-            a.pageFailed() ? "食堂入口读取失败，地图与步行导航仍可使用。" : "此餐厅暂未录入档口菜单，后续将陆续补充。", 13, Design.MUTED));
+            a.pageFailed() ? "食堂入口读取失败" : "暂未录入档口菜单", 13, Design.MUTED));
         if (a.pageFailed()) {
           Ui.gap(details, 8);
-          Ui.action(details, "重新读取食堂", false, a::render);
+          Ui.action(details, "重试", false, a::render);
         }
       }
     };
@@ -647,9 +643,6 @@ final class CampusMapScreen {
       }
       renderDetails[0].run();
     }
-
-    Ui.gap(page, 14);
-    page.addView(Ui.text(a, "北京交通大学手绘校园地图 · 高清分块渲染 · 校内离线步行导航", 12, Design.MUTED));
   }
 
   private static void addStartChip(MainActivity a, LinearLayout row, String label, boolean active, Runnable onClick) {
