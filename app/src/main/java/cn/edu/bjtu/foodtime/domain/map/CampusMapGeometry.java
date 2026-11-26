@@ -13,6 +13,7 @@ public final class CampusMapGeometry {
   }
 
   public static float clamp(float value, float minimum, float maximum) {
+    if (!Float.isFinite(value)) return minimum;
     return Math.max(minimum, Math.min(maximum, value));
   }
 

@@ -9,7 +9,7 @@ public final class PriceHistory {
   public static final List<String> UNITS=List.of("unspecified","serving","piece","bowl","jin","100g","kg");
   public static final List<String> LABELS=List.of("未注明","份","个","碗","斤","100克","公斤");
   public static String unit(String value){int index=UNITS.indexOf(value);return index<0?"未注明":LABELS.get(index);}
-  public static String price(BigDecimal value,String unit){return value==null?"价格未知":"¥"+value.setScale(2).toPlainString()+(unit==null||unit.isBlank()||unit.equals("unspecified")?" · 单位未注明":"/"+unit(unit));}
+  public static String price(BigDecimal value,String unit){return value==null?"价格未知":"¥"+value.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString()+(unit==null||unit.isBlank()||unit.equals("unspecified")?" · 单位未注明":"/"+unit(unit));}
   public record Entry(String id,BigDecimal price,String priceUnit,long recordedAt,String origin,long revision,boolean carriedForward){}
   public record Snapshot(String dishId,String dishName,BigDecimal currentPrice,String priceUnit,long revision,
       long windowStart,long windowEnd,long totalRecords,boolean canManage,List<Entry> records){public Snapshot{records=List.copyOf(records);}}

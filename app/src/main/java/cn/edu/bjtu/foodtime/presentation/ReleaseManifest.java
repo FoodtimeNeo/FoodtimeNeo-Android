@@ -16,6 +16,16 @@ import java.util.Locale;
 /** Optional release manifest published next to the APK; enables delta downloads and checksums. */
 final class ReleaseManifest {
   private static final int MAX_BYTES = 256 * 1024;
+  private static final int MAX_REDIRECTS = 5;
+  private static final java.util.Set<String> TRUSTED_HOSTS = java.util.Set.of(
+      "bjtufoodtime.top",
+      "github.com",
+      "objects.githubusercontent.com",
+      "release-assets.githubusercontent.com"
+  );
+  private static final java.util.Set<String> DEBUG_HOSTS = java.util.Set.of(
+      "localhost", "127.0.0.1", "10.0.2.2"
+  );
 
   record Patch(int baseVersionCode, String url, String sha256, long size) { }
 
@@ -51,27 +61,66 @@ final class ReleaseManifest {
 
   static ReleaseManifest fetch(String apkUrl, int expectedVersionCode) {
     String address = manifestUrl(apkUrl);
-    if (address == null || !webUrl(address)) return null;
-    HttpURLConnection connection = null;
+    boolean debug = cn.edu.bjtu.foodtime.BuildConfig.DEBUG;
+    if (address == null || !isTrustedReleaseUrl(address, debug)) return null;
     try {
-      connection = (HttpURLConnection) new URL(address).openConnection();
-      connection.setConnectTimeout(5000);
-      connection.setReadTimeout(10000);
-      connection.setRequestProperty("Accept", "application/json");
-      if (connection.getResponseCode() != 200) return null;
-      try (InputStream input = connection.getInputStream(); var out = new ByteArrayOutputStream()) {
-        byte[] buffer = new byte[8192];
-        int count;
-        while ((count = input.read(buffer)) != -1) {
-          if (out.size() > MAX_BYTES) return null;
-          out.write(buffer, 0, count);
+      HttpURLConnection connection = openTrusted(address, debug, 5000, 10000, "application/json", null);
+      try {
+        if (connection.getResponseCode() != 200) return null;
+        try (InputStream input = connection.getInputStream(); var out = new ByteArrayOutputStream()) {
+          byte[] buffer = new byte[8192];
+          int count;
+          while ((count = input.read(buffer)) != -1) {
+            if (out.size() > MAX_BYTES) return null;
+            out.write(buffer, 0, count);
+          }
+          return parse(new String(out.toByteArray(), StandardCharsets.UTF_8), expectedVersionCode);
         }
-        return parse(new String(out.toByteArray(), StandardCharsets.UTF_8), expectedVersionCode);
+      } finally {
+        connection.disconnect();
       }
     } catch (IOException | RuntimeException unavailable) {
       return null;
-    } finally {
-      if (connection != null) connection.disconnect();
+    }
+  }
+
+  static HttpURLConnection openTrusted(String initialUrl, boolean debug, int connectTimeoutMs,
+                                       int readTimeoutMs, String accept, String range) throws IOException {
+    String current = initialUrl;
+    for (int hop = 0; hop <= MAX_REDIRECTS; hop++) {
+      if (!isTrustedReleaseUrl(current, debug)) throw new IOException("更新地址不安全");
+      HttpURLConnection connection = (HttpURLConnection) new URL(current).openConnection();
+      connection.setInstanceFollowRedirects(false);
+      connection.setConnectTimeout(connectTimeoutMs);
+      connection.setReadTimeout(readTimeoutMs);
+      if (accept != null) connection.setRequestProperty("Accept", accept);
+      if (range != null) connection.setRequestProperty("Range", range);
+      int status = connection.getResponseCode();
+      if (status == 301 || status == 302 || status == 303 || status == 307 || status == 308) {
+        String location = connection.getHeaderField("Location");
+        connection.disconnect();
+        if (location == null || location.trim().isEmpty()) throw new IOException("更新重定向无效");
+        current = new URL(new URL(current), location).toString();
+        continue;
+      }
+      return connection;
+    }
+    throw new IOException("更新重定向次数过多");
+  }
+
+  static boolean isTrustedReleaseUrl(String url, boolean debug) {
+    if (url == null || url.trim().isEmpty()) return false;
+    try {
+      URL parsed = new URL(url);
+      String scheme = parsed.getProtocol();
+      String host = parsed.getHost() == null ? "" : parsed.getHost().toLowerCase(Locale.ROOT);
+      if (parsed.getUserInfo() != null) return false;
+      if ("https".equalsIgnoreCase(scheme)) {
+        return TRUSTED_HOSTS.contains(host) || (debug && DEBUG_HOSTS.contains(host));
+      }
+      return debug && "http".equalsIgnoreCase(scheme) && DEBUG_HOSTS.contains(host);
+    } catch (IOException invalid) {
+      return false;
     }
   }
 

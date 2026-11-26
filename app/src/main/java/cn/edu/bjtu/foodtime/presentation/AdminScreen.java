@@ -152,7 +152,7 @@ final class AdminScreen {
     Switch enabled=new Switch(a);enabled.setText("启用");enabled.setMinHeight(Ui.dp(a,48));enabled.setTextColor(Design.INK);
     String activeKey=a.draftKey("active");enabled.setChecked(a.drafts.getBoolean(activeKey,item==null||item.active()));
     enabled.setOnCheckedChangeListener((v,checked) -> a.drafts.putBoolean(activeKey,checked));form.addView(enabled);Ui.gap(form,16);
-    String imageKey=a.draftKey("image"),image=a.drafts.getString(imageKey,item==null?"":item.coverImageUrl());
+    String imageKey=a.draftKey("image"),image=a.drafts.getString(imageKey,item==null?"":Validation.safeRemoteImageReference(item.coverImageUrl()));
     if(!table.equals("dishes")) {
       form.addView(Ui.image(a,image,"暂无封面",true));Ui.gap(form,16);Ui.action(form,"选择封面",false,() -> a.pickImage(imageKey));Ui.gap(form,16);
       if(!image.isBlank()) Ui.action(form,"移除封面",false,() -> { a.drafts.putString(imageKey,""); a.render(); });
@@ -196,7 +196,8 @@ final class AdminScreen {
           ||review.userId().toLowerCase(Locale.ROOT).contains(query)||review.userEmail().toLowerCase(Locale.ROOT).contains(query)) {
         found++;LinearLayout card=Ui.card(list);PublisherDetailsView.show(a,card,review.userId(),review.userDisplayName(),review.userEmail(),review.createdAt());
         card.addView(Ui.text(a,a.repo.context(review.dishId()),14,Design.MUTED));
-        card.addView(Ui.text(a,"★".repeat(review.rating())+" · "+review.rating()+" / 5",16,Design.RED));card.addView(Ui.text(a,review.content(),16,Design.INK));Ui.gap(card,12);
+        int clampedRating = Math.max(0, Math.min(5, review.rating()));
+        card.addView(Ui.text(a,"★".repeat(clampedRating)+" · "+review.rating()+" / 5",16,Design.RED));card.addView(Ui.text(a,review.content(),16,Design.INK));Ui.gap(card,12);
         AiAssessmentView.show(a,card,review.ai());
         Ui.action(card,"删除违规评论",false,() -> removeReview(a,review));
       }

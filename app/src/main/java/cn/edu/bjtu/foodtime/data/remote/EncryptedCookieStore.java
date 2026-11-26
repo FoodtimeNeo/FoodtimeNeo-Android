@@ -58,6 +58,11 @@ public final class EncryptedCookieStore implements CookieStore {
       memory.removeAll();expires.clear();preferences.edit().remove("cookies").commit();
     }
   }
+  private SecretKey regenerateKey() throws Exception {
+    KeyStore store=KeyStore.getInstance("AndroidKeyStore");store.load(null);
+    if(store.containsAlias(keyAlias)) store.deleteEntry(keyAlias);
+    return key();
+  }
   private void persist() {
     try {
       JSONArray list=new JSONArray();
@@ -67,7 +72,14 @@ public final class EncryptedCookieStore implements CookieStore {
         j.put("path",cookie.getPath());j.put("secure",cookie.getSecure());j.put("httpOnly",cookie.isHttpOnly());j.put("version",cookie.getVersion());j.put("expires",deadline);list.put(j);
       }
       if(list.length()==0) { if(!preferences.edit().remove("cookies").commit()) throw new IllegalStateException();return; }
-      Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");cipher.init(Cipher.ENCRYPT_MODE,key());
+      Cipher cipher=Cipher.getInstance("AES/GCM/NoPadding");
+      try {
+        SecretKey secret=key();
+        if(secret==null) secret=regenerateKey();
+        cipher.init(Cipher.ENCRYPT_MODE,secret);
+      } catch(Exception invalidated) {
+        cipher.init(Cipher.ENCRYPT_MODE,regenerateKey());
+      }
       JSONObject payload=new JSONObject();payload.put("origin",origin.toString());payload.put("cookies",list);
       byte[] sealed=cipher.doFinal(payload.toString().getBytes(java.nio.charset.StandardCharsets.UTF_8));
       JSONObject envelope=new JSONObject();envelope.put("iv",Base64.encodeToString(cipher.getIV(),Base64.NO_WRAP));envelope.put("data",Base64.encodeToString(sealed,Base64.NO_WRAP));

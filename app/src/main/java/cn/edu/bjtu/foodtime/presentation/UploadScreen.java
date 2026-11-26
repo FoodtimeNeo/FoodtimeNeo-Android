@@ -7,6 +7,7 @@ import cn.edu.bjtu.foodtime.domain.validation.Validation;
 final class UploadScreen {
   static void photo(MainActivity a, LinearLayout page, MainActivity.Route route) {
     Dish dish = a.repo.dish(route.id());
+    if (dish == null) throw new IllegalArgumentException("菜品不存在或已下架");
     a.heading(page, "01.4", "上传图片", dish.name());
     LinearLayout card = Ui.card(page);
     String key = a.draftKey("image");
@@ -30,11 +31,14 @@ final class UploadScreen {
 
   private static void form(
       MainActivity a, LinearLayout page, MainActivity.Route route, boolean isStall) {
+    String parentName = isStall
+        ? (a.repo.hall(route.id()) == null ? "" : a.repo.hall(route.id()).name())
+        : (a.repo.stall(route.id()) == null ? "" : a.repo.stall(route.id()).name());
     a.heading(
         page,
         "03",
         isStall ? "投稿档口" : "投稿菜品",
-        isStall ? a.repo.hall(route.id()).name() : a.repo.stall(route.id()).name());
+        parentName);
     LinearLayout card = Ui.card(page);
     EditText name = Ui.field(card, isStall ? "档口名称" : "菜品名称", false, false);
     EditText description = Ui.field(card, "简短描述（可选）", false, true);

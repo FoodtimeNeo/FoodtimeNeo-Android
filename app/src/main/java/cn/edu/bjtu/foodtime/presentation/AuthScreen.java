@@ -155,19 +155,23 @@ final class AuthScreen {
     });
   }
 
+  private static final java.util.concurrent.atomic.AtomicLong CAPTCHA_TICKET = new java.util.concurrent.atomic.AtomicLong();
+  private static final java.util.concurrent.atomic.AtomicLong LOGIN_TICKET = new java.util.concurrent.atomic.AtomicLong();
+
   private static void submitLogin(MainActivity a,EditText email,EditText password,TextView error,
       EditText captchaAnswer,String[] challengeId,TextView button,LinearLayout captchaBox,
       ImageView captchaImage,TextView captchaStatus) {
     if(!button.isEnabled())return;
     String account=email.getText().toString(),secret=password.getText().toString();
     String answer=captchaAnswer==null?"":captchaAnswer.getText().toString().strip();
+    long ticket=LOGIN_TICKET.incrementAndGet();
     error.setText("");
     button.setEnabled(false);
     ((RepositoryProvider)a.getApplication()).workExecutor().execute(() -> {
       try {
         a.repo.login(account,secret,challengeId[0],answer.isEmpty()?null:answer);
         a.runOnUiThread(() -> {
-          if(a.isFinishing()||a.isDestroyed())return;
+          if(a.isFinishing()||a.isDestroyed()||ticket!=LOGIN_TICKET.get()||!button.isAttachedToWindow())return;
           password.setText("");
           if(captchaAnswer!=null)captchaAnswer.setText("");
           challengeId[0]=null;
@@ -176,7 +180,7 @@ final class AuthScreen {
         });
       } catch(RuntimeException failure) {
         a.runOnUiThread(() -> {
-          if(a.isFinishing()||a.isDestroyed())return;
+          if(a.isFinishing()||a.isDestroyed()||ticket!=LOGIN_TICKET.get()||!button.isAttachedToWindow())return;
           error.setText(failure.getMessage()==null?"登录失败":failure.getMessage());
           String code=failure instanceof RepositoryException exception?exception.code():"";
           if("CAPTCHA_REQUIRED".equals(code)||"CAPTCHA_INVALID".equals(code))
@@ -191,6 +195,7 @@ final class AuthScreen {
   private static void loadCaptcha(MainActivity a,LinearLayout box,ImageView image,TextView status,
       String[] challengeId,EditText answer) {
     if(box==null)return;
+    long ticket=CAPTCHA_TICKET.incrementAndGet();
     status.setText("正在获取验证码…");
     status.setTextColor(Design.MUTED);
     box.setVisibility(View.VISIBLE);
@@ -198,10 +203,18 @@ final class AuthScreen {
       try {
         CaptchaChallenge challenge=a.repo.captcha();
         byte[] bytes=Base64.decode(challenge.imageBase64(),Base64.DEFAULT);
+        BitmapFactory.Options bounds=new BitmapFactory.Options();
+        bounds.inJustDecodeBounds=true;
+        BitmapFactory.decodeByteArray(bytes,0,bytes.length,bounds);
+        if(bounds.outWidth<=0||bounds.outHeight<=0||(long)bounds.outWidth*bounds.outHeight>4_000_000L)
+          throw new IllegalArgumentException("验证码图片尺寸异常");
         Bitmap bitmap=BitmapFactory.decodeByteArray(bytes,0,bytes.length);
         if(bitmap==null)throw new IllegalArgumentException("验证码图片无法解析");
         a.runOnUiThread(() -> {
-          if(a.isFinishing()||a.isDestroyed())return;
+          if(a.isFinishing()||a.isDestroyed()||ticket!=CAPTCHA_TICKET.get()||!box.isAttachedToWindow()){
+            bitmap.recycle();
+            return;
+          }
           image.setImageBitmap(bitmap);
           challengeId[0]=challenge.challengeId();
           if(answer!=null)answer.setText("");
@@ -211,7 +224,7 @@ final class AuthScreen {
         });
       } catch(RuntimeException failure) {
         a.runOnUiThread(() -> {
-          if(a.isFinishing()||a.isDestroyed())return;
+          if(a.isFinishing()||a.isDestroyed()||ticket!=CAPTCHA_TICKET.get()||!box.isAttachedToWindow())return;
           challengeId[0]=null;
           status.setText("无法获取验证码："+(failure.getMessage()==null?"请重试":failure.getMessage()));
           status.setTextColor(Design.RED);

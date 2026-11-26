@@ -417,21 +417,24 @@ public class MainActivity extends Activity {
     boolean forced = cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.forced(info,cn.edu.bjtu.foodtime.BuildConfig.VERSION_CODE);
     String notes = info.notes() == null || info.notes().isBlank()
         ? "建议更新到最新版本，获得最新功能与修复。" : info.notes();
-    AlertDialog dialog = new AlertDialog.Builder(this)
+    AlertDialog.Builder builder = new AlertDialog.Builder(this)
         .setTitle("发现新版本 " + cn.edu.bjtu.foodtime.domain.model.ReleaseVersion.display(info.versionName()))
         .setMessage(notes)
         .setCancelable(!forced)
-        .setPositiveButton("立即更新", (prompt, which) -> startUpdate(info, forced))
-        .setNegativeButton("稍后更新", null)
-        .create();
+        .setPositiveButton("立即更新", (prompt, which) -> startUpdate(info, forced));
+    if (!forced) builder.setNegativeButton("稍后更新", null);
+    AlertDialog dialog = builder.create();
     dialog.setOnDismissListener(closed -> { updatePrompt = null; maybeReleaseUpdateGate(); });
     dialog.setCanceledOnTouchOutside(!forced);
     updatePrompt = dialog;
     dialog.show();
   }
 
+  private final java.util.concurrent.ExecutorService updateWorker = java.util.concurrent.Executors.newSingleThreadExecutor();
+
   private void startUpdate(AppRelease info, boolean forced) {
-    final UpdateDownloader downloader = new UpdateDownloader(this, worker);
+    if (activeDownloader != null) activeDownloader.cancel();
+    final UpdateDownloader downloader = new UpdateDownloader(this, updateWorker);
     activeDownloader = downloader;
     final ProgressBar bar = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
     bar.setMax(100); bar.setIndeterminate(true);
@@ -489,10 +492,18 @@ public class MainActivity extends Activity {
         if (isFinishing() || isDestroyed() || updateProgress != dialog) return;
         updateProgress = null;
         dialog.dismiss();
-        new AlertDialog.Builder(MainActivity.this)
+        AlertDialog.Builder failureBuilder = new AlertDialog.Builder(MainActivity.this)
             .setTitle("更新失败").setMessage(text)
-            .setPositiveButton("重试", (retry, which) -> startUpdate(info, forced))
-            .setNegativeButton("关闭", null).show();
+            .setCancelable(!forced)
+            .setPositiveButton("重试", (retry, which) -> startUpdate(info, forced));
+        if (!forced) failureBuilder.setNegativeButton("关闭", null);
+        AlertDialog failureDialog = failureBuilder.create();
+        failureDialog.setCanceledOnTouchOutside(!forced);
+        if (forced) {
+          failureDialog.setOnDismissListener(closed -> { if (updatePrompt == failureDialog) updatePrompt = null; });
+          updatePrompt = failureDialog;
+        }
+        failureDialog.show();
       }
     });
   }
@@ -1106,15 +1117,6 @@ public class MainActivity extends Activity {
           root.setPadding(left, top, right, bottom);
           return insets;
         });
-    if (android.os.Build.VERSION.SDK_INT >= 30)
-      getWindow()
-          .getDecorView()
-          .getWindowInsetsController()
-          .setSystemBarsAppearance(
-              AppTheme.dark(this) ? 0 : WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                  | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
-              WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                  | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
     header = Ui.col(this);
     header.setPadding(Ui.dp(this, post ? 4 : 10), Ui.dp(this, post ? 3 : 4),
         Ui.dp(this, post ? 8 : 10), Ui.dp(this, post ? 3 : 4));
@@ -1173,6 +1175,18 @@ public class MainActivity extends Activity {
       root.addView(nav, new LinearLayout.LayoutParams(-1, -2));
     }
     coldStartSplash.install(root);
+    if (android.os.Build.VERSION.SDK_INT >= 30) {
+      View decor = getWindow().getDecorView();
+      WindowInsetsController controller = decor != null ? decor.getWindowInsetsController() : null;
+      if (controller == null && decor != null) controller = getWindow().getInsetsController();
+      if (controller != null) {
+        controller.setSystemBarsAppearance(
+            AppTheme.dark(this) ? 0 : WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+            WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS);
+      }
+    }
     root.requestApplyInsets();
   }
 
@@ -1388,12 +1402,14 @@ public class MainActivity extends Activity {
           if(waiting==null) return;
           for(ReadListener target:waiting) {
             if(target.trigger()!=null) target.trigger().setEnabled(true);
-            target.finished().run();
-            if(target.generation()!=generation) continue;
-            if(repo.currentUser()==null) {clearNavigation();showAuth(false);message("登录已失效，请重新登录");break;}
-            if(result==null) target.success().run();
-            else if(target.error()!=null) target.error().setText(safeMessage(result));
-            else message(safeMessage(result));
+            if(target.generation()!=generation) { target.finished().run(); continue; }
+            if(repo.currentUser()==null) {target.finished().run();clearNavigation();showAuth(false);message("登录已失效，请重新登录");break;}
+            if(result==null) { target.finished().run(); target.success().run(); }
+            else {
+              if(target.error()!=null) target.error().setText(safeMessage(result));
+              else message(safeMessage(result));
+              target.finished().run();
+            }
           }
         };
         if(stateSaved) deferredReads.add(complete);else complete.run();
@@ -1554,5 +1570,5 @@ public class MainActivity extends Activity {
   }
   @Override protected void onPause() { super.onPause();foreground=false;searchLocation.pause();if(communityPager!=null)communityPager.cancelSwipe();resumeNavigation=navigationLoading||tab.equals("dashboard");cancelNavigation();Ui.pauseImages(); }
   @Override public void onTrimMemory(int level) {super.onTrimMemory(level);if(level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_LOW||level==android.content.ComponentCallbacks2.TRIM_MEMORY_RUNNING_CRITICAL||level>=android.content.ComponentCallbacks2.TRIM_MEMORY_BACKGROUND)Ui.trimImages();}
-  @Override protected void onDestroy() {if(coldStartSplash!=null)coldStartSplash.close();postDraftExit.close();notificationPermission.clear();searchLocation.clear();if(accountActionConfirmation!=null)accountActionConfirmation.dismiss();if(activeDownloader!=null)activeDownloader.cancel();if(passwordRecovery!=null)passwordRecovery.close();if(feedbackDocuments!=null)feedbackDocuments.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
+  @Override protected void onDestroy() {if(coldStartSplash!=null)coldStartSplash.close();postDraftExit.close();notificationPermission.clear();searchLocation.clear();if(accountActionConfirmation!=null)accountActionConfirmation.dismiss();if(updatePrompt!=null){updatePrompt.dismiss();updatePrompt=null;}if(updateProgress!=null){updateProgress.dismiss();updateProgress=null;}if(activeDownloader!=null)activeDownloader.cancel();updateWorker.shutdownNow();if(passwordRecovery!=null)passwordRecovery.close();if(feedbackDocuments!=null)feedbackDocuments.close();++generation;cancelNavigation();navigationWorker.shutdownNow();statisticsWorker.shutdownNow();noticeUi.removeCallbacksAndMessages(null);if(loginNotices!=null)loginNotices.detach(this);if(loginNoticeDialog!=null)loginNoticeDialog.dialog.dismiss();deferredCompletion=null;deferredReads.clear();reads.clear();super.onDestroy();}
 }

@@ -52,4 +52,20 @@ public class ReleaseManifestTest {
     assertEquals("https://example.com/releases/manifest.json",
         ReleaseManifest.manifestUrl("https://example.com/releases/app-release.apk?x=1"));
   }
+
+  @Test
+  public void allowsOnlyTrustedHttpsReleaseHosts() {
+    org.junit.Assert.assertTrue(ReleaseManifest.isTrustedReleaseUrl(
+        "https://bjtufoodtime.top/downloads/FoodtimeNeo-Android.apk", false));
+    org.junit.Assert.assertTrue(ReleaseManifest.isTrustedReleaseUrl(
+        "https://github.com/o/r/releases/download/v2.1.8/app.apk", false));
+    org.junit.Assert.assertFalse(ReleaseManifest.isTrustedReleaseUrl(
+        "http://bjtufoodtime.top/downloads/FoodtimeNeo-Android.apk", false));
+    org.junit.Assert.assertFalse(ReleaseManifest.isTrustedReleaseUrl(
+        "https://evil.example/app.apk", false));
+    org.junit.Assert.assertFalse(ReleaseManifest.isTrustedReleaseUrl(
+        "http://127.0.0.1:8080/app.apk", false));
+    org.junit.Assert.assertTrue(ReleaseManifest.isTrustedReleaseUrl(
+        "http://127.0.0.1:8080/app.apk", true));
+  }
 }
