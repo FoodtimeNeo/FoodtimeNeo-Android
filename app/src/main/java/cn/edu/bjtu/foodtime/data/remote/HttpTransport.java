@@ -115,27 +115,32 @@ public final class HttpTransport {
     }
     HttpURLConnection connection = (HttpURLConnection) target.toURL().openConnection();
     Thread caller=Thread.currentThread();
-    var cancellation=CANCELLATIONS.scheduleWithFixedDelay(()->{if(caller.isInterrupted())connection.disconnect();},50,50,java.util.concurrent.TimeUnit.MILLISECONDS);
-    connection.setInstanceFollowRedirects(false);
-    connection.setConnectTimeout(5000);
-    connection.setReadTimeout(10000);
-    connection.setRequestMethod(method);
-    connection.setRequestProperty("Accept", "application/json");
-    // 后端按注册路径识别官方客户端；未知客户端在 enforce 模式下会被拒绝。
-    connection.setRequestProperty("X-Foodtime-Client", "android");
-    long ticket;
-    synchronized(cookies) {
-      ticket=sessionGeneration;
-      for (Map.Entry<String, List<String>> entry : cookies.get(target, Map.of()).entrySet()) {
-        if (!entry.getValue().isEmpty()) {
-          connection.setRequestProperty(entry.getKey(), String.join("; ", entry.getValue()));
+    try {
+      connection.setInstanceFollowRedirects(false);
+      connection.setConnectTimeout(5000);
+      connection.setReadTimeout(10000);
+      connection.setRequestMethod(method);
+      connection.setRequestProperty("Accept", "application/json");
+      // 后端按注册路径识别官方客户端；未知客户端在 enforce 模式下会被拒绝。
+      connection.setRequestProperty("X-Foodtime-Client", "android");
+      long ticket;
+      synchronized(cookies) {
+        ticket=sessionGeneration;
+        for (Map.Entry<String, List<String>> entry : cookies.get(target, Map.of()).entrySet()) {
+          if (!entry.getValue().isEmpty()) {
+            connection.setRequestProperty(entry.getKey(), String.join("; ", entry.getValue()));
+          }
         }
       }
+      for(var header:extra.entrySet())if(header.getKey().equalsIgnoreCase("If-None-Match"))connection.setRequestProperty(header.getKey(),header.getValue());
+      if (csrf != null && !csrf.isEmpty()) connection.setRequestProperty("X-CSRF-TOKEN", csrf);
+      if (contentType != null) connection.setRequestProperty("Content-Type", contentType);
+      var cancellation=CANCELLATIONS.scheduleWithFixedDelay(()->{if(caller.isInterrupted())connection.disconnect();},50,50,java.util.concurrent.TimeUnit.MILLISECONDS);
+      return new Exchange(connection,target,caller,ticket,cancellation);
+    } catch (IOException | RuntimeException failure) {
+      connection.disconnect();
+      throw failure;
     }
-    for(var header:extra.entrySet())if(header.getKey().equalsIgnoreCase("If-None-Match"))connection.setRequestProperty(header.getKey(),header.getValue());
-    if (csrf != null && !csrf.isEmpty()) connection.setRequestProperty("X-CSRF-TOKEN", csrf);
-    if (contentType != null) connection.setRequestProperty("Content-Type", contentType);
-    return new Exchange(connection,target,caller,ticket,cancellation);
   }
   private BinaryResponse read(Exchange exchange) throws IOException {
     HttpURLConnection connection=exchange.connection();URI target=exchange.target();

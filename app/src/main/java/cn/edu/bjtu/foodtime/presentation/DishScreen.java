@@ -61,8 +61,9 @@ final class DishScreen {
     if (d == null || !d.active()) throw new IllegalArgumentException("菜品不存在或已下架");
     a.recordVisit("dish", d.id());
     Stall s = a.repo.stall(d.stallId());
-    Hall h = a.repo.hall(s.diningHallId());
-    a.heading(page, "01.3", d.name(), h.name() + " · " + s.name());
+    Hall h = s == null ? null : a.repo.hall(s.diningHallId());
+    String location = (h == null ? "" : h.name()) + (h != null && s != null ? " · " : "") + (s == null ? "" : s.name());
+    a.heading(page, "01.3", d.name(), location);
     CatalogQuickActions.show(a,page,"dishes",d.id());
     LinearLayout hero = Ui.card(page);
     hero.setPadding(0, 0, 0, Ui.dp(a, 14));
@@ -124,7 +125,8 @@ final class DishScreen {
       float average=summary.averageScore()==null?0:summary.averageScore().floatValue();
       scoreBadge.setText(summary.averageScore()==null?"—":String.format(Locale.ROOT,"%.1f",average));
       scoreBadge.setTextColor(summary.averageScore()==null?Design.MUTED:Design.RED);
-      scoreValue.setText(summary.averageScore()==null?"暂无评分":"★".repeat(Math.max(1,Math.round(average)))+"  "+String.format(Locale.ROOT,"%.1f / 5",average));
+      int stars = Math.max(1, Math.min(5, Math.round(average)));
+      scoreValue.setText(summary.averageScore()==null?"暂无评分":"★".repeat(stars)+"  "+String.format(Locale.ROOT,"%.1f / 5",average));
       scoreValue.setTextColor(summary.averageScore()==null?Design.MUTED:Design.GOLD);
       scoreCount.setText(summary.reviewCount()+" 条评价");
     };
@@ -208,6 +210,7 @@ final class DishScreen {
 
   static void gallery(MainActivity a, LinearLayout page, MainActivity.Route route) {
     Dish d = a.repo.dish(route.id());
+    if (d == null) throw new IllegalArgumentException("菜品不存在或已下架");
     a.heading(page, "01.4", d.name() + " · 图册", "");
     List<Photo> photos = a.repo.photos(d.id());
     if (photos.isEmpty()) Ui.empty(page, "暂无图片", "");

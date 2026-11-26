@@ -172,10 +172,12 @@ public final class CampusNavigator {
         bestT = t;
       }
     }
-    if (totalPx < 1) return 0;
+    double metersPerPx = totalPx > 1.0 ? plan.totalMeters() / totalPx : 0.35;
+    double offRoadMeters = Math.sqrt(bestDist2) * metersPerPx;
+    if (totalPx < 1) return Math.max(0, offRoadMeters);
     double remPx = segPx[bestIdx] * (1.0 - bestT);
     for (int i = bestIdx + 1; i < segPx.length; i++) remPx += segPx[i];
-    return Math.max(0, plan.totalMeters() * (remPx / totalPx));
+    return Math.max(0, plan.totalMeters() * (remPx / totalPx) + offRoadMeters);
   }
 
   public int activeStepIndex(RoutePlan plan, float currentX, float currentY) {
