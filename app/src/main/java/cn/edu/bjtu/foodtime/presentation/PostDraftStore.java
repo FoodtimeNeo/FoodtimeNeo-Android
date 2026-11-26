@@ -41,14 +41,23 @@ final class PostDraftStore {
       json.put("updatedAt", System.currentTimeMillis());
       json.put("revision", (existing == null ? 0 : existing.revision()) + 1);
       File temporary = new File(directory, FILE + ".tmp");
-      try (FileOutputStream output = new FileOutputStream(temporary)) {
-        output.write(json.toString().getBytes(StandardCharsets.UTF_8));
-        output.getFD().sync();
+      try {
+        try (FileOutputStream output = new FileOutputStream(temporary)) {
+          output.write(json.toString().getBytes(StandardCharsets.UTF_8));
+          output.getFD().sync();
+        }
+        File target = new File(directory, FILE);
+        try {
+          java.nio.file.Files.move(temporary.toPath(), target.toPath(),
+              java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        } catch (java.nio.file.AtomicMoveNotSupportedException unsupported) {
+          java.nio.file.Files.move(temporary.toPath(), target.toPath(),
+              java.nio.file.StandardCopyOption.REPLACE_EXISTING);
+        }
+        return true;
+      } finally {
+        if (temporary.exists()) temporary.delete();
       }
-      File target = new File(directory, FILE);
-      java.nio.file.Files.move(temporary.toPath(), target.toPath(),
-          java.nio.file.StandardCopyOption.ATOMIC_MOVE, java.nio.file.StandardCopyOption.REPLACE_EXISTING);
-      return true;
     } catch (IOException | org.json.JSONException ignored) {
       return false;
     }

@@ -55,12 +55,23 @@ final class ImageLoader {
         Bitmap bitmap=null;ImageResource resource=null;
         try {
           if(path.startsWith("/api/")||path.startsWith("http:")||path.startsWith("https:"))resource=a.repo.loadImageResource(path);
-          else {
-            try(InputStream in=path.startsWith("asset:")?a.getAssets().open("images/"+path.substring(6)):a.getContentResolver().openInputStream(Uri.parse(path));var out=new ByteArrayOutputStream()) {
+          else if(path.startsWith("asset:")&&!path.contains("..")) {
+            try(InputStream in=a.getAssets().open("images/"+path.substring(6));var out=new ByteArrayOutputStream()) {
               byte[] block=new byte[8192];int count;
-              while(in!=null&&(count=in.read(block))!=-1){if(out.size()+count>20*1024*1024)throw new IOException();out.write(block,0,count);}
+              while((count=in.read(block))!=-1){if(out.size()+count>20*1024*1024)throw new IOException();out.write(block,0,count);}
               resource=new ImageResource(out.toByteArray(),false,0,path);
             }
+          } else if(path.startsWith("file:")) {
+            File local=new File(java.net.URI.create(path)).getCanonicalFile();
+            File allowed=a.getFilesDir().getCanonicalFile();
+            if(!local.getName().startsWith("photo-")||!Objects.equals(local.getParentFile(),allowed))throw new IOException("非法本地图片路径");
+            try(InputStream in=new FileInputStream(local);var out=new ByteArrayOutputStream()) {
+              byte[] block=new byte[8192];int count;
+              while((count=in.read(block))!=-1){if(out.size()+count>20*1024*1024)throw new IOException();out.write(block,0,count);}
+              resource=new ImageResource(out.toByteArray(),false,0,path);
+            }
+          } else {
+            throw new IOException("不支持的图片路径");
           }
           if(Thread.currentThread().isInterrupted())return;
           Decoded decoded=MEMORY.get(key);

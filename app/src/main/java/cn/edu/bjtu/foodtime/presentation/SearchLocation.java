@@ -43,7 +43,9 @@ final class SearchLocation {
   }
 
   void request(MainActivity a, Consumer<Location> success, Consumer<String> failure) {
+    Consumer<String> superseded = this.failure;
     clear();
+    if (superseded != null) superseded.accept("已发起新的定位请求");
     this.success = success;
     this.failure = failure;
     if (!hasPermission(a)) {

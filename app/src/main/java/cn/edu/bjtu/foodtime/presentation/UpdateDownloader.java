@@ -73,8 +73,11 @@ final class UpdateDownloader {
       if (!directory.isDirectory() && !directory.mkdirs()) throw new IOException("无法创建更新目录");
       File target = new File(directory, "foodtime-" + release.versionCode() + ".apk");
       ReleaseManifest manifest = ReleaseManifest.fetch(release.apkUrl(), release.versionCode());
+      if (manifest == null || manifest.apkSha256() == null) {
+        throw new IOException("无法获取安装包校验信息，请稍后重试");
+      }
       if (target.isFile() && target.length() > 0) {
-        if (manifest == null || target.length() == manifest.apkSize()
+        if ((manifest.apkSize() <= 0 || target.length() == manifest.apkSize())
             && sha256(target).equals(manifest.apkSha256())) {
           ready(listener, target);
           return;
@@ -82,9 +85,8 @@ final class UpdateDownloader {
         target.delete();
       }
       File built = null;
-      ReleaseManifest.Patch patch = manifest == null || manifest.apkSha256() == null
-          ? null : manifest.patchFor(BuildConfig.VERSION_CODE);
-      if (patch != null) {
+      ReleaseManifest.Patch patch = manifest.patchFor(BuildConfig.VERSION_CODE);
+      if (patch != null && ReleaseManifest.isTrustedReleaseUrl(patch.url(), BuildConfig.DEBUG)) {
         post(() -> listener.plan(true, patch.size()));
         try {
           built = fromPatch(release, manifest, patch, directory, listener);
@@ -95,13 +97,12 @@ final class UpdateDownloader {
         }
       }
       if (built == null) {
-        long fullSize = manifest == null ? 0 : manifest.apkSize();
+        long fullSize = manifest.apkSize();
         post(() -> listener.plan(false, fullSize));
         File part = new File(directory, "foodtime-" + release.versionCode() + ".apk.part");
         download(release.apkUrl(), part, fullSize,
             0, 90, "正在下载完整安装包", listener);
-        if (manifest != null && manifest.apkSha256() != null
-            && !sha256(part).equals(manifest.apkSha256())) {
+        if (!sha256(part).equals(manifest.apkSha256())) {
           part.delete();
           throw new IOException("安装包校验失败，请重试");
         }
@@ -130,15 +131,18 @@ final class UpdateDownloader {
     post(() -> listener.progress(60, "正在应用增量补丁", patch.size(), patch.size(), 0));
     File target = new File(directory, "foodtime-" + release.versionCode() + ".apk");
     File temporary = new File(directory, target.getName() + ".tmp");
-    BsPatch.apply(new File(context.getPackageCodePath()), part, temporary);
-    part.delete();
-    checkCancelled();
-    if (!sha256(temporary).equals(manifest.apkSha256())) {
-      temporary.delete();
-      throw new IOException("增量补丁校验失败");
+    try {
+      BsPatch.apply(new File(context.getPackageCodePath()), part, temporary);
+      checkCancelled();
+      if (!sha256(temporary).equals(manifest.apkSha256())) {
+        throw new IOException("增量补丁校验失败");
+      }
+      if (!temporary.renameTo(target)) throw new IOException("无法保存更新包");
+      return target;
+    } finally {
+      part.delete();
+      if (temporary.exists()) temporary.delete();
     }
-    if (!temporary.renameTo(target)) throw new IOException("无法保存更新包");
-    return target;
   }
 
   /** Resumable download: an interrupted transfer continues from the existing .part file. */
@@ -150,12 +154,10 @@ final class UpdateDownloader {
       report(to, label, offset, expectedSize, 0, listener);
       return;
     }
-    HttpURLConnection connection = (HttpURLConnection) new URL(address).openConnection();
+    HttpURLConnection connection = ReleaseManifest.openTrusted(
+        address, BuildConfig.DEBUG, 15000, 60000, "application/octet-stream",
+        offset > 0 ? "bytes=" + offset + "-" : null);
     try {
-      connection.setConnectTimeout(15000);
-      connection.setReadTimeout(60000);
-      connection.setRequestProperty("Accept", "application/octet-stream");
-      if (offset > 0) connection.setRequestProperty("Range", "bytes=" + offset + "-");
       int status = connection.getResponseCode();
       boolean append;
       if (status == 206 && offset > 0) {
@@ -170,6 +172,8 @@ final class UpdateDownloader {
       long startedBytes = offset;
       long total = expectedSize > 0 ? expectedSize
           : connection.getContentLengthLong() > 0 ? offset + connection.getContentLengthLong() : -1;
+      final long maxBytes = 200L * 1024 * 1024;
+      if (total > maxBytes) throw new IOException("更新包大小异常");
       try (InputStream input = connection.getInputStream();
            var out = new FileOutputStream(part, append)) {
         byte[] buffer = new byte[64 * 1024];
@@ -177,8 +181,9 @@ final class UpdateDownloader {
         int count;
         while ((count = input.read(buffer)) != -1) {
           checkCancelled();
-          out.write(buffer, 0, count);
           written += count;
+          if (written > maxBytes) throw new IOException("更新包超出大小限制");
+          out.write(buffer, 0, count);
           int percent = total > 0 ? from + (int) ((to - from) * written / total) : -1;
           long elapsed = SystemClock.elapsedRealtime() - startedAt;
           long speed = elapsed >= 300 ? (written - startedBytes) * 1000 / elapsed : 0;
@@ -212,13 +217,8 @@ final class UpdateDownloader {
   }
 
   private static void requireWebUrl(String address) throws IOException {
-    try {
-      String scheme = new java.net.URL(address).getProtocol();
-      if (!"https".equalsIgnoreCase(scheme) && !"http".equalsIgnoreCase(scheme)) {
-        throw new IOException("更新地址不安全");
-      }
-    } catch (java.net.MalformedURLException invalid) {
-      throw new IOException("更新地址无效");
+    if (!ReleaseManifest.isTrustedReleaseUrl(address, BuildConfig.DEBUG)) {
+      throw new IOException("更新地址不安全");
     }
   }
 

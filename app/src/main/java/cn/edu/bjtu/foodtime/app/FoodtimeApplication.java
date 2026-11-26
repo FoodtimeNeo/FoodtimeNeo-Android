@@ -21,7 +21,8 @@ public final class FoodtimeApplication extends Application implements Repository
     repository = new RemoteRepository(BuildConfig.API_BASE_URL,
         new HttpTransport(BuildConfig.API_BASE_URL,cookies,BuildConfig.DEBUG),BuildConfig.COMMUNITY_PROTOTYPE_ENABLED)
         .withImageCache(new java.io.File(getCacheDir(),"media-v2"))
-        .withCatalogCache(new java.io.File(getCacheDir(),"public-catalog-v1"));
+        .withCatalogCache(new java.io.File(getCacheDir(),"public-catalog-v1"))
+        .withUploadDirectory(getFilesDir());
   }
 
   @Override

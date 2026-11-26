@@ -137,8 +137,10 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public void loadMyVenueReviews(String type,boolean replies,int page){venues.loadPersonal(type,replies,page);}
   @Override public cn.edu.bjtu.foodtime.domain.model.VenueModels.AuditDetail venueAuditDetail(String type,String id){return venues.auditDetail(type,id);}
   @Override public User currentUser() { return user; }
+  private volatile File uploadRoot;
   public RemoteRepository withImageCache(File directory) { imageCache=new ImageDiskCache(directory,200L*1024*1024);return this; }
   public RemoteRepository withCatalogCache(File directory) { catalogCache=new PublicCatalogCache(origin.toString(),directory);return this; }
+  public RemoteRepository withUploadDirectory(File directory) { uploadRoot=directory;return this; }
   private String imageScope() {
     var actor=user;
     return origin+":"+(actor==null?"guest":actor.id()+":"+actor.role())+":"+http.sessionKey();
@@ -489,12 +491,17 @@ public final class RemoteRepository implements FoodtimeRepository {
     var items=list("dining-halls",j -> new Hall(text(j,"id"),text(j,"name"),text(j,"coverImageUrl"),true,
         j.isNull("averageScore")?null:new BigDecimal(j.opt("averageScore").toString()),j.optLong("reviewCount"),
         j.isNull("latitude")?null:j.optDouble("latitude"),j.isNull("longitude")?null:j.optDouble("longitude")));
-    halls.clear(); for(Hall h:items) halls.put(h.id(),h); hallList=items;
+    Set<String> fresh=new HashSet<>();
+    for(Hall h:items){halls.put(h.id(),h);fresh.add(h.id());}
+    halls.keySet().retainAll(fresh);
+    hallList=items;
   }
   private void fetchStalls(String id) {
     var items=list("dining-halls/"+id+"/stalls",j -> new Stall(text(j,"id"),id,text(j,"name"),text(j,"coverImageUrl"),true,j.isNull("averageScore")?null:new BigDecimal(j.opt("averageScore").toString()),j.optLong("reviewCount")));
-    stalls.entrySet().removeIf(e -> e.getValue().diningHallId().equals(id));
-    for(Stall s:items) stalls.put(s.id(),s); stallLists.put(id,items);
+    Set<String> fresh=new HashSet<>();
+    for(Stall s:items){stalls.put(s.id(),s);fresh.add(s.id());}
+    stalls.entrySet().removeIf(e -> e.getValue().diningHallId().equals(id)&&!fresh.contains(e.getKey()));
+    stallLists.put(id,items);
   }
   private void ensureStall(String id) {
     Stall known=stalls.get(id);
@@ -507,10 +514,11 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private void fetchDishes(String id) {
     var items=list("stalls/"+id+"/dishes",j -> new Dish(text(j,"id"),id,text(j,"name"),decimal(j,"price"),text(j,"description"),true,j.optLong("revision",0),text(j,"priceUnit"),text(j,"coverImageUrl"),decimal(j,"averageScore"),j.optLong("reviewCount",0)));
-    dishes.entrySet().removeIf(e -> e.getValue().stallId().equals(id));
+    Set<String> fresh=new HashSet<>();
     // The stall page only needs the catalog rows. Loading every dish gallery here turns one
     // navigation into an N+1 request burst, so media stays lazy until DISH_DETAIL is opened.
-    for(Dish d:items) dishes.put(d.id(),d);
+    for(Dish d:items){dishes.put(d.id(),d);fresh.add(d.id());}
+    dishes.entrySet().removeIf(e -> e.getValue().stallId().equals(id)&&!fresh.contains(e.getKey()));
     dishLists.put(id,items);
   }
   @Override public List<Hall> loadHalls() {
@@ -1041,7 +1049,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     catalog.put(type+":"+parent,page("admin/catalog/"+table(type)+suffix,j -> cacheEntity(type,j)));
   }
   private AdminEntity cacheEntity(String type,JSONObject j) {
-    BigDecimal amount=decimal(j,"price");String price=amount==null?"":amount.setScale(2).toPlainString();
+    BigDecimal amount=decimal(j,"price");String price=amount==null?"":amount.setScale(2,java.math.RoundingMode.HALF_UP).toPlainString();
     String lat=j.isNull("latitude")?"":String.valueOf(j.optDouble("latitude"));
     String lng=j.isNull("longitude")?"":String.valueOf(j.optDouble("longitude"));
     if("NaN".equals(lat))lat="";
@@ -1240,7 +1248,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
   private void loadCommunityRoots(String postId,boolean more){
     CommunityCommentPage prior=communityRoots(postId);
-    CommunityCommentPage result=commentPage("community/posts/"+postId+"/comments/cursor?size=20"+(more?"&cursor="+prior.nextCursor():""),more?prior:null);
+    CommunityCommentPage result=commentPage("community/posts/"+postId+"/comments/cursor?size=20"+(more?"&cursor="+encode(prior.nextCursor()):""),more?prior:null);
     communityRoots.put(postId,result);communityCommentCache.put(postId,result.items());
     int first=more?prior.items().size():0;
     for(int i=first;i<result.items().size();i++){var root=result.items().get(i);if(root.status().equals("approved"))loadCommunityReplies(postId,root.id(),false);}
@@ -1250,7 +1258,7 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public void loadMoreCommunityComments(String postId){if(communityRoots(postId).hasMore())loadCommunityRoots(postId,true);}
   @Override public void loadCommunityReplies(String postId,String rootId,boolean more){
     var prior=communityReplies(rootId);if(more&&!prior.hasMore())return;
-    communityReplies.put(rootId,commentPage("community/posts/"+postId+"/comments/"+rootId+"/replies?size="+(more?20:3)+(more?"&cursor="+prior.nextCursor():""),more?prior:null));
+    communityReplies.put(rootId,commentPage("community/posts/"+postId+"/comments/"+rootId+"/replies?size="+(more?20:3)+(more?"&cursor="+encode(prior.nextCursor()):""),more?prior:null));
   }
   @Override public boolean ensureCommunityCommentVisible(String postId,String rootId,String commentId){
     if(rootId==null||rootId.isBlank())return false;
@@ -1907,13 +1915,20 @@ public final class RemoteRepository implements FoodtimeRepository {
   @Override public void updateUser(String id,String role,boolean active) { call("PUT","admin/users/"+id,json("role",role,"status",active?"active":"disabled")); }
 
   private String upload(String reference) {return upload(reference,false);}
-  private String upload(String reference,boolean avatar) {
+  String upload(String reference,boolean avatar) {
     if(reference==null||reference.isBlank()) throw new IllegalArgumentException("请选择图片");
     if(reference.startsWith("/api/v1/media/")) return reference;
     try {
-      URI uri=URI.create(reference); if(!uri.getScheme().equals("file")) throw new IllegalArgumentException("请重新选择图片");
+      URI uri=URI.create(reference); if(!"file".equals(uri.getScheme())) throw new IllegalArgumentException("请重新选择图片");
       long limit=avatar?cn.edu.bjtu.foodtime.domain.validation.AvatarCropGeometry.MAX_BYTES:50L*1024*1024;
-      File file=new File(uri);if(file.length()>limit)throw new IllegalArgumentException(avatar?"头像不能超过10MB":"图片不能超过50MB");
+      File file=new File(uri).getCanonicalFile();
+      if(uploadRoot!=null) {
+        File allowedDir=uploadRoot.getCanonicalFile();
+        if(!file.getName().startsWith("photo-")||!Objects.equals(file.getParentFile(),allowedDir)) {
+          throw new IllegalArgumentException("请重新选择图片");
+        }
+      }
+      if(!file.isFile()||file.length()>limit)throw new IllegalArgumentException(avatar?"头像不能超过10MB":"图片不能超过50MB");
       String image=text(interpret(http.sendFile(avatar?"uploads/avatars":"uploads/images",file,token())),"imageUrl");
       if(avatar&&!image.matches("/api/v1/media/[0-9a-fA-F-]{36}"))throw new RepositoryException(0,"INVALID_RESPONSE","头像上传响应异常，请重试",0);
       return image;
@@ -1924,8 +1939,13 @@ public final class RemoteRepository implements FoodtimeRepository {
     return loadImageResource(reference).bytes();
   }
   @Override public boolean requiresImageValidation(String reference) {
-    URI uri=origin.resolve(reference);
-    return catalogCache!=null&&origin.getAuthority().equals(uri.getAuthority())&&catalogCache.isCatalogMedia(uri.getPath());
+    if(reference==null||reference.isBlank()) return false;
+    try {
+      URI uri=origin.resolve(reference);
+      return catalogCache!=null&&origin.getAuthority().equals(uri.getAuthority())&&catalogCache.isCatalogMedia(uri.getPath());
+    } catch(IllegalArgumentException invalid) {
+      return false;
+    }
   }
   @Override public ImageResource loadImageResource(String reference) {
     long epoch=imageEpoch.get();String scope=imageScope();
@@ -1953,7 +1973,7 @@ public final class RemoteRepository implements FoodtimeRepository {
         if(imageCache!=null&&response.status()>=400&&response.status()<500&&response.status()!=429){
           imageCache.remove(publicKey);imageCache.remove(privateKey);
         }
-        if(response.status()==401)clear();
+        if(sameOrigin&&response.status()==401)clear();
         throw new RepositoryException(response.status(),"IMAGE_UNAVAILABLE","图片暂不可用",0);
       }
       byte[] bytes=response.status()==304&&cached!=null?cached.bytes():response.body();
@@ -2015,7 +2035,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     try {
       JSONArray data=envelope(request("GET",path,null,null)).optJSONArray("data");
       if(data==null) throw new RepositoryException(502,"INVALID_RESPONSE","列表响应异常",0);
-      List<T> result=new ArrayList<>();for(int i=0;i<data.length();i++) result.add(mapper.apply(data.optJSONObject(i)));
+      List<T> result=new ArrayList<>();for(int i=0;i<data.length();i++){JSONObject item=data.optJSONObject(i);if(item!=null)result.add(mapper.apply(item));}
       return List.copyOf(result);
     } catch(IOException e) { throw unavailable(); }
   }
@@ -2024,7 +2044,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     while(true) {
       JSONObject data=call("GET",path+(path.contains("?")?"&":"?")+"page="+page+"&size=100",null);
       JSONArray items=data.optJSONArray("items"); if(items==null) throw new RepositoryException(502,"INVALID_RESPONSE","列表响应异常",0);
-      for(int i=0;i<items.length();i++) result.add(mapper.apply(items.optJSONObject(i)));
+      for(int i=0;i<items.length();i++){JSONObject item=items.optJSONObject(i);if(item!=null)result.add(mapper.apply(item));}
       if(items.length()==0||result.size()>=data.optLong("total")) return List.copyOf(result);
       page++;
     }
