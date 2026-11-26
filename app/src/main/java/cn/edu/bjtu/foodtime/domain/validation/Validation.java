@@ -65,5 +65,13 @@ public final class Validation {
     }
   }
 
+  public static String safeRemoteImageReference(String reference) {
+    if (reference == null) return "";
+    String trimmed = reference.trim();
+    if (trimmed.isEmpty()) return "";
+    if (trimmed.startsWith("/api/v1/media/") || trimmed.startsWith("https://")) return trimmed;
+    return "";
+  }
+
   private Validation() {}
 }

@@ -24,7 +24,8 @@ final class ProfileScreen {
 
     LinearLayout person = Ui.row(a);
     person.setGravity(Gravity.CENTER_VERTICAL);
-    View avatar = Ui.image(a, Ui.thumb(user.avatarUrl()), user.displayName().isEmpty() ? "用户" : user.displayName().substring(0, 1), false);
+    String initial = user.displayName().isEmpty() ? "用户" : new String(Character.toChars(user.displayName().codePointAt(0)));
+    View avatar = Ui.image(a, Ui.thumb(user.avatarUrl()), initial, false);
     avatar.setBackground(Ui.shape(a, Design.PAPER, Design.RED, 999));
     avatar.setClipToOutline(true);
     avatar.setContentDescription("个人头像");
@@ -57,7 +58,7 @@ final class ProfileScreen {
     statsRow.addView(followingCount);
 
     View div1 = new View(a);
-    div1.setBackgroundColor(0x25000000);
+    div1.setBackgroundColor(Design.BORDER);
     LinearLayout.LayoutParams div1Lp = new LinearLayout.LayoutParams(Ui.dp(a, 1), Ui.dp(a, 11));
     div1Lp.leftMargin = Ui.dp(a, 6);
     div1Lp.rightMargin = Ui.dp(a, 6);
@@ -539,7 +540,8 @@ final class ProfileScreen {
     card.setPadding(Ui.dp(a, 18), Ui.dp(a, 20), Ui.dp(a, 18), Ui.dp(a, 20));
     card.setBackground(Ui.shape(a, Design.ALT, 0, 24));
     String imageKey = a.draftKey("image");
-    if (!a.drafts.containsKey(imageKey)) a.drafts.putString(imageKey, user.avatarUrl());
+    if (!a.drafts.containsKey(imageKey)) a.drafts.putString(imageKey,
+        cn.edu.bjtu.foodtime.domain.validation.Validation.safeRemoteImageReference(user.avatarUrl()));
     String image = a.drafts.getString(imageKey, "");
     FrameLayout avatarFrame = new FrameLayout(a);
     avatarFrame.setBackground(Ui.shape(a, Design.PAPER, Design.RED, 999));
@@ -602,7 +604,8 @@ final class ProfileScreen {
       Ui.gap(card, 12);
       card.addView(Ui.text(a, a.repo.context(r.dishId()), 14, Design.BLUE));
       Ui.gap(card, 8);
-      card.addView(Ui.text(a, "★".repeat(r.rating()) + " / " + r.rating() + "分", 16, Design.RED));
+      int clampedStars = Math.max(0, Math.min(5, r.rating()));
+      card.addView(Ui.text(a, "★".repeat(clampedStars) + " / " + r.rating() + "分", 16, Design.RED));
       card.addView(Ui.text(a, r.content(), 16, Design.INK));
       Ui.gap(card, 12);
       LinearLayout actions = Ui.row(a);

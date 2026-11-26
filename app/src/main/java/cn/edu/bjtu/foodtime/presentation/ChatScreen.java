@@ -98,13 +98,25 @@ final class ChatScreen {
       showComposer.run();
     });
 
+    String pendingBodyKey = a.draftKey("pendingChatBody");
+    String pendingIdKey = a.draftKey("pendingChatRequestId");
     send.setOnClickListener(v -> {
       String body = input.getText().toString().trim();
       if (body.isEmpty()) { a.message("消息不能为空"); return; }
       if (body.length() > 1000) { a.message("消息不能超过1000字"); return; }
+      String requestId = body.equals(a.drafts.getString(pendingBodyKey, ""))
+          ? a.drafts.getString(pendingIdKey, "") : "";
+      if (requestId.isBlank()) {
+        requestId = UUID.randomUUID().toString();
+        a.drafts.putString(pendingBodyKey, body);
+        a.drafts.putString(pendingIdKey, requestId);
+      }
+      final String idempotencyId = requestId;
       a.read("chat-send:" + route.id(), send, null,
-          () -> a.repo.sendDirectMessage(route.id(), body, UUID.randomUUID().toString()),
+          () -> a.repo.sendDirectMessage(route.id(), body, idempotencyId),
           () -> {
+            a.drafts.remove(pendingBodyKey);
+            a.drafts.remove(pendingIdKey);
             input.setText("");
             a.refreshContent();
             a.scroll.post(() -> a.scroll.fullScroll(View.FOCUS_DOWN));

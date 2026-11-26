@@ -22,7 +22,11 @@ final class PostEditScreen {
     a.drafts.putString(a.draftKey("食记标题"),post.title());
     a.drafts.putString(a.draftKey("动态正文"),post.content());
     a.drafts.putString(a.draftKey("linkedDishId"),post.linkedDish()==null?"":post.linkedDish().id());
-    for(int i=0;i<post.imageUrls().size();i++)a.drafts.putString(CommunityScreen.photoKey(a,i),post.imageUrls().get(i));
+    int slot=0;
+    for(int i=0;i<post.imageUrls().size();i++) {
+      String safe=Validation.safeRemoteImageReference(post.imageUrls().get(i));
+      if(!safe.isEmpty()) a.drafts.putString(CommunityScreen.photoKey(a,slot++),safe);
+    }
   }
   static void show(MainActivity a,LinearLayout page,MainActivity.Route route) {
     CommunityPost post=a.repo.communityPost(route.id());

@@ -261,6 +261,7 @@ final class CampusMapScreen {
       state.syncUserProjection();
       a.searchLocation.request(a, loc -> {
         state.locating = false;
+        if (!map.isAttachedToWindow()) return;
         state.userFix = loc;
         state.syncUserProjection();
         a.searchLocation.startTracking(a, updated -> {
@@ -765,6 +766,14 @@ final class CampusMapScreen {
       invalidate();
     }
 
+    private final android.os.Handler mainHandler = new android.os.Handler(android.os.Looper.getMainLooper());
+
+    @Override protected void onWindowVisibilityChanged(int visibility) {
+      super.onWindowVisibilityChanged(visibility);
+      if (visibility == View.VISIBLE && isAttachedToWindow()) registerCompass();
+      else unregisterCompass();
+    }
+
     @Override protected void onAttachedToWindow() {
       super.onAttachedToWindow();
       registerCompass();
@@ -779,13 +788,12 @@ final class CampusMapScreen {
           options.inPreferredConfig = Bitmap.Config.RGB_565;
           decoded = BitmapFactory.decodeStream(input, null, options);
         } catch (IOException ignored) {}
-        try {
-          var stream = getContext().getAssets().open("campus-map/campus-map.webp");
+        try (var stream = getContext().getAssets().open("campus-map/campus-map.webp")) {
           decoder = openRegionDecoder(stream);
         } catch (IOException ignored) {}
         Bitmap result = decoded;
         BitmapRegionDecoder readyDecoder = decoder;
-        post(() -> {
+        mainHandler.post(() -> {
           decoding = false;
           if (!isAttachedToWindow()) {
             if (result != null) result.recycle();
@@ -912,6 +920,7 @@ final class CampusMapScreen {
     }
 
     private void scale(float factor, float x, float y) {
+      if (!Float.isFinite(factor) || factor <= 0f || !Float.isFinite(x) || !Float.isFinite(y) || fit() <= 0f) return;
       float next = CampusMapGeometry.clamp(zoom * factor, 1f, 6f), ratio = next / zoom;
       panX = (x - left()) - (x - left() - panX) * ratio;
       panY = (y - top()) - (y - top() - panY) * ratio;
@@ -979,7 +988,7 @@ final class CampusMapScreen {
           } catch (Exception ignored) {}
         }
         Bitmap ready = decoded;
-        post(() -> {
+        mainHandler.post(() -> {
           if (!isAttachedToWindow() || gen != tileGeneration || ready == null) {
             if (ready != null) ready.recycle();
             return;
@@ -1297,7 +1306,7 @@ final class CampusMapScreen {
           return true;
         }
         case MotionEvent.ACTION_UP -> {
-          if (!moved) {
+          if (!moved && fit() > 0f && zoom > 0f) {
             float sx = event.getX(), sy = event.getY();
             float mapX = (sx - left() - panX) / (fit() * zoom);
             float mapY = (sy - top() - panY) / (fit() * zoom);
