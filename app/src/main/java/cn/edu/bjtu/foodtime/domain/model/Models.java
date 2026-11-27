@@ -25,9 +25,10 @@ public final class Models {
       String recommendationType,double recommendationScore,String reasonCode,String reason) {}
 
   public record Hall(String id, String name, String coverImageUrl, boolean active, BigDecimal averageScore, long reviewCount,
-                     Double latitude, Double longitude) {
-    public Hall(String id,String name,String coverImageUrl,boolean active,BigDecimal averageScore,long reviewCount){this(id,name,coverImageUrl,active,averageScore,reviewCount,null,null);}
-    public Hall(String id,String name,String coverImageUrl,boolean active){this(id,name,coverImageUrl,active,null,0,null,null);}
+                     Double latitude, Double longitude, int stallCount) {
+    public Hall(String id,String name,String coverImageUrl,boolean active,BigDecimal averageScore,long reviewCount,Double latitude,Double longitude){this(id,name,coverImageUrl,active,averageScore,reviewCount,latitude,longitude,-1);}
+    public Hall(String id,String name,String coverImageUrl,boolean active,BigDecimal averageScore,long reviewCount){this(id,name,coverImageUrl,active,averageScore,reviewCount,null,null,-1);}
+    public Hall(String id,String name,String coverImageUrl,boolean active){this(id,name,coverImageUrl,active,null,0,null,null,-1);}
     public boolean hasCoordinates(){return latitude!=null&&longitude!=null&&Double.isFinite(latitude)&&Double.isFinite(longitude);}
   }
 
