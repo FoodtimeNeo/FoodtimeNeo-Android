@@ -2,7 +2,12 @@ package cn.edu.bjtu.foodtime.presentation;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.Signature;
+import android.content.pm.SigningInfo;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.SystemClock;
@@ -17,6 +22,10 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.security.MessageDigest;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Locale;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Future;
 import java.util.concurrent.FutureTask;
@@ -79,6 +88,7 @@ final class UpdateDownloader {
       if (target.isFile() && target.length() > 0) {
         if ((manifest.apkSize() <= 0 || target.length() == manifest.apkSize())
             && sha256(target).equals(manifest.apkSha256())) {
+          verifyInstallable(target);
           ready(listener, target);
           return;
         }
@@ -110,6 +120,7 @@ final class UpdateDownloader {
         if (!part.renameTo(target)) throw new IOException("无法保存更新包");
         built = target;
       }
+      verifyInstallable(built);
       ready(listener, built);
     } catch (Exception failure) {
       checkCancelled();
@@ -240,6 +251,122 @@ final class UpdateDownloader {
       StringBuilder value = new StringBuilder();
       for (byte item : digest.digest()) value.append(String.format(java.util.Locale.ROOT, "%02x", item & 0xff));
       return value.toString();
+    }
+  }
+
+  private void verifyInstallable(File apk) throws IOException {
+    PackageManager pm = context.getPackageManager();
+    if (pm == null) return;
+    PackageInfo archive = readArchiveInfo(pm, apk.getAbsolutePath());
+    if (archive == null) {
+      apk.delete();
+      throw new IOException("无法解析安装包信息，请重试");
+    }
+    PackageInfo installed = readInstalledInfo(pm, context.getPackageName());
+    long installedCode = installed != null ? packageVersionCode(installed) : BuildConfig.VERSION_CODE;
+    long archiveCode = packageVersionCode(archive);
+    try {
+      verifyArchiveCompatibility(
+          context.getPackageName(),
+          installedCode,
+          signerDigests(installed),
+          archive.packageName,
+          archiveCode,
+          signerDigests(archive));
+    } catch (IOException incompatible) {
+      apk.delete();
+      throw incompatible;
+    }
+  }
+
+  static void verifyArchiveCompatibility(
+      String installedPackage,
+      long installedVersionCode,
+      Set<String> installedSigners,
+      String archivePackage,
+      long archiveVersionCode,
+      Set<String> archiveSigners) throws IOException {
+    if (archivePackage == null || archivePackage.isBlank()) {
+      throw new IOException("无法解析安装包信息，请重试");
+    }
+    if (!archivePackage.equals(installedPackage)) {
+      throw new IOException("当前安装的是独立测试包，无法直接覆盖更新，请前往官网下载正式版安装");
+    }
+    if (archiveVersionCode > 0 && archiveVersionCode <= installedVersionCode) {
+      throw new IOException("下载的安装包版本不高于当前版本，请稍后重试或前往官网下载");
+    }
+    if (installedSigners != null && !installedSigners.isEmpty()
+        && archiveSigners != null && !archiveSigners.isEmpty()
+        && !installedSigners.equals(archiveSigners)) {
+      throw new IOException("当前已安装版本的签名与正式版不一致，无法直接覆盖更新，请先卸载旧版后前往官网下载完整安装包");
+    }
+  }
+
+  @SuppressWarnings("deprecation")
+  private static PackageInfo readInstalledInfo(PackageManager pm, String packageName) {
+    try {
+      if (Build.VERSION.SDK_INT >= 33) {
+        return pm.getPackageInfo(
+            packageName, PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES));
+      }
+      int flags = Build.VERSION.SDK_INT >= 28
+          ? PackageManager.GET_SIGNING_CERTIFICATES : PackageManager.GET_SIGNATURES;
+      return pm.getPackageInfo(packageName, flags);
+    } catch (PackageManager.NameNotFoundException | RuntimeException ignored) {
+      return null;
+    }
+  }
+
+  @SuppressWarnings("deprecation")
+  private static PackageInfo readArchiveInfo(PackageManager pm, String apkPath) {
+    try {
+      if (Build.VERSION.SDK_INT >= 33) {
+        return pm.getPackageArchiveInfo(
+            apkPath, PackageManager.PackageInfoFlags.of(PackageManager.GET_SIGNING_CERTIFICATES));
+      }
+      int flags = Build.VERSION.SDK_INT >= 28
+          ? PackageManager.GET_SIGNING_CERTIFICATES : PackageManager.GET_SIGNATURES;
+      return pm.getPackageArchiveInfo(apkPath, flags);
+    } catch (RuntimeException ignored) {
+      return null;
+    }
+  }
+
+  @SuppressWarnings("deprecation")
+  private static long packageVersionCode(PackageInfo info) {
+    return Build.VERSION.SDK_INT >= 28 ? info.getLongVersionCode() : info.versionCode;
+  }
+
+  @SuppressWarnings("deprecation")
+  private static Set<String> signerDigests(PackageInfo info) {
+    if (info == null) return Collections.emptySet();
+    Signature[] signatures = null;
+    if (Build.VERSION.SDK_INT >= 28) {
+      SigningInfo signing = info.signingInfo;
+      if (signing != null) {
+        signatures = signing.getApkContentsSigners();
+        if (signatures == null || signatures.length == 0) {
+          signatures = signing.getSigningCertificateHistory();
+        }
+      }
+    } else {
+      signatures = info.signatures;
+    }
+    if (signatures == null || signatures.length == 0) return Collections.emptySet();
+    try {
+      MessageDigest md = MessageDigest.getInstance("SHA-256");
+      Set<String> digests = new HashSet<>();
+      for (Signature sig : signatures) {
+        if (sig == null) continue;
+        md.reset();
+        byte[] hash = md.digest(sig.toByteArray());
+        StringBuilder hex = new StringBuilder(hash.length * 2);
+        for (byte b : hash) hex.append(String.format(Locale.ROOT, "%02x", b & 0xff));
+        digests.add(hex.toString());
+      }
+      return digests;
+    } catch (java.security.NoSuchAlgorithmException impossible) {
+      return Collections.emptySet();
     }
   }
 

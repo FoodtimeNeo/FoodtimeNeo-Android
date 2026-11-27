@@ -17,8 +17,8 @@ android {
         applicationId 'cn.edu.bjtu.foodtime'
         minSdk 26
         targetSdk 36
-        versionCode 36
-        versionName '2.1.10'
+        versionCode 37
+        versionName '2.1.11'
         buildConfigField 'String', 'API_BASE_URL', '"' + apiBaseUrl.replace('"', '\\"') + '"'
         testInstrumentationRunner providers.gradleProperty('FOODTIME_TEST_RUNNER').getOrElse('cn.edu.bjtu.foodtime.presentation.RemoteUiRunner')
     }
@@ -36,7 +36,8 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix providers.gradleProperty('FOODTIME_DEBUG_SUFFIX').getOrElse('')
+            // 默认隔离 debug 包名，避免本地调试包与正式签名包共用 applicationId 导致覆盖更新签名冲突。
+            applicationIdSuffix providers.gradleProperty('FOODTIME_DEBUG_SUFFIX').getOrElse('.debug')
             buildConfigField 'boolean', 'COMMUNITY_PROTOTYPE_ENABLED', communityPrototype.getOrElse('false')
         }
         release {
