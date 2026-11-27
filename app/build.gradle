@@ -36,7 +36,8 @@ android {
 
     buildTypes {
         debug {
-            applicationIdSuffix providers.gradleProperty('FOODTIME_DEBUG_SUFFIX').getOrElse('')
+            // 默认隔离 debug 包名，避免本地调试包与正式签名包共用 applicationId 导致覆盖更新签名冲突。
+            applicationIdSuffix providers.gradleProperty('FOODTIME_DEBUG_SUFFIX').getOrElse('.debug')
             buildConfigField 'boolean', 'COMMUNITY_PROTOTYPE_ENABLED', communityPrototype.getOrElse('false')
         }
         release {
