@@ -490,7 +490,8 @@ public final class RemoteRepository implements FoodtimeRepository {
   private void fetchHalls() {
     var items=list("dining-halls",j -> new Hall(text(j,"id"),text(j,"name"),text(j,"coverImageUrl"),true,
         j.isNull("averageScore")?null:new BigDecimal(j.opt("averageScore").toString()),j.optLong("reviewCount"),
-        j.isNull("latitude")?null:j.optDouble("latitude"),j.isNull("longitude")?null:j.optDouble("longitude")));
+        j.isNull("latitude")?null:j.optDouble("latitude"),j.isNull("longitude")?null:j.optDouble("longitude"),
+        j.has("stallCount")&&!j.isNull("stallCount")?Math.max(0,j.optInt("stallCount",-1)):-1));
     Set<String> fresh=new HashSet<>();
     for(Hall h:items){halls.put(h.id(),h);fresh.add(h.id());}
     halls.keySet().retainAll(fresh);
@@ -502,6 +503,15 @@ public final class RemoteRepository implements FoodtimeRepository {
     for(Stall s:items){stalls.put(s.id(),s);fresh.add(s.id());}
     stalls.entrySet().removeIf(e -> e.getValue().diningHallId().equals(id)&&!fresh.contains(e.getKey()));
     stallLists.put(id,items);
+    Hall existing=halls.get(id);
+    if(existing!=null&&existing.stallCount()!=items.size()) {
+      Hall updated=new Hall(existing.id(),existing.name(),existing.coverImageUrl(),existing.active(),
+          existing.averageScore(),existing.reviewCount(),existing.latitude(),existing.longitude(),items.size());
+      halls.put(id,updated);
+      List<Hall> next=new ArrayList<>(hallList.size());
+      for(Hall h:hallList) next.add(h.id().equals(id)?updated:h);
+      hallList=Collections.unmodifiableList(next);
+    }
   }
   private void ensureStall(String id) {
     Stall known=stalls.get(id);
