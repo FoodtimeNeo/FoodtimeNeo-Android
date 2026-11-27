@@ -242,25 +242,12 @@ final class DiningScreen {
       location = "主校区";
     }
 
-    List<Stall> stalls = (a != null && a.repo != null) ? a.repo.stalls(hall.id()) : null;
-    int count = (stalls != null) ? stalls.size() : 0;
-    if (count > 0) {
-      return location + " · " + count + "个档口";
+    if (hall.stallCount() >= 0) {
+      return location + " · " + hall.stallCount() + "个档口";
     }
-    int knownCount = switch (name) {
-      case "东区学生餐厅" -> 18;
-      case "明湖餐厅1楼" -> 12;
-      case "明湖餐厅2楼" -> 10;
-      case "明湖餐厅3楼" -> 8;
-      case "学活一楼" -> 14;
-      case "学活二楼" -> 9;
-      case "学四食堂" -> 16;
-      case "学苑餐厅" -> 11;
-      case "留园食堂", "留园餐厅" -> 6;
-      default -> 0;
-    };
-    if (knownCount > 0) {
-      return location + " · " + knownCount + "个档口";
+    List<Stall> stalls = (a != null && a.repo != null) ? a.repo.stalls(hall.id()) : null;
+    if (stalls != null && !stalls.isEmpty()) {
+      return location + " · " + stalls.size() + "个档口";
     }
     return location;
   }
