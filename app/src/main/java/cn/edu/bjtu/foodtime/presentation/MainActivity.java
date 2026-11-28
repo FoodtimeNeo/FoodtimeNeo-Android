@@ -252,6 +252,7 @@ public class MainActivity extends Activity {
     screens.put("dining", DiningScreen::halls);
     screens.put("campus-map", CampusMapScreen::show);
     screens.put("dish-search", UnifiedSearchScreen::show);
+    screens.put("smart-recommend", SmartRecommendScreen::show);
     screens.put("price-history", PriceHistoryScreen::show);
     screens.put("favorite-dishes", FavoriteDishesScreen::show);
     screens.put("correction", CorrectionScreen::submit);
