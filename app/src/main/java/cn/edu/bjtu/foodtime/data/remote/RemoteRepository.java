@@ -551,9 +551,23 @@ public final class RemoteRepository implements FoodtimeRepository {
   }
 
   private JSONObject searchBody(cn.edu.bjtu.foodtime.domain.model.SearchModels.Query q,int page) {
-    return json("q",q.q(),"diningHallIds",new JSONArray(q.halls()),"minPrice",q.minPrice(),"maxPrice",q.maxPrice(),
+    JSONObject body=json("q",q.q(),"diningHallIds",new JSONArray(q.halls()),"minPrice",q.minPrice(),"maxPrice",q.maxPrice(),
         "minRating",q.minRating(),"sort",q.sort(),"type",q.type(),"latitude",q.latitude(),"longitude",q.longitude(),
         "previewSize",q.previewSize(),"page",page,"size",10);
+    try {
+      if(q.portionOnly()) body.put("portionOnly",true);
+      if(!q.tags().isEmpty()) body.put("tags",new JSONArray(q.tags()));
+      if(!q.excludeTags().isEmpty()) body.put("excludeTags",new JSONArray(q.excludeTags()));
+    } catch(JSONException e) { throw new IllegalArgumentException(e); }
+    return body;
+  }
+  private static List<String> stringList(JSONObject row,String key) {
+    if(row==null) return List.of();
+    JSONArray arr=row.optJSONArray(key);
+    if(arr==null||arr.length()==0) return List.of();
+    var out=new ArrayList<String>(arr.length());
+    for(int i=0;i<arr.length();i++){String v=arr.optString(i,"");if(!v.isBlank())out.add(v);}
+    return List.copyOf(out);
   }
   private static JSONArray array(JSONObject data,String key) {
     JSONArray value=data.optJSONArray(key);
@@ -564,7 +578,46 @@ public final class RemoteRepository implements FoodtimeRepository {
   private static Double optionalDouble(JSONObject row,String field) { return row.isNull(field)?null:row.optDouble(field); }
   private static cn.edu.bjtu.foodtime.domain.model.SearchModels.Dish searchDish(JSONObject row) {
     return new cn.edu.bjtu.foodtime.domain.model.SearchModels.Dish(text(row,"id"),text(row,"name"),decimal(row,"price"),
-        text(row,"priceUnit"),text(row,"imageUrl"),decimal(row,"averageScore"),row.optLong("reviewCount"));
+        text(row,"priceUnit"),text(row,"imageUrl"),decimal(row,"averageScore"),row.optLong("reviewCount"),stringList(row,"tags"));
+  }
+  @Override public List<cn.edu.bjtu.foodtime.domain.model.DishTagModels.DishTag> loadDishTags() {
+    return list("dishes/tags", row -> new cn.edu.bjtu.foodtime.domain.model.DishTagModels.DishTag(
+        text(row,"code"), text(row,"label"), text(row,"dimension"), text(row,"dimensionLabel"), row.optInt("sortOrder")));
+  }
+  @Override public cn.edu.bjtu.foodtime.domain.model.DishTagModels.SmartRecommendResult recommendDishes(
+      cn.edu.bjtu.foodtime.domain.model.DishTagModels.SmartRecommendQuery q) {
+    JSONObject body=new JSONObject();
+    try {
+      if(!q.diningHallIds().isEmpty()) body.put("diningHallIds",new JSONArray(q.diningHallIds()));
+      if(q.minPrice()!=null) body.put("minPrice",q.minPrice());
+      if(q.maxPrice()!=null) body.put("maxPrice",q.maxPrice());
+      body.put("portionOnly",q.portionOnly());
+      if(q.minRating()!=null) body.put("minRating",q.minRating());
+      if(!q.includeTags().isEmpty()) body.put("includeTags",new JSONArray(q.includeTags()));
+      if(!q.excludeTags().isEmpty()) body.put("excludeTags",new JSONArray(q.excludeTags()));
+      if(!q.excludeDishIds().isEmpty()) body.put("excludeDishIds",new JSONArray(q.excludeDishIds()));
+      body.put("sort",q.sort());
+      if(q.latitude()!=null&&q.longitude()!=null){body.put("latitude",q.latitude());body.put("longitude",q.longitude());}
+      body.put("limit",q.limit());
+      body.put("seed",q.seed());
+    } catch(JSONException e) { throw new IllegalArgumentException(e); }
+    JSONObject data=call("POST","recommendations/dishes/query",body);
+    var items=new ArrayList<cn.edu.bjtu.foodtime.domain.model.DishTagModels.RecommendedDish>();
+    JSONArray rows=data.optJSONArray("items");
+    if(rows!=null){for(int i=0;i<rows.length();i++){JSONObject item=rows.optJSONObject(i);if(item!=null)items.add(recommendedDish(item));}}
+    JSONObject pickedObj=data.optJSONObject("picked");
+    var picked=pickedObj==null?null:recommendedDish(pickedObj);
+    return new cn.edu.bjtu.foodtime.domain.model.DishTagModels.SmartRecommendResult(
+        data.optBoolean("exactMode",true), data.optLong("exactTotal",0), data.optInt("returnedCount",items.size()),
+        stringList(data,"relaxedHints"), picked, items);
+  }
+  private static cn.edu.bjtu.foodtime.domain.model.DishTagModels.RecommendedDish recommendedDish(JSONObject row) {
+    return new cn.edu.bjtu.foodtime.domain.model.DishTagModels.RecommendedDish(
+        text(row,"id"), text(row,"name"), decimal(row,"price"), text(row,"priceUnit"), text(row,"imageUrl"),
+        text(row,"stallId"), text(row,"stallName"), text(row,"diningHallId"), text(row,"diningHallName"),
+        decimal(row,"averageScore"), row.optLong("reviewCount"), optionalDouble(row,"distanceMeters"),
+        stringList(row,"tags"), stringList(row,"matchedTags"), stringList(row,"missedRequirements"),
+        stringList(row,"reasons"), row.optDouble("matchScore",0d));
   }
   private JSONObject publicSearch(String resource,cn.edu.bjtu.foodtime.domain.model.SearchModels.Query query,JSONObject body) {
     if(query.latitude()!=null||query.longitude()!=null||query.sort().equals("distance"))return call("POST","search/"+resource+"/query",body);
@@ -917,7 +970,7 @@ public final class RemoteRepository implements FoodtimeRepository {
     String hall=text(j,"diningHallId");
     if(!halls.containsKey(hall)) fetchHalls();
     if(!stalls.containsKey(stall)) fetchStalls(hall);
-    dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true,j.optLong("revision",0),text(j,"priceUnit")));
+    dishes.put(id,new Dish(id,stall,text(j,"name"),decimal(j,"price"),text(j,"description"),true,j.optLong("revision",0),text(j,"priceUnit"),"",null,0,stringList(j,"tags")));
     contexts.put(id,joined(j,true));
   }
   private void fetchDishImages(String id) {

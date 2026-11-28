@@ -88,6 +88,14 @@ final class DishScreen {
       TextView description=Ui.text(a,d.description(),15,Design.MUTED);
       description.setPadding(Ui.dp(a,16),0,Ui.dp(a,16),Ui.dp(a,10));hero.addView(description);
     }
+    if (!d.tags().isEmpty()) {
+      String tagLine = cn.edu.bjtu.foodtime.domain.model.DishTagModels.joinLabels(d.tags(), null, 8);
+      if (!tagLine.isBlank()) {
+        TextView tagsView = Ui.text(a, "标签：" + tagLine, 12, Design.MUTED);
+        tagsView.setPadding(Ui.dp(a, 16), 0, Ui.dp(a, 16), Ui.dp(a, 8));
+        hero.addView(tagsView);
+      }
+    }
     LinearLayout photoActions=Ui.row(a);photoActions.setPadding(Ui.dp(a,16),Ui.dp(a,4),Ui.dp(a,16),0);
     TextView upload = Ui.button(a, "上传图片", false, () -> a.go("upload-photo", d.id()));
     upload.setContentDescription("上传菜品图片");

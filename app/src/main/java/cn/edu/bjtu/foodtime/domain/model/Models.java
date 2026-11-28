@@ -44,8 +44,10 @@ public final class Models {
       BigDecimal price,
       String description,
       boolean active,
-      long revision, String priceUnit, String coverImageUrl, BigDecimal averageScore, long reviewCount) {
-    public Dish(String id,String stallId,String name,BigDecimal price,String description,boolean active,long revision,String priceUnit){this(id,stallId,name,price,description,active,revision,priceUnit,"",null,0);}
+      long revision, String priceUnit, String coverImageUrl, BigDecimal averageScore, long reviewCount, List<String> tags) {
+    public Dish { tags = tags == null ? List.of() : List.copyOf(tags); }
+    public Dish(String id,String stallId,String name,BigDecimal price,String description,boolean active,long revision,String priceUnit,String coverImageUrl,BigDecimal averageScore,long reviewCount){this(id,stallId,name,price,description,active,revision,priceUnit,coverImageUrl,averageScore,reviewCount,List.of());}
+    public Dish(String id,String stallId,String name,BigDecimal price,String description,boolean active,long revision,String priceUnit){this(id,stallId,name,price,description,active,revision,priceUnit,"",null,0,List.of());}
     public Dish(String id,String stallId,String name,BigDecimal price,String description,boolean active,long revision){this(id,stallId,name,price,description,active,revision,"unspecified");}
   }
 
