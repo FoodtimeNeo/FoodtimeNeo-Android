@@ -7,11 +7,26 @@ import cn.edu.bjtu.foodtime.domain.model.Models.CommunityPost;
 public final class SearchModels {
   private SearchModels() {}
   public record Query(String q,List<String> halls,BigDecimal minPrice,BigDecimal maxPrice,
-      BigDecimal minRating,String sort,String type,Double latitude,Double longitude,int previewSize) {
-    public Query { halls=List.copyOf(halls); }
+      BigDecimal minRating,String sort,String type,Double latitude,Double longitude,int previewSize,
+      boolean portionOnly,List<String> tags,List<String> excludeTags) {
+    public Query {
+      halls=halls==null?List.of():List.copyOf(halls);
+      tags=tags==null?List.of():List.copyOf(tags);
+      excludeTags=excludeTags==null?List.of():List.copyOf(excludeTags);
+    }
+    public Query(String q,List<String> halls,BigDecimal minPrice,BigDecimal maxPrice,
+        BigDecimal minRating,String sort,String type,Double latitude,Double longitude,int previewSize) {
+      this(q,halls,minPrice,maxPrice,minRating,sort,type,latitude,longitude,previewSize,false,List.of(),List.of());
+    }
   }
   public record Dish(String id,String name,BigDecimal price,String priceUnit,String imageUrl,
-      BigDecimal averageScore,long reviewCount) {}
+      BigDecimal averageScore,long reviewCount,List<String> tags) {
+    public Dish { tags=tags==null?List.of():List.copyOf(tags); }
+    public Dish(String id,String name,BigDecimal price,String priceUnit,String imageUrl,
+        BigDecimal averageScore,long reviewCount) {
+      this(id,name,price,priceUnit,imageUrl,averageScore,reviewCount,List.of());
+    }
+  }
   public record Stall(String id,String name,String hallId,String hallName,String imageUrl,
       BigDecimal averageScore,long reviewCount,Double distanceMeters,long matchCount,List<Dish> dishes) {
     public Stall { dishes=List.copyOf(dishes); }

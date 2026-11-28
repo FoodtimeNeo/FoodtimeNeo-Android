@@ -43,6 +43,7 @@ docs/
 | | [加载与骨架屏体验](modules/loading-experience.md) | 列表加载态、下拉刷新、骨架屏与缺省页设计 |
 | | [媒体资源客户端缓存](modules/media-cache.md) | 图片三级缓存策略、内存复用与本地磁盘管理 |
 | | [本机发帖草稿](modules/post-drafts.md) | 每账号单份草稿、退出保存选择、冷启动恢复与注销清理 |
+| | [精准选餐与多维搜菜](modules/smart-recommender.md) | `smart-recommend` 精准选餐、单份预算检索、忌口排除与换一道 |
 | **版本与交付记录** (`releases/`) | [v1.0.0 发布说明](releases/release-1.0.0.md) | 基础首发版本与核心功能验收 |
 | | [v1.0.1 发布说明](releases/release-1.0.1.md) | 热修补丁与稳定性改进 |
 | | [v1.1.1 发布说明](releases/release-1.1.1.md) | 增强型点评与安全修复 |

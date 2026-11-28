@@ -80,7 +80,31 @@ final class DiningScreen {
     searchRow.addView(mapBtn, mapLp);
 
     page.addView(searchRow, new LinearLayout.LayoutParams(-1, -2));
-    Ui.gap(page, 16);
+    Ui.gap(page, 10);
+
+    // 精准选餐入口条：单份预算 + 菜类/肉类/做法/忌口自由选餐与抽菜
+    LinearLayout smartBanner = Ui.row(a);
+    smartBanner.setGravity(Gravity.CENTER_VERTICAL);
+    smartBanner.setPadding(Ui.dp(a, 14), Ui.dp(a, 10), Ui.dp(a, 12), Ui.dp(a, 10));
+    smartBanner.setBackground(Ui.ripple(a, Design.PAPER, Design.BORDER, 14));
+    smartBanner.setFocusable(true);
+    smartBanner.setClickable(true);
+    smartBanner.setTag("dining-smart-recommend");
+    smartBanner.setContentDescription("今天吃什么，按单份预算和口味标签精准选餐");
+    LinearLayout smartCopy = Ui.col(a);
+    TextView smartTitle = Ui.text(a, "今天吃什么 · 精准选餐", 14, Design.INK);
+    smartTitle.setTypeface(Typeface.create(Design.body(), Typeface.BOLD));
+    smartCopy.addView(smartTitle);
+    smartCopy.addView(Ui.text(a, "单份预算 · 品类肉类做法 · 忌口排除 · 帮我抽一道", 11, Design.MUTED));
+    smartBanner.addView(smartCopy, new LinearLayout.LayoutParams(0, -2, 1));
+    TextView smartGo = Ui.text(a, "去选餐 ›", 12, Design.RED);
+    smartGo.setTypeface(Typeface.create(Design.body(), Typeface.BOLD));
+    smartGo.setPadding(Ui.dp(a, 10), Ui.dp(a, 5), Ui.dp(a, 10), Ui.dp(a, 5));
+    smartGo.setBackground(Ui.shape(a, Design.RED_SOFT, 0, 14));
+    smartBanner.addView(smartGo);
+    smartBanner.setOnClickListener(v -> a.go("smart-recommend", ""));
+    page.addView(smartBanner, new LinearLayout.LayoutParams(-1, -2));
+    Ui.gap(page, 14);
 
     // 今日推荐紧凑横向发现条
     RecommendationSection.show(a, page);
