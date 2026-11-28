@@ -104,7 +104,7 @@ final class SmartRecommendScreen {
     portionCheck.setText("仅看按份或碗计价（排除称重、按个与未知价格）");
     portionCheck.setTextSize(13);
     portionCheck.setTextColor(Design.INK);
-    portionCheck.setChecked(true);
+    portionCheck.setChecked(false);
     portionCheck.setOnCheckedChangeListener((v, checked) -> {
       saveDraft();
       updateSummary();
@@ -439,7 +439,7 @@ final class SmartRecommendScreen {
     excludeDishIds.clear();
     minInput.setText("");
     maxInput.setText("");
-    portionCheck.setChecked(true);
+    portionCheck.setChecked(false);
     minRating = "";
     sort = "match";
     seed = 0;
@@ -731,7 +731,7 @@ final class SmartRecommendScreen {
     if (h != null) selectedHalls.addAll(h);
     minInput.setText(a.drafts.getString(key + ":min", ""));
     maxInput.setText(a.drafts.getString(key + ":max", ""));
-    portionCheck.setChecked(a.drafts.getBoolean(key + ":portionOnly", true));
+    portionCheck.setChecked(a.drafts.getBoolean(key + ":portionOnly", false));
     minRating = a.drafts.getString(key + ":rating", "");
     includeTags.clear();
     var inc = a.drafts.getStringArrayList(key + ":includeTags");
